@@ -61,7 +61,7 @@ endif()
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 # Whether or not to compile with MKL
-option (MKL "Compile using the MKL" OFF)
+option (MKL "Compile using the MKL" ON)
 if (MKL)
     set ( ENV{BLA_VENDOR} "Intel10_64lp" )
 endif (MKL)
@@ -120,3 +120,28 @@ set_target_properties (clib_pdft PROPERTIES
     CLEAN_DIRECT_OUTPUT 1
     LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}
     OUTPUT_NAME "pdft")
+
+# Build the ISDF library
+
+# add_subdirectory(isdf)
+
+add_library(isdf SHARED 
+  ../pbc/df/isdf/pbc_isdf_samplek.c 
+  ../pbc/df/isdf/pbc_isdf_V.c 
+  ../pbc/df/isdf/pbc_isdf_auxbasis.c 
+  ../pbc/df/isdf/pbc_isdf_sparse.c 
+  ../pbc/df/isdf/pbc_isdf_eri.c)
+
+set_target_properties(isdf PROPERTIES
+  LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR})
+
+target_link_libraries(isdf cgto cint cvhf np_helper ${BLAS_LIBRARIES} ${OPENMP_C_PROPERTIES})
+
+if(ENABLE_FFTW)
+add_library(fft SHARED ../pyscf/pbc/df/isdf/fft.c)
+set_target_properties(fft PROPERTIES
+  LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}
+  COMPILE_FLAGS ${OpenMP_C_FLAGS}
+  LINK_FLAGS ${OpenMP_C_FLAGS})
+target_link_libraries(fft fftw3_threads fftw3 ${BLAS_LIBRARIES})
+endif()
