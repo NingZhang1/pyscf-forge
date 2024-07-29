@@ -28,7 +28,7 @@ from pyscf import lib
 from pyscf.pbc.gto import Cell
 from pyscf.pbc import tools
 from pyscf.gto.mole import *
-libpbc = lib.load_library('libpbc')
+libisdf = lib.load_library('libisdf')
 
 ############ isdf utils ############
 
@@ -241,7 +241,7 @@ def select_IP_local_ls_k_drive(mydf, c, m, IP_possible_atm, group,
         nthread        = lib.num_threads()
         buffer         = np.zeros((nao_prim, ncell_complex*mydf.nIP_Prim), dtype=np.complex128)
         
-        fn = getattr(libpbc, "_FFT_Matrix_Col_InPlace", None)
+        fn = getattr(libisdf, "_FFT_Matrix_Col_InPlace", None)
         assert fn is not None
     
         '''
@@ -351,7 +351,7 @@ def build_auxiliary_Coulomb_local_bas_k(mydf, debug=True, use_mpi=False):
             assert shift_row is None
             V = np.zeros((nAux, ngrids), dtype=np.double)
                     
-        fn = getattr(libpbc, "_construct_V_local_bas", None)
+        fn = getattr(libisdf, "_construct_V_local_bas", None)
         assert(fn is not None)
 
         if shift_row is None:
@@ -1279,7 +1279,10 @@ if __name__ == "__main__":
                                                      partition=prim_partition, ke_cutoff=KE_CUTOFF, verbose=verbose)
     
     # pbc_isdf_info = PBC_ISDF_Info_Quad_K(cell, kmesh=Ls, with_robust_fitting=True, aoR_cutoff=1e-8, direct=False, rela_cutoff_QRCP=3e-3)
-    pbc_isdf_info = PBC_ISDF_Info_Quad_K(prim_cell, kmesh=Ls, with_robust_fitting=True, aoR_cutoff=1e-8, direct=True, rela_cutoff_QRCP=3e-3,
+    pbc_isdf_info = PBC_ISDF_Info_Quad_K(prim_cell, kmesh=Ls, with_robust_fitting=True, aoR_cutoff=1e-8, 
+                                         # direct=True, 
+                                         direct=False, 
+                                         rela_cutoff_QRCP=3e-3,
                                          limited_memory=True, build_K_bunchsize=32)
     pbc_isdf_info.build_IP_local(c=C, m=5, group=prim_partition, Ls=[Ls[0]*10, Ls[1]*10, Ls[2]*10])
     pbc_isdf_info.verbose = 10
@@ -1355,7 +1358,7 @@ if __name__ == "__main__":
     
     # exit(1)
     
-    # pbc_isdf_info.build_auxiliary_Coulomb(debug=True)
+    pbc_isdf_info.build_auxiliary_Coulomb(debug=True)
     
     # print("grid_segment = ", pbc_isdf_info.grid_segment)
     

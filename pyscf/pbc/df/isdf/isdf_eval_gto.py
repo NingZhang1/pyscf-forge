@@ -26,7 +26,19 @@ from pyscf import __config__
 
 EXTRA_PREC = getattr(__config__, 'pbc_gto_eval_gto_extra_precision', 1e-2)
 
-libpbc = _pbcintor.libpbc
+libpbc  = _pbcintor.libpbc
+libisdf = lib.load_library('libisdf')
+
+def z2d_InPlace(z):
+    '''Convert complex array to double array in-place'''
+    assert(z.dtype == numpy.complex128)
+    
+    fn = getattr(libisdf, "NPz2d_InPlace")
+    assert(fn is not None)
+    fn(z.ctypes.data_as(ctypes.c_void_p),
+         ctypes.c_size_t(z.size))
+    z_real = numpy.ndarray(shape=z.shape, dtype=numpy.double, buffer=z)
+    return z_real
 
 def _estimate_rcut(cell):
     '''Cutoff raidus, above which each shell decays to a value less than the
@@ -175,7 +187,7 @@ def ISDF_eval_gto(cell, eval_name=None, coords=None, comp=None, kpts=numpy.zeros
             env.ctypes.data_as(ctypes.c_void_p))
   
     out = out[0]
-    out = lib.z2d_InPlace(out)
+    out = z2d_InPlace(out)
     return out[0]
 
 

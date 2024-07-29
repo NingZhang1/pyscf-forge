@@ -38,6 +38,7 @@ libisdf = lib.load_library('libisdf')
 
 from isdf_jk import _benchmark_time
 from isdf_tools_local import _pack_aoR_holder, _get_aoR_holders_memory
+import isdf_tools_linearop    as     lib_isdf
 
 ############ GLOBAL PARAMETER ############
 
@@ -399,7 +400,7 @@ def _isdf_get_K_direct_kernel_1(
         
         #### 3.2 V_tmp = Density_RgR * V
         
-        lib.cwise_mul(V_tmp, Density_RgR, out=Density_RgR)
+        lib_isdf.cwise_mul(V_tmp, Density_RgR, out=Density_RgR)
         V2_tmp = Density_RgR
         
         #### 3.3 K1_tmp1 = V2_tmp * aoR.T

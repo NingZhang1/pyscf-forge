@@ -36,6 +36,7 @@ from isdf_local_jk   import J_MAX_GRID_BUNCHSIZE, __get_DensityMatrixonRgAO_qrad
 from isdf_tools_kSampling     import _RowCol_FFT_bench
 from _isdf_local_K_direct     import _isdf_get_K_direct_kernel_1
 libisdf = lib.load_library('libisdf')
+import isdf_tools_linearop    as     lib_isdf
 
 ############ subroutines ############
 
@@ -363,7 +364,7 @@ def _contract_j_dm_k_ls(mydf, _dm, use_mpi=False):
         assert aoR_holder_ket.aoR.shape[1] == J_tmp.size
         
         aoR_J_res = np.ndarray(aoR_holder_bra.aoR.shape, buffer=aoR_buf1)
-        lib.d_ij_j_ij(aoR_holder_bra.aoR, J_tmp, out=aoR_J_res)
+        lib_isdf.d_ij_j_ij(aoR_holder_bra.aoR, J_tmp, out=aoR_J_res)
         
         nao_bra = aoR_holder_bra.aoR.shape[0]
         nao_ket = aoR_holder_ket.aoR.shape[0]
@@ -612,7 +613,7 @@ def _get_k_kSym_robust_fitting_fast(mydf, _dm):
     
     # inplace multiplication
     
-    lib.cwise_mul(mydf.W, DM_RgRg_real, out=DM_RgRg_real)
+    lib_isdf.cwise_mul(mydf.W, DM_RgRg_real, out=DM_RgRg_real)
     
     t4 = (logger.process_clock(), logger.perf_counter())
     _benchmark_time(t3, t4, "lib.cwise_mul 2", mydf)
@@ -863,7 +864,7 @@ def _get_k_kSym_robust_fitting_fast(mydf, _dm):
         
     # inplace multiplication
     
-    lib.cwise_mul(mydf.V_R, DM_RgR_real, out=DM_RgR_real)
+    lib_isdf.cwise_mul(mydf.V_R, DM_RgR_real, out=DM_RgR_real)
     
     t4 = (logger.process_clock(), logger.perf_counter())
     _benchmark_time(t3, t4, "cwise_mul", mydf)
@@ -1180,7 +1181,7 @@ def _get_k_kSym(mydf, _dm):
     
     # inplace multiplication
     
-    lib.cwise_mul(mydf.W, DM_RgRg_real, out=DM_RgRg_real)
+    lib_isdf.cwise_mul(mydf.W, DM_RgRg_real, out=DM_RgRg_real)
     
     offset = nIP_prim * nIP_prim * ncell_complex * DM_RgRg_complex.itemsize
     

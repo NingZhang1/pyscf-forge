@@ -5,6 +5,8 @@
 #include <math.h>
 #include <omp.h>
 #include "fft.h"
+#include <stdlib.h>
+#include <lapacke.h>
 
 int get_omp_threads();
 int omp_get_thread_num();

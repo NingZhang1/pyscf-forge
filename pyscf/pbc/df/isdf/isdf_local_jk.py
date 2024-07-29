@@ -36,6 +36,7 @@ libisdf = lib.load_library('libisdf')
 
 from isdf_jk import _benchmark_time
 from _isdf_local_K_direct import _isdf_get_K_direct_kernel_1
+import isdf_tools_linearop    as     lib_isdf
 
 ############ GLOBAL PARAMETER ############
 
@@ -451,7 +452,7 @@ def _contract_j_dm_ls(mydf, dm,
         if _bra_type == _ket_type:
             
             aoR_J_res = np.ndarray(_aoR_ket.shape, buffer=aoR_buf1)
-            lib.d_ij_j_ij(_aoR_ket, _potential, out=aoR_J_res)
+            lib_isdf.d_ij_j_ij(_aoR_ket, _potential, out=aoR_J_res)
             ddot_res = np.ndarray((nao_ket, nao_ket), buffer=ddot_buf)
             lib.ddot(_aoR_ket, aoR_J_res.T, c=ddot_res)
             
@@ -470,7 +471,7 @@ def _contract_j_dm_ls(mydf, dm,
             ### J_Res = ddot_res + ddot_res.T
             
             aoR_J_res = np.ndarray(_aoR_ket.shape, buffer=aoR_buf1)
-            lib.d_ij_j_ij(_aoR_ket, _potential, out=aoR_J_res)
+            lib_isdf.d_ij_j_ij(_aoR_ket, _potential, out=aoR_J_res)
             ddot_res = np.ndarray((nao_bra, nao_ket), buffer=ddot_buf)
             lib.ddot(_aoR_bra, aoR_J_res.T, c=ddot_res)
             
@@ -698,7 +699,7 @@ def _contract_j_dm_wo_robust_fitting(mydf, dm, use_mpi=False):
         J_tmp = J[global_gridID_begin:global_gridID_begin+ngrids_now] 
         
         aoR_J_res = np.ndarray(aoR_holder.aoR.shape, buffer=aoR_buf1)
-        lib.d_ij_j_ij(aoR_holder.aoR, J_tmp, out=aoR_J_res)
+        lib_isdf.d_ij_j_ij(aoR_holder.aoR, J_tmp, out=aoR_J_res)
         ddot_res = np.ndarray((nao_involved, nao_involved), buffer=ddot_buf)
         lib.ddot(aoR_holder.aoR, aoR_J_res.T, c=ddot_res)
         
@@ -977,7 +978,7 @@ def _contract_k_dm_quadratic(mydf, dm, with_robust_fitting=True, use_mpi=False):
             ctypes.c_int(nIP_loc),
             ctypes.c_int(nIP_loc+nIP_now)
         )
-        lib.cwise_mul(W_packed, Density_RgRg, out=Density_RgRg)
+        lib_isdf.cwise_mul(W_packed, Density_RgRg, out=Density_RgRg)
         W_tmp = Density_RgRg
 
         # ddot
@@ -1049,7 +1050,7 @@ def _contract_k_dm_quadratic(mydf, dm, with_robust_fitting=True, use_mpi=False):
         assert V_R is not None
         assert isinstance(V_R, np.ndarray)
         
-        # lib.cwise_mul(V_R, Density_RgR, out=Density_RgR)
+        # lib_isdf.cwise_mul(V_R, Density_RgR, out=Density_RgR)
         
         K2 = K1
         K2.ravel()[:] = 0.0    
@@ -1108,7 +1109,7 @@ def _contract_k_dm_quadratic(mydf, dm, with_robust_fitting=True, use_mpi=False):
                 ctypes.c_int(ngrid_loc),
                 ctypes.c_int(ngrid_loc+ngrid_now)
             )
-            lib.cwise_mul(V_packed, Density_RgR, out=Density_RgR)
+            lib_isdf.cwise_mul(V_packed, Density_RgR, out=Density_RgR)
             V_tmp = Density_RgR
                         
             ddot_res = np.ndarray((naux, nao_involved), buffer=ddot_buf1)
@@ -1412,7 +1413,7 @@ def _contract_k_dm_quadratic_direct(mydf, dm, use_mpi=False):
                 
         #### 3.2 V_tmp = Density_RgR * V
         
-        #lib.cwise_mul(V_tmp, Density_RgR, out=Density_RgR)
+        #lib_isdf.cwise_mul(V_tmp, Density_RgR, out=Density_RgR)
         #V2_tmp = Density_RgR
         
         #### 3.3 K1_tmp1 = V2_tmp * aoR.T
@@ -1563,7 +1564,7 @@ def _contract_k_dm_quadratic_direct(mydf, dm, use_mpi=False):
         
         #### 5.2 W_tmp = Density_RgRg * W
         
-        # lib.cwise_mul(W_tmp, Density_RgRg, out=Density_RgRg)
+        # lib_isdf.cwise_mul(W_tmp, Density_RgRg, out=Density_RgRg)
         # W2_tmp = Density_RgRg
         
         #### 5.3 K2_tmp1 = W2_tmp * aoRg.T
@@ -1986,7 +1987,7 @@ def get_jk_occRI(mydf, dm, use_mpi=False, with_j=True, with_k=True):
         rhoR_tmp = rhoR[global_gridID_begin:global_gridID_begin+ngrids_now] 
         
         aoR_rhoR_res = np.ndarray((nao_involved, ngrids_now), buffer=aoR_buf1)
-        lib.d_ij_j_ij(aoR_holder.aoR, rhoR_tmp, out=aoR_rhoR_res)
+        lib_isdf.d_ij_j_ij(aoR_holder.aoR, rhoR_tmp, out=aoR_rhoR_res)
         ddot_res = np.ndarray((nao_involved, nao_involved), buffer=ddot_buf)
         lib.ddot(aoR_rhoR_res, aoR_holder.aoR.T, c=ddot_res)
         
@@ -2031,10 +2032,10 @@ def get_jk_occRI(mydf, dm, use_mpi=False, with_j=True, with_k=True):
         
     ### step 3. get_K ###
     
-    lib.cwise_mul(mydf.W, dmRgRg, out=dmRgRg)
+    lib_isdf.cwise_mul(mydf.W, dmRgRg, out=dmRgRg)
     W2 = dmRgRg
     if construct_dmRgR:
-        lib.cwise_mul(mydf.V_R, dmRgR, out=dmRgR)
+        lib_isdf.cwise_mul(mydf.V_R, dmRgR, out=dmRgR)
         V2 = dmRgR
     else:
         V2 = None

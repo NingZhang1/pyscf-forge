@@ -38,6 +38,7 @@ import isdf_fast              as     ISDF
 from   isdf_eval_gto          import ISDF_eval_gto
 import isdf_tools_local       as     ISDF_Local_Utils
 import isdf_local_jk          as     ISDF_Local_JK
+import isdf_tools_linearop    as     lib_isdf
 
 ##### all the involved algorithm in ISDF based on aoR_Holder ##### 
 
@@ -559,10 +560,10 @@ def build_aux_basis_ls(mydf, group, IP_group, debug=True, use_mpi=False):
         
             
         A = lib.ddot(aoRg1.T, aoRg1)
-        lib.square_inPlace(A)
+        lib_isdf.square_inPlace(A)
         grid_ID = mydf.partition_group_to_gridID[i]
         B = lib.ddot(aoRg1.T, aoR1)
-        lib.square_inPlace(B)
+        lib_isdf.square_inPlace(B)
                     
         fn_cholesky = getattr(libisdf, "Cholesky", None)
         assert(fn_cholesky is not None)
@@ -1660,12 +1661,12 @@ if __name__ == '__main__':
     # pbc_isdf_info = PBC_ISDF_Info_Quad(cell, with_robust_fitting=True, aoR_cutoff=1e-8, direct=False, use_occ_RI_K=False)
     pbc_isdf_info = PBC_ISDF_Info_Quad(cell, with_robust_fitting=True, 
                                        aoR_cutoff=1e-8, 
-                                       # direct=False, 
-                                       direct=True, 
+                                       direct=False, 
+                                       # direct=True, 
                                        limited_memory=True, build_K_bunchsize=32,
                                        use_occ_RI_K=False, rela_cutoff_QRCP=3e-3)
     pbc_isdf_info.build_IP_local(c=C, m=5, group=group_partition)
-    # pbc_isdf_info.build_auxiliary_Coulomb()    
+    pbc_isdf_info.build_auxiliary_Coulomb()    
     t2 = (lib.logger.process_clock(), lib.logger.perf_counter())
     _benchmark_time(t1, t2, "build isdf", pbc_isdf_info)
     

@@ -1452,3 +1452,96 @@ void distance_between_points_atms(
         }
     }
 }
+
+//////////// further linear algebra operations
+
+void NPdcwisemul(double *out, double *a, double *b, size_t n)
+{
+#pragma omp parallel
+    {
+        size_t i;
+#pragma omp for schedule(static)
+        for (i = 0; i < n; i++)
+        {
+            out[i] = a[i] * b[i];
+        }
+    }
+}
+
+void NPz2d_InPlace(double complex *in, const size_t n)
+{
+    // printf("n = %d\n", n);
+    // fflush(stdout);
+
+    double *out = (double *)in;
+
+    int nThread = get_omp_threads();
+
+    int BunchSize = n / nThread;
+    int nLeft = n - BunchSize * nThread;
+
+#pragma omp parallel num_threads(nThread)
+    {
+        size_t i;
+
+        int tid = omp_get_thread_num();
+        int start = tid * BunchSize;
+        int end = start + BunchSize;
+
+        if (tid == nThread - 1)
+        {
+            end += nLeft;
+        }
+
+        double *ptr_real = (double *)(in + start);
+        double complex *ptr_complex = in + start;
+
+        for (i = 0; i < end - start; i++)
+        {
+            ptr_real[i] = creal(ptr_complex[i]);
+        }
+    }
+
+    // copy back
+
+    for (int i = 1; i < nThread; i++)
+    {
+        int start = i * BunchSize;
+        int end = start + BunchSize;
+
+        if (i == nThread - 1)
+        {
+            end += nLeft;
+        }
+
+        memcpy(out + start, in + start, sizeof(double) * (end - start));
+    }
+}
+
+void NPdsquare_inPlace(double *a, size_t n)
+{
+#pragma omp parallel for schedule(static)
+    for (size_t i = 0; i < n; i++)
+    {
+        a[i] = a[i] * a[i];
+    }
+}
+
+void NPd_ij_j_ij(double *out, double *a, double *b, size_t nrow, size_t ncol)
+{
+#pragma omp parallel
+    {
+        size_t i, j;
+        double *pa, *pout;
+#pragma omp for schedule(static)
+        for (i = 0; i < nrow; i++)
+        {
+            pa = a + i * ncol;
+            pout = out + i * ncol;
+            for (j = 0; j < ncol; j++)
+            {
+                pout[j] = pa[j] * b[j]; // out[i,j] = a[i,j] * b[j]
+            }
+        }
+    }
+}
