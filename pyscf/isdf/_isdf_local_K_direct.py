@@ -36,9 +36,9 @@ libisdf = lib.load_library('libisdf')
 
 ############ isdf utils ############
 
-from   isdf_jk             import _benchmark_time
-from   isdf_tools_local    import _pack_aoR_holder, _get_aoR_holders_memory
-import isdf_tools_linearop as     lib_isdf
+from   pyscf.isdf.isdf_jk             import _benchmark_time
+from   pyscf.isdf.isdf_tools_local    import _pack_aoR_holder, _get_aoR_holders_memory
+import pyscf.isdf.isdf_tools_linearop as     lib_isdf
 
 ############ GLOBAL PARAMETER ############
 

@@ -34,9 +34,9 @@ libisdf = lib.load_library('libisdf')
 
 ############ isdf utils ############
 
-from isdf_jk import _benchmark_time
-from _isdf_local_K_direct import _isdf_get_K_direct_kernel_1
-import isdf_tools_linearop    as     lib_isdf
+from pyscf.isdf.isdf_jk import _benchmark_time
+from pyscf.isdf._isdf_local_K_direct import _isdf_get_K_direct_kernel_1
+import pyscf.isdf.isdf_tools_linearop    as     lib_isdf
 
 ############ GLOBAL PARAMETER ############
 
@@ -2280,11 +2280,11 @@ def get_jk_dm_quadratic(mydf, dm, hermi=1, kpt=np.zeros(3),
         #dm = dm[0]
 
     if hasattr(mydf, 'Ls') and mydf.Ls is not None:
-        from isdf_tools_densitymatrix import symmetrize_dm
+        from pyscf.isdf.isdf_tools_densitymatrix import symmetrize_dm
         dm = symmetrize_dm(dm, mydf.Ls)
     else:
         if hasattr(mydf, 'kmesh') and mydf.kmesh is not None:
-            from isdf_tools_densitymatrix import symmetrize_dm
+            from pyscf.isdf.isdf_tools_densitymatrix import symmetrize_dm
             dm = symmetrize_dm(dm, mydf.kmesh)
 
     if use_mpi:
@@ -2333,7 +2333,7 @@ def get_jk_dm_quadratic(mydf, dm, hermi=1, kpt=np.zeros(3),
     vk = np.zeros_like(dm)
     for iset in range(nset):
         if with_j:
-            from isdf_jk import _contract_j_dm
+            from pyscf.isdf.isdf_jk import _contract_j_dm
             vj[iset] = _contract_j_dm_ls(mydf, dm[iset], use_mpi)  
         if with_k:
             if mydf.direct:

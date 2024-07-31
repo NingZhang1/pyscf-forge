@@ -126,11 +126,11 @@ set_target_properties (clib_pdft PROPERTIES
 # add_subdirectory(isdf)
 
 add_library(isdf SHARED 
-  ../pbc/df/isdf/pbc_isdf_samplek.c 
-  ../pbc/df/isdf/pbc_isdf_V.c 
-  ../pbc/df/isdf/pbc_isdf_auxbasis.c 
-  ../pbc/df/isdf/pbc_isdf_sparse.c 
-  ../pbc/df/isdf/pbc_isdf_eri.c)
+  ../isdf/pbc_isdf_samplek.c 
+  ../isdf/pbc_isdf_V.c 
+  ../isdf/pbc_isdf_auxbasis.c 
+  ../isdf/pbc_isdf_sparse.c 
+  ../isdf/pbc_isdf_eri.c)
 
 set_target_properties(isdf PROPERTIES
   LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR})
@@ -138,7 +138,7 @@ set_target_properties(isdf PROPERTIES
 target_link_libraries(isdf cgto cint cvhf np_helper ${BLAS_LIBRARIES} ${OPENMP_C_PROPERTIES})
 
 if(ENABLE_FFTW)
-add_library(fft SHARED ../pyscf/pbc/df/isdf/fft.c)
+add_library(fft SHARED ../isdf/fft.c)
 set_target_properties(fft PROPERTIES
   LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}
   COMPILE_FLAGS ${OpenMP_C_FLAGS}

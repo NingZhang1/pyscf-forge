@@ -30,13 +30,13 @@ from pyscf.pbc.lib.kpts_helper import is_zero, gamma_point
 from pyscf.gto.mole import *
 from pyscf.pbc.df.df_jk import _ewald_exxdiv_for_G0, _format_dms, _format_kpts_band, _format_jks
 
-from isdf_jk import _benchmark_time
-from isdf_tools_densitymatrix import pack_JK, pack_JK_in_FFT_space
-from isdf_local_jk   import J_MAX_GRID_BUNCHSIZE, __get_DensityMatrixonRgAO_qradratic
-from isdf_tools_kSampling     import _RowCol_FFT_bench
-from _isdf_local_K_direct     import _isdf_get_K_direct_kernel_1
+from pyscf.isdf.isdf_jk import _benchmark_time
+from pyscf.isdf.isdf_tools_densitymatrix import pack_JK, pack_JK_in_FFT_space
+from pyscf.isdf.isdf_local_jk   import J_MAX_GRID_BUNCHSIZE, __get_DensityMatrixonRgAO_qradratic
+from pyscf.isdf.isdf_tools_kSampling     import _RowCol_FFT_bench
+from pyscf.isdf._isdf_local_K_direct     import _isdf_get_K_direct_kernel_1
 libisdf = lib.load_library('libisdf')
-import isdf_tools_linearop    as     lib_isdf
+import pyscf.isdf.isdf_tools_linearop    as     lib_isdf
 
 ############ subroutines ############
 

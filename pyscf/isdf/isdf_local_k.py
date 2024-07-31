@@ -32,11 +32,11 @@ libisdf = lib.load_library('libisdf')
 
 ############ isdf utils ############
 
-from isdf_eval_gto import ISDF_eval_gto 
-import isdf_local as ISDF_Local
-import isdf_tools_local as ISDF_Local_Utils
-from isdf_local_k_jk import get_jk_dm_translation_symmetry
-from isdf_jk import _benchmark_time
+from   pyscf.isdf.isdf_eval_gto import ISDF_eval_gto 
+import pyscf.isdf.isdf_local as ISDF_Local
+import pyscf.isdf.isdf_tools_local as ISDF_Local_Utils
+from   pyscf.isdf.isdf_local_k_jk import get_jk_dm_translation_symmetry
+from   pyscf.isdf.isdf_jk import _benchmark_time
 
 ############ subroutines --- deal with translation symmetry ############
 
@@ -487,7 +487,7 @@ class PBC_ISDF_Info_Quad_K(ISDF_Local.PBC_ISDF_Info_Quad):
         
         nelectron = np.sum(mol.nelectron)
         
-        from isdf_tools_cell import build_supercell
+        from pyscf.isdf.isdf_tools_cell import build_supercell
         supercell = build_supercell(
             atm, 
             mol.a,
@@ -527,7 +527,7 @@ class PBC_ISDF_Info_Quad_K(ISDF_Local.PBC_ISDF_Info_Quad):
         
         self.with_translation_symmetry = True
         
-        from isdf_tools_cell import build_primitive_cell
+        from pyscf.isdf.isdf_tools_cell import build_primitive_cell
         self.primCell = build_primitive_cell(self.cell, self.kmesh)
         self.nao_prim = self.nao // np.prod(self.kmesh)
         assert self.nao_prim == self.primCell.nao_nr()
@@ -1183,7 +1183,7 @@ class PBC_ISDF_Info_Quad_K(ISDF_Local.PBC_ISDF_Info_Quad):
             
             ### first construct J and K ### 
             
-            from isdf_local_k_jk import _contract_j_dm_k_ls, _get_k_kSym_robust_fitting_fast, _get_k_kSym, _get_k_kSym_direct
+            from pyscf.isdf.isdf_local_k_jk import _contract_j_dm_k_ls, _get_k_kSym_robust_fitting_fast, _get_k_kSym, _get_k_kSym_direct
             from pyscf.pbc.df.df_jk import _ewald_exxdiv_for_G0, _format_dms, _format_kpts_band, _format_jks
             
             ### preprocess dm ### 

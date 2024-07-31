@@ -36,11 +36,11 @@ from pyscf.pbc.dft import multigrid
 
 ############ isdf utils ############
 
-from   isdf_jk import _benchmark_time
-import isdf_ao2mo as isdf_ao2mo
-import isdf_jk    as isdf_jk
-from   isdf_eval_gto import ISDF_eval_gto
-from   isdf_tools_kSampling import _kmesh_to_Kpoints
+from   pyscf.isdf.isdf_jk import _benchmark_time
+import pyscf.isdf.isdf_ao2mo as isdf_ao2mo
+import pyscf.isdf.isdf_jk    as isdf_jk
+from   pyscf.isdf.isdf_eval_gto import ISDF_eval_gto
+from   pyscf.isdf.isdf_tools_kSampling import _kmesh_to_Kpoints
 libisdf = lib.load_library('libisdf')
 
 ############ global variables ############
@@ -584,7 +584,7 @@ class PBC_ISDF_Info(df.fft.FFTDF):
 
             self.partition = np.zeros(coords_now.shape[0], dtype=np.int32)
 
-            from isdf_eval_gto import ISDF_eval_gto
+            from pyscf.isdf.isdf_eval_gto import ISDF_eval_gto
 
             if hasattr(self, "IO_buf"):
                 logger.debug4(self, "PBC_ISDF_Info: IO_buf is already allocated")
@@ -959,7 +959,7 @@ class PBC_ISDF_Info(df.fft.FFTDF):
                 )
                 del buf_fft 
                 
-                from  isdf_tools_densitymatrix import pack_JK_in_FFT_space
+                from  pyscf.isdf.isdf_tools_densitymatrix import pack_JK_in_FFT_space
                 
                 PP_complex = PP_complex.conj().copy()
                 self.PP = pack_JK_in_FFT_space(PP_complex, kmesh, nao_prim)

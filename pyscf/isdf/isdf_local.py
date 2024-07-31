@@ -33,12 +33,12 @@ libisdf = lib.load_library('libisdf')
 
 ############ isdf utils ############
 
-from   isdf_jk                import _benchmark_time
-import isdf_fast              as     ISDF
-from   isdf_eval_gto          import ISDF_eval_gto
-import isdf_tools_local       as     ISDF_Local_Utils
-import isdf_local_jk          as     ISDF_Local_JK
-import isdf_tools_linearop    as     lib_isdf
+from   pyscf.isdf.isdf_jk                import _benchmark_time
+import pyscf.isdf.isdf_fast              as     ISDF
+from   pyscf.isdf.isdf_eval_gto          import ISDF_eval_gto
+import pyscf.isdf.isdf_tools_local       as     ISDF_Local_Utils
+import pyscf.isdf.isdf_local_jk          as     ISDF_Local_JK
+import pyscf.isdf.isdf_tools_linearop    as     lib_isdf
 
 ##### all the involved algorithm in ISDF based on aoR_Holder ##### 
 

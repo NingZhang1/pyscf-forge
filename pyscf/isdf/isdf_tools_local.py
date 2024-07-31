@@ -34,10 +34,10 @@ from pyscf.pbc.df import aft, rsdf_builder, aft_jk
 
 ########## isdf  module ##########
 
-from isdf_jk import _benchmark_time
-import isdf_ao2mo as isdf_ao2mo
-import isdf_jk as isdf_jk
-from isdf_eval_gto import ISDF_eval_gto
+from pyscf.isdf.isdf_jk       import _benchmark_time
+import pyscf.isdf.isdf_ao2mo  as isdf_ao2mo
+import pyscf.isdf.isdf_jk     as isdf_jk
+from pyscf.isdf.isdf_eval_gto import ISDF_eval_gto
 
 ########## sys   module ##########
 
