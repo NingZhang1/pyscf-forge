@@ -32,12 +32,13 @@ from pyscf.pbc.lib import kpts_helper
 from pyscf.pbc.lib.kpts_helper import is_zero, gamma_point, unique
 from pyscf import __config__
 from pyscf.pbc.df.fft_ao2mo import _format_kpts, _iskconserv, _contract_compact
-libpbc = lib.load_library('libpbc')
+libisdf = lib.load_library('libisdf')
 
 ############ isdf utils ############
 
 from isdf_tools_local import aoR_Holder
 from isdf_jk import _benchmark_time
+import isdf_tools_linearop    as     lib_isdf
 
 ############ subroutines ---- AO2MO ############
 
@@ -201,13 +202,13 @@ def isdf_eri(mydf, mo_coeff = None, verbose=None):
     
     #### involved function #### 
     
-    fn_packcol = getattr(libpbc, "_buildK_packcol2", None)
+    fn_packcol = getattr(libisdf, "_buildK_packcol2", None)
     assert fn_packcol is not None
     
-    fn_unpack_suberi_to_eri = getattr(libpbc, "_unpack_suberi_to_eri", None)
+    fn_unpack_suberi_to_eri = getattr(libisdf, "_unpack_suberi_to_eri", None)
     assert fn_unpack_suberi_to_eri is not None
     
-    fn_pack_aoR_to_aoPairR = getattr(libpbc, "_pack_aoR_to_aoPairR_same", None)
+    fn_pack_aoR_to_aoPairR = getattr(libisdf, "_pack_aoR_to_aoPairR_same", None)
     assert fn_pack_aoR_to_aoPairR is not None
     
     ### V_R term ###
@@ -481,13 +482,13 @@ def isdf_eri_2(mydf, mo_coeff = None, verbose=None):
     
     #### involved function #### 
     
-    fn_packcol = getattr(libpbc, "_buildK_packcol2", None)
+    fn_packcol = getattr(libisdf, "_buildK_packcol2", None)
     assert fn_packcol is not None
     
-    fn_unpack_suberi_to_eri = getattr(libpbc, "_unpack_suberi_to_eri", None)
+    fn_unpack_suberi_to_eri = getattr(libisdf, "_unpack_suberi_to_eri", None)
     assert fn_unpack_suberi_to_eri is not None
     
-    fn_pack_aoR_to_aoPairR = getattr(libpbc, "_pack_aoR_to_aoPairR_same", None)
+    fn_pack_aoR_to_aoPairR = getattr(libisdf, "_pack_aoR_to_aoPairR_same", None)
     assert fn_pack_aoR_to_aoPairR is not None
     
     ### construct aoPairRg, aoPairR ###
@@ -701,13 +702,13 @@ def isdf_eri_ovov(mydf, mo_coeff_o: np.ndarray = None, mo_coeff_v: np.ndarray = 
     
     #### involved function #### 
     
-    fn_packcol = getattr(libpbc, "_buildK_packcol2", None)
+    fn_packcol = getattr(libisdf, "_buildK_packcol2", None)
     assert fn_packcol is not None
     
-    fn_unpack_suberi_to_eri = getattr(libpbc, "_unpack_suberi_to_eri_ovov", None)
+    fn_unpack_suberi_to_eri = getattr(libisdf, "_unpack_suberi_to_eri_ovov", None)
     assert fn_unpack_suberi_to_eri is not None
     
-    fn_pack_aoR_to_aoPairR = getattr(libpbc, "_pack_aoR_to_aoPairR_diff", None)
+    fn_pack_aoR_to_aoPairR = getattr(libisdf, "_pack_aoR_to_aoPairR_diff", None)
     assert fn_pack_aoR_to_aoPairR is not None
     
     ### V_R term ###
@@ -1075,7 +1076,7 @@ def LS_THC(mydf, R:np.ndarray):
     #### step 1 construct ####
     
     RR = lib.ddot(R.T, R)
-    lib.square_inPlace(RR)
+    lib_isdf.square_inPlace(RR)
     
     # diag RR #
     
@@ -1118,7 +1119,7 @@ def LS_THC(mydf, R:np.ndarray):
         
             RX[:,global_IP_begin_i:global_IP_begin_i+nIP_i] = RX_tmp 
     
-    RX = lib.square_inPlace(RX)
+    RX = lib_isdf.square_inPlace(RX)
         
     # build (RY)^{PB} = \sum_mu R_mu^P Y_\mu^B with Y = aoR # 
     
@@ -1147,7 +1148,7 @@ def LS_THC(mydf, R:np.ndarray):
             
                 RY[:,global_gridID_i:global_gridID_i+ngrid_i] = RY_tmp
     
-        RY = lib.square_inPlace(RY)
+        RY = lib_isdf.square_inPlace(RY)
     else:
         RY = None
     
@@ -1176,8 +1177,8 @@ def LS_THC(mydf, R:np.ndarray):
     Z2 = lib.ddot(Z1, U_RR, c=Z)
     Z  = Z2 
     
-    lib.d_i_ij_ij(D_RR_inv, Z, out=Z)
-    lib.d_ij_j_ij(Z, D_RR_inv, out=Z)
+    lib_isdf.d_i_ij_ij(D_RR_inv, Z, out=Z)
+    lib_isdf.d_ij_j_ij(Z, D_RR_inv, out=Z)
     lib.ddot(U_RR, Z, c=Z1)
     lib.ddot(Z1, U_RR.T, c=Z)
     
@@ -1206,151 +1207,3 @@ def LS_THC_moeri(mydf, Z:np.ndarray, R:np.ndarray, mo_coeff:np.ndarray):
     log = lib.logger.Logger(mydf.stdout, mydf.verbose)
     log.timer('LS_THC MOERI', *t1)
     return res
-    
-############ Laplace transformation ############ 
-
-import bisect
-
-def _find_laplace(laplace_holder:dict, R, error):
-    '''
-    find the laplace holder with the smallest error that is larger than the given error
-    
-    Args:
-        laplace_holder: dict
-            a dictionary that contains all the laplace holder
-        R: float
-            1/x is fitted as summation of exponential functions on interval [1,R]
-        error: float
-            the relative error threshold
-    
-    Return:
-
-    '''
-    
-    ### find key via binary search ###
-        
-    keys = list(laplace_holder.keys())
-    keys.sort()
-        
-    index = bisect.bisect_left(keys, R)
-    if index == len(keys):
-        return None
-    else:
-        key = keys[index]
-        items = laplace_holder[key]
-        items.sort(key=lambda x: x['error'], reverse=True)
-        for item in items:
-            if item['error'] <= error:
-                return item
-        return None
-
-def _build_laplace_holder(r_min, r_max, rel_error):
-    '''
-    '''
-    
-    import os, pickle
-    
-    script_dir = os.path.dirname(os.path.realpath(__file__))
-    file_path  = os.path.join(script_dir, 'laplace.pkl')
-    with open(file_path, 'rb') as f:
-        laplace_holder = pickle.load(f) 
-    
-    item_found = _find_laplace(laplace_holder, r_max/r_min, rel_error)
-    
-    if item_found is None:
-        raise NotImplementedError("No laplace holder found")
-    
-    return {
-        "a_values":np.array(item_found['a_values'])/r_min,
-        "b_values":np.array(item_found['b_values'])/r_min,
-        "degree"  :item_found['degree'],
-        "error"   :item_found['error']
-    }
-
-class laplace_holder:
-    r''' laplace transformation of energy denominator 
-    For order 2, 1/(ea+eb-ei-ej) ~ \sum_T (tao_v)_a^T (tao_v)_b^T (tao_o)_i^T (tao_o)_j^T 
-    
-    Ref:
-        (1) Almlof1992   : J. Chem. Phys. 96, 489-494 (1992) https://doi.org/10.1063/1.462485
-        (2) Hackbusch2008: J. Chem. Phys. 129, 044112 (2008) https://doi.org/10.1063/1.2958921
-        (3) https://gitlab.mis.mpg.de/scicomp/EXP_SUM
-    
-    '''
-    
-    _keys = {
-        'mo_ene', 'nocc', 'order', 'holder', 'a_values', 'b_values',
-        '_degree', '_error', 'laplace_occ', 'laplace_vir'
-    }
-    
-    def __init__(self, 
-                 mo_ene, nocc, 
-                 order=2, rel_error=1e-6, verbose=True):
-        
-        occ_ene = mo_ene[:nocc]
-        vir_ene = mo_ene[nocc:]
-        
-        max_occ = np.max(occ_ene)
-        min_occ = np.min(occ_ene)
-        min_vir = np.min(vir_ene)
-        max_vir = np.max(vir_ene)
-        
-        if max_occ > min_vir+1e-8:
-            print("Warning: max_occ > min_vir")
-            raise NotImplementedError
-
-        r_min = (min_vir - max_occ) * order
-        r_max = (max_vir - min_occ) * order
-        
-        self.mo_ene = mo_ene
-        self.nocc   = nocc
-        self.order  = order
-        self.holder = _build_laplace_holder(r_min, r_max, rel_error)
-        self.a_values  = self.holder['a_values']
-        self.b_values  = self.holder['b_values']
-        self._degree   = self.holder['degree']
-        self._error    = self.holder['error']
-        
-        self.laplace_occ = self._build_laplace_occ(occ_ene, order=order)
-        self.laplace_vir = self._build_laplace_vir(vir_ene, order=order)
-    
-    @property
-    def degree(self):
-        return self._degree
-    
-    @property
-    def error(self):
-        return self._error
-
-    @property
-    def delta_full(self):
-        if self.order != 2:
-            raise NotImplementedError
-        else:
-            return np.einsum("iP,jP,aP,bP->ijab", self.laplace_occ, self.laplace_occ, self.laplace_vir, self.laplace_vir)
-
-    def _build_laplace_occ(self, occ_ene, order=2):
-        
-        nocc   = len(occ_ene)
-        degree = self.degree
-        res    = np.zeros((nocc, degree))
-        order2 = 2 * order
-        
-        for icol, (a, b) in enumerate(zip(self.a_values, self.b_values)):
-            res[:, icol] = (a**((1.0/(float(order2)))))*np.exp(b*occ_ene)
-
-        return res
-    
-    def _build_laplace_vir(self, vir_ene, order=2):
-        
-        nvir   = len(vir_ene)
-        degree = self.degree
-        res    = np.zeros((nvir, degree))
-        order2 = 2 * order
-        
-        print("vir_ene = ", vir_ene)
-        
-        for icol, (a, b) in enumerate(zip(self.a_values, self.b_values)):
-            res[:, icol] = (a**((1.0/(float(order2)))))*np.exp(-b*vir_ene)
-                
-        return res

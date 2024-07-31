@@ -15,13 +15,11 @@
 add_library(isdf SHARED 
   pbc_isdf_samplek.c pbc_isdf_V.c pbc_isdf_auxbasis.c pbc_isdf_sparse.c 
   pbc_isdf_eri.c)
-#add_dependencies(isdf cgto cvhf np_helper)
 
 set_target_properties(isdf PROPERTIES
   LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR})
 
 target_link_libraries(isdf cgto cint cvhf np_helper ${BLAS_LIBRARIES} ${OPENMP_C_PROPERTIES})
-# target_link_libraries(isdf ${BLAS_LIBRARIES} ${OPENMP_C_PROPERTIES})
 
 if(ENABLE_FFTW)
 add_library(fft SHARED fft.c)

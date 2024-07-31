@@ -148,49 +148,12 @@ class aoR_Holder:
         aoR[self.ao_involved] = self.aoR
         return aoR
 
-class aoPairR_Holder:
-    
-    def __init__(self, aoPairR, ao_involved, grid_involved):
-        assert aoPairR.shape[1] == len(ao_involved)
-        assert aoPairR.shape[2] == len(grid_involved) 
-        
-        self.aoPairR = aoPairR
-        self.ao_involved = np.array(ao_involved, dtype=np.int32)
-        self.grid_involved = np.array(grid_involved, dtype=np.int32)
-        self.nao_given_atm = aoPairR.shape[0]
-        self.nao_involved  = len(ao_involved)
-        self.nGrid_involved = len(grid_involved)
-
-    def size(self):
-        return self.aoPairR.nbytes + self.ao_involved.nbytes + self.grid_involved.nbytes
-    
-    def todense(self, nao, nGrid):
-        aoPairR = np.zeros((self.nao_given_atm, self.nao_involved, nGrid))
-        aoPairR[:,:, self.grid_involved] = self.aoPairR
-        res = np.zeros((self.nao_given_atm, nao, nGrid))
-        res[:, self.ao_involved,:] = aoPairR
-        return res
-
-def _HadamardProduct(a:aoR_Holder, b:aoR_Holder, InPlaceB=True):
-    if InPlaceB:
-        res = b
-    else:
-        res = a
-    
-    assert a.aoR.shape == b.aoR.shape
-    assert a.local_gridID_begin == b.local_gridID_begin
-    assert a.global_gridID_begin == b.global_gridID_begin
-    assert a.local_gridID_end == b.local_gridID_end
-    assert a.global_gridID_end == b.global_gridID_end
-    
-    lib.cwise_mul(a.aoR, b.aoR, res.aoR)
-    
-    return res
-
 def _get_aoR_holders_memory(aoR_holders:list[aoR_Holder]):
+    
     return sum([_aoR_holder.size() for _aoR_holder in aoR_holders if _aoR_holder is not None])
 
 def _pack_aoR_holder(aoR_holders:list[aoR_Holder], nao):
+    
     has_involved = [False] * nao
     
     nGrid = 0
@@ -251,6 +214,7 @@ def _pack_aoR_holder(aoR_holders:list[aoR_Holder], nao):
 # get the rcut #
 
 def _atm_to_bas(cell:Cell):
+    
     shl_atm = []
         
     natm = cell.natm
@@ -267,8 +231,12 @@ def _atm_to_bas(cell:Cell):
     return shl_atm
 
 def _estimate_rcut(cell, ngrids, precision):
-    '''Cutoff raidus, above which each shell decays to a value less than the
-    required precsion'''
+    
+    '''
+    Cutoff raidus, above which each shell decays to a value less than the
+    required precsion
+    '''
+    
     weight = numpy.sqrt(cell.vol/ngrids) # note the weight ! 
     log_prec = numpy.log(precision/weight)
     rcut = []
@@ -337,6 +305,9 @@ def get_partition(cell:Cell, coords, AtmConnectionInfoList:list[AtmConnectionInf
                   kmesh=None,
                   use_mpi=False): # by default split the cell into 4x4x4 supercell
     
+    ''' get partition of grid points, each group of grid points are associated with one atm.
+    '''
+    
     ##### this step is super fast #####
     
     ##### we simply perform it on root and broadcast it to all other processes #####
@@ -386,10 +357,10 @@ def get_partition(cell:Cell, coords, AtmConnectionInfoList:list[AtmConnectionInf
         
     Ls_box = [lattice_vector[0] / mesh[0] * mesh_box[0], lattice_vector[1] / mesh[1] * mesh_box[1], lattice_vector[2] / mesh[2] * mesh_box[2]]
     
-    print("Ls       = ", Ls)
-    print("mesh     = ", mesh)
-    print("mesh_box = ", mesh_box)
-    print("Ls_box   = ", Ls_box)
+    # print("Ls       = ", Ls)
+    # print("mesh     = ", mesh)
+    # print("mesh_box = ", mesh_box)
+    # print("Ls_box   = ", Ls_box)
         
     assert Ls_box[0][0] < 3.0
     assert Ls_box[1][1] < 3.0
@@ -523,7 +494,7 @@ def get_partition(cell:Cell, coords, AtmConnectionInfoList:list[AtmConnectionInf
     if use_mpi == False or (use_mpi == True and rank == 0):
         len_grid_involved = 0
         for atm_id, x in enumerate(partition_rough):
-            print("atm %d involved %d grids" % (atm_id, len(x)))
+            # print("atm %d involved %d grids" % (atm_id, len(x)))
             len_grid_involved += len(x)
         if with_translation_symmetry:
             assert len_grid_involved == np.prod(mesh) // np.prod(kmesh)
@@ -629,6 +600,10 @@ def get_partition(cell:Cell, coords, AtmConnectionInfoList:list[AtmConnectionInf
     return partition
 
 def _range_partition(ngroup, rank, comm_size, use_mpi=False):
+    
+    ''' given ngroup tasks, split them into comm_size parts, and return the range of tasks for the rank-th process
+    '''
+    
     if use_mpi == False:
         return 0, ngroup
     else:
@@ -651,6 +626,7 @@ def _range_partition(ngroup, rank, comm_size, use_mpi=False):
                 return a * ngroup_local + (rank - a) * (ngroup_local - 1), a * ngroup_local + (rank - a + 1) * (ngroup_local - 1)
 
 def _range_partition_array(ngroup, comm_size, use_mpi=False):
+    
     if use_mpi == False:
         return np.array([0, ngroup], dtype=np.int32)
     else:
@@ -688,6 +664,9 @@ def _range_partition_array(ngroup, comm_size, use_mpi=False):
         return res
 
 def _get_grid_ordering(atmid_to_gridID, group, use_mpi=False):
+    
+    ''' given the grid points associated to each atom, return the reordering of grid points according to the ID of atms.
+    '''
         
     grid_ordering = []
     for i in range(len(group)):
@@ -740,20 +719,6 @@ def _get_atm_2_grid_segment(atmid_to_gridID, group):
     
     return res
     
-def _get_atmid_involved(natm, group, rank, use_mpi=False):
-    if use_mpi == False:
-        return np.arange(natm, dtype=np.int32)
-    else:
-        group_partition_array = _range_partition_array(len(group), comm_size, use_mpi)
-                
-        atmid_involved = []
-        group_begin = group_partition_array[rank][0]
-        group_end = group_partition_array[rank][1]
-        for i in range(group_begin, group_end):
-            atmid_involved.extend(group[i])
-        
-        return np.array(atmid_involved, dtype=np.int32)
-
 def _sync_list(list_data, ngroup):
 
     # if use_mpi:
@@ -794,47 +759,11 @@ def _sync_list(list_data, ngroup):
         
     return list_data
 
-def _sync_list_related_to_partition(list_data, group):
-
-    natm = sum([len(x) for x in group])
-    assert len(list_data) == natm
-    
-    group_begin, group_end = _range_partition(len(group), rank, comm_size, True)
-    
-    atm_involved = []
-    for i in range(group_begin, group_end):
-        atm_involved.extend(group[i])
-    atm_involved = np.array(atm_involved, dtype=np.int32)
-    atm_involved.sort()
-    
-    for i in range(natm):
-        if i in atm_involved:
-            assert list_data[i] is not None
-        else:
-            assert list_data[i] is None
-    
-    atmid_2_root = [0] * natm
-    
-    range_partition_array = _range_partition_array(len(group), comm_size, True)
-    
-    for j in range(comm_size):
-        group_begin = range_partition_array[j][0]
-        group_end = range_partition_array[j][1]
-        for i in range(group_begin, group_end):
-            for atmid in group[i]:
-                atmid_2_root[atmid] = j
-
-    #### sync ####
-    
-    for i in range(natm):
-        list_data[i] = bcast_pickel(list_data[i], root=atmid_2_root[i])
-
-    return list_data
-
 def _sync_aoR(aoR_holders, natm):
     
-    # return _sync_list_related_to_partition(aoR_holders, group)
-
+    ''' used in MPI 
+    '''
+    
     aoR = []
     bas_id = []
     grid_ID_begin = []
@@ -1023,6 +952,9 @@ def get_aoR_analytic(cell:Cell, coords, partition,
                      distance_matrix=None, AtmConnectionInfoList:list[AtmConnectionInfo]=None, 
                      distributed = False, use_mpi=False, sync_res = False):
     
+    ''' AO values on grid points using FFT, evaluating analytic AO integrals
+    '''
+    
     assert use_mpi == False
     assert first_natm is None or first_natm == cell.natm
     
@@ -1135,182 +1067,6 @@ def get_aoR_analytic(cell:Cell, coords, partition,
 
     return aoR_holder
 
-def get_aoR_exact(cell:Cell, 
-                  # coords, 
-                  mesh_sparse,
-                  mesh_dense,
-                  partition, 
-                  first_npartition = None,
-                  first_natm=None, 
-                  group=None, 
-                  distance_matrix=None, AtmConnectionInfoList:list[AtmConnectionInfo]=None, 
-                  distributed = False, use_mpi=False, sync_res = False):
-    
-    assert use_mpi == False
-    assert first_natm is None or first_natm == cell.natm
-    
-    if group is None:
-        group = []
-        for i in range(cell.natm):
-            group.append([i])
-    
-    precision = AtmConnectionInfoList[0].precision
-    cell_sparse = cell.copy()
-    cell_sparse.build(mesh = mesh_sparse)
-    cell_dense = cell.copy()
-    cell_dense.build(mesh = mesh_dense)
-    
-    #### some convention
-    
-    mesh = cell_dense.mesh
-    ngrids = np.prod(mesh)
-    weight = cell_dense.vol/ngrids
-    weight2 = np.sqrt(cell_dense.vol / ngrids)
-
-    blksize = 2e9//16
-    nao_max_bunch = int(blksize // ngrids)
-
-    Gv = cell_dense.get_Gv() 
-    
-    print("Gv.size = ", Gv.size)
-    print("np.prod(mesh) = ", np.prod(mesh))
-    assert Gv.shape[0] == np.prod(mesh)
-    
-    #### sparse grid ####
-    
-    mesh_sparse = cell_sparse.mesh
-    ngrids_sparse = np.prod(mesh_sparse)
-    assert mesh_dense[0] % mesh_sparse[0] == 0
-    assert mesh_dense[1] % mesh_sparse[1] == 0
-    assert mesh_dense[2] % mesh_sparse[2] == 0
-    
-    step = (mesh_dense[0] // mesh_sparse[0], mesh_dense[1] // mesh_sparse[1], mesh_dense[2] // mesh_sparse[2])
-    
-    weight_dense_to_sparse = np.sqrt(float(ngrids)/float(ngrids_sparse))
-    
-    precision = precision / weight_dense_to_sparse
-    
-    ######## pack info ########
-    
-    aoR_unpacked = []
-    ao_invovled_unpacked = []
-    atm_ordering = []
-    for group_idx in group:
-        group_idx.sort()
-        atm_ordering.extend(group_idx)
-    grid_begin_unpacked = []
-    grid_end_unpacked = []
-    grid_ID_now = 0
-    for atm_id in atm_ordering:
-        grid_ID = partition[atm_id]
-        grid_begin_unpacked.append(grid_ID_now)
-        grid_end_unpacked.append(grid_ID_now + len(grid_ID))
-        grid_ID_now += len(grid_ID)
-        aoR_unpacked.append([])
-        ao_invovled_unpacked.append([])
-    
-    ao_loc = cell.ao_loc_nr()
-    
-    task_sl_loc = [0] 
-    ao_loc_now = 0
-    for i in range(cell.nbas):
-        ao_loc_end = ao_loc[i+1]
-        if ao_loc_end - ao_loc_now > nao_max_bunch:
-            task_sl_loc.append(i)
-            ao_loc_now = ao_loc[i]
-    task_sl_loc.append(cell.nbas)
-    print("task_sl_loc = ", task_sl_loc)
-    nTask = len(task_sl_loc) - 1
-    print("nTask       = ", nTask)
-    
-    for task_id in range(nTask):
-        
-        t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
-        
-        shloc    = (task_sl_loc[task_id], task_sl_loc[task_id+1])
-        aoG      = ft_ao.ft_ao(cell, Gv, shls_slice=shloc).T
-        aoR_test = numpy.fft.ifftn(aoG.reshape(-1, *mesh), axes=(1,2,3)).real / (weight)
-        # aoR = aoR_test.reshape(-1, ngrids) * weight2
-        aoR = aoR_test * weight2
-        
-        bas_id = np.arange(ao_loc[shloc[0]], ao_loc[shloc[1]])
-        
-        aoR = aoR[:, ::step[0], ::step[1], ::step[2]] * weight_dense_to_sparse
-        aoR = aoR.reshape(-1, ngrids_sparse)
-        
-        assert aoR.shape[1] == ngrids_sparse 
-        
-        print("aoR.shape = ", aoR.shape)
-        
-        for atm_id, atm_partition in enumerate(partition):
-            aoR_tmp = aoR[:, atm_partition].copy()
-            ### prune the aoR ### 
-            where = np.where(np.max(np.abs(aoR_tmp), axis=1) > precision)[0]
-            aoR_tmp = aoR_tmp[where].copy()
-            bas_id_tmp = bas_id[where].copy()
-            aoR_unpacked[atm_id].append(aoR_tmp)
-            ao_invovled_unpacked[atm_id].append(bas_id_tmp)
-
-        t2 = (lib.logger.process_clock(), lib.logger.perf_counter())
-        
-        if rank == 0:
-            _benchmark_time(t1, t2, "get_aoR_analytic: task %d" % task_id)
-
-    t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
-    
-    aoR_holder = []
-    
-    for atm_id in range(len(aoR_unpacked)):
-        aoR_holder_tmp = np.concatenate(aoR_unpacked[atm_id], axis=0)
-        bas_id =         np.concatenate(ao_invovled_unpacked[atm_id], axis=0) 
-        aoR_holder.append(aoR_Holder(aoR_holder_tmp, bas_id, grid_begin_unpacked[atm_id], grid_end_unpacked[atm_id], grid_begin_unpacked[atm_id], grid_end_unpacked[atm_id]))
-    
-    t2 = (lib.logger.process_clock(), lib.logger.perf_counter())
-    
-    del aoR_unpacked
-    del ao_invovled_unpacked
-    del aoR_tmp
-    del aoR_holder_tmp
-    del bas_id
-    del aoR_test
-    del aoR
-    del aoG
-    
-    
-    if rank == 0:
-        _benchmark_time(t1, t2, "get_aoR_analytic: merge")
-
-    return aoR_holder
-
-def get_aoPairR_analytic(cell_c_input:Cell, 
-                         ke_cutoff_in_rsjk,
-                         mesh, 
-                         distance_matrix=None, AtmConnectionInfoList:list[AtmConnectionInfo]=None, 
-                         use_mpi=False,
-                         compressed=False
-                         ):
-    
-    raise NotImplementedError("not implemented yet")
-    
-    if use_mpi:
-        raise NotImplementedError("not implemented yet")
-    
-    cell_c = pyscf.pbc.df.ft_ao._RangeSeparatedCell.from_cell(cell_c_input, rsjk.ke_cutoff, in_rsjk=True)
-    
-    precision = AtmConnectionInfoList[0].precision
-    rcut = _estimate_rcut(cell_c, np.prod(mesh), precision)
-    supmol_ft = rsdf_builder._ExtendedMoleFT.from_cell(cell_c, [1,1,1], rcut.max())
-    supmol_ft = supmol_ft.strip_basis(rcut)
-    
-    ngrids = np.prod(mesh)
-    
-    Gv, Gvbase, kws = cell_c.get_Gv_weights(mesh)
-    gxyz = lib.cartesian_prod([np.arange(len(x)) for x in Gvbase])
-    
-    ## TODO: consider the weight ## 
-    
-    ### loop over all atm ###
-
 if __name__ == '__main__':
 
     from pyscf.lib.parameters import BOHR
@@ -1329,35 +1085,28 @@ if __name__ == '__main__':
     ]
     
     basis = {
-        'Cu1':'unc-ecpccpvdz', 'Cu2':'unc-ecpccpvdz', 'O1': 'unc-ecpccpvdz', 'Ca':'unc-ecpccpvdz'
+        'Cu1':'gth-dzvp-molopt-sr', 'Cu2':'gth-dzvp-molopt-sr', 'O1': 'gth-dzvp-molopt-sr', 'Ca':'gth-dzvp-molopt-sr'
     }
-    # basis  = 'gth-cc-pvdz'
     pseudo = {'Cu1': 'gth-pbe-q19', 'Cu2': 'gth-pbe-q19', 'O1': 'gth-pbe', 'Ca': 'gth-pbe'}
 
-    # basis = 'unc-ccpvdz'
-    # pseudo = None
     
     ke_cutoff = 128
     
     from isdf_tools_cell import build_supercell
     
     prim_cell = build_supercell(atm, prim_a, Ls = [1,1,1], ke_cutoff=ke_cutoff, basis=basis, pseudo=pseudo, verbose=10)
-    # prim_cell = build_supercell(atm, prim_a, Ls = [1,1,1], ke_cutoff=ke_cutoff, basis=basis, pseudo=None, verbose=4)
     prim_mesh = prim_cell.mesh
     
     supercell = [2, 2, 1]
-    # supercell = [4,4,2]
     
     mesh = [supercell[0] * prim_mesh[0], supercell[1] * prim_mesh[1], supercell[2] * prim_mesh[2]]
     mesh = np.array(mesh, dtype=np.int32)
     
     cell = build_supercell(atm, prim_a, Ls = supercell, ke_cutoff=ke_cutoff, mesh=mesh, basis=basis, pseudo=pseudo, verbose=10)
-    # cell = build_supercell(atm, prim_a, Ls = supercell, ke_cutoff=ke_cutoff, mesh=mesh, basis=basis, pseudo=None, verbose=4)
     
     print(cell.atom)
     print(cell.basis)
-    # exit(1)
-    
+        
     from pyscf.pbc.dft.multigrid.multigrid_pair import MultiGridFFTDF2
 
     df_tmp  = MultiGridFFTDF2(cell)
@@ -1367,119 +1116,12 @@ if __name__ == '__main__':
     
     distance_matrix = get_cell_distance_matrix(cell)
     
-    # for i in range(cell.natm):
-    #     for j in range(cell.natm):
-    #         print("distance between atom %d and atom %d is %f" % (i, j, distance_matrix[i][j]))
-    
     weight = np.sqrt(cell.vol / coords.shape[0])
     
     precision = TARGET_PRECISION
     rcut = _estimate_rcut(cell, coords.shape[0], precision)
     rcut_max = np.max(rcut)
     
-    # import matplotlib.pyplot as plt
-    
-    # plt.hist(rcut, bins=100)
-    # plt.xscale('log')
-    # plt.show()
-    
     print("rcut = ", rcut)
     print("precision = ", precision)
     print("max_rcut = ", np.max(rcut))
-    # print("nbas = ", cell.nbas)
-    # print("number of rcut < 5 = ", np.sum(rcut < 5))
-    # print("number of rcut < 15 = ", np.sum(rcut < 15))
-    # print("number of rcut > 25 = ", np.sum(rcut > 25))
-    # print("number of atm pair < 5 = ", np.sum(distance_matrix < 5))
-    # print("number of atm pair < 15 = ", np.sum(distance_matrix < 15))
-    # print("number of atm pair > rcut_max = ", np.sum(distance_matrix > rcut_max))
-    
-    exit(1)
-    
-    atm_2_bas = _atm_to_bas(cell)
-    # print("atm_2_bas = ", atm_2_bas)
-    # exit(1)
-    AtmConnectionInfoList = []
-    
-    
-    for i in range(cell.natm):
-        tmp = AtmConnectionInfo(cell, i, distance_matrix, precision, rcut, rcut_max, atm_2_bas)
-        # print(tmp)
-        AtmConnectionInfoList.append(tmp)
-        
-        # test seraialization used in MPI # 
-        
-        from mpi4py import MPI
-        
-        # tmp_serialize = MPI.pickle.dumps(tmp)
-        # print("tmp_serialize = ", tmp_serialize)
-        # print(tmp_serialize.__class__)
-        # tmp2 = MPI.pickle.loads(tmp_serialize)
-        # print(tmp2)
-        # deserialized_bytes = np.frombuffer(tmp_serialize, dtype=np.uint8)
-        # print(deserialized_bytes)
-        # tmp_serialize2 = deserialized_bytes.tobytes()
-        # tmp3 = MPI.pickle.loads(tmp_serialize2)
-        # print(tmp3)
-    
-    AtmConnectionInfoList = []
-    
-    # precision = TARGET_PRECISION / weight
-    precision = TARGET_PRECISION
-    rcut = _estimate_rcut(cell, coords.shape[0], precision)
-    rcut_max = np.max(rcut)
-    for i in range(cell.natm):
-        tmp = AtmConnectionInfo(cell, i, distance_matrix, precision, rcut, rcut_max, atm_2_bas)
-        # print(tmp)
-        AtmConnectionInfoList.append(tmp)
-    
-    print("comm_size = ", comm_size)
-    # exit(1)
-    
-    if comm_size > 1:
-        partition = get_partition(cell, coords, AtmConnectionInfoList, Ls=[supercell[0]*3, supercell[1]*3, supercell[2]*3], use_mpi=True)
-        for i in range(comm_size):
-            if i == rank:
-                print("rank = %d" % rank)
-                for _id_, _partition_ in enumerate(partition):
-                    print("atm %d involved %d grids" % (_id_, len(_partition_)))
-            comm.Barrier()
-    else:
-        partition = get_partition(cell, coords, AtmConnectionInfoList, Ls=[supercell[0]*3, supercell[1]*3, supercell[2]*3], use_mpi=False)    
-        
-    # exit(1)
-
-    aoR_list = get_aoR(cell, coords, partition, 
-                       distance_matrix=distance_matrix, 
-                       AtmConnectionInfoList=AtmConnectionInfoList)
-    
-    print("memory of aoR_list = ", _get_aoR_holders_memory(aoR_list))
-    for x in aoR_list:
-        print("nao_involved = ", x.aoR.shape[0])
-    
-    grid_reordered = []
-    for _partition_ in partition:
-        grid_reordered.extend(_partition_)
-    grid_reordered = np.array(grid_reordered, dtype=np.int32)
-    
-    ### check the partition ### 
-    
-    for _id_, _partition_ in enumerate(partition):
-        aoR_benchmark = ISDF_eval_gto(cell, coords=coords[_partition_]) * weight
-        max_row = np.max(np.abs(aoR_benchmark), axis=1)
-        where = np.where(max_row > precision)[0]
-        # aoR_benchmark = aoR_benchmark[where]
-        aoR_packed = aoR_list[_id_].todense(cell.nao_nr())
-        diff = np.max(np.abs(aoR_packed - aoR_benchmark))
-        print("atm %d, diff = %.4e" % (_id_, diff))
-        aoR_benchmark = aoR_benchmark[where]
-        print("atm %d, aoR shape = %s, aoR_benchmark shape = %s" % (_id_, aoR_list[_id_].aoR.shape, aoR_benchmark.shape))
-    
-    ### check the pack ###
-    
-    aoR = _pack_aoR_holder(aoR_list, cell.nao_nr())
-    aoR_benchmark =  ISDF_eval_gto(cell, coords=coords[grid_reordered]) * weight
-    # print("aoR.aoR", aoR.aoR[0,0])
-    # print("aoR_benchmark", aoR_benchmark[0,0])
-    diff = np.max(np.abs(aoR.aoR - aoR_benchmark))
-    print("diff = %.4e" % diff)

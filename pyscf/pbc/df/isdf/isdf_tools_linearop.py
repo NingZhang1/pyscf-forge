@@ -37,6 +37,29 @@ def square_inPlace(a):
 
     return a
 
+def d_i_ij_ij(a, b, out=None):
+    assert(a.dtype == b.dtype)
+    assert(a.shape[0] == b.shape[0])
+    assert(a.ndim == 1)
+    assert(b.ndim == 2)
+
+    if a.dtype != numpy.double:
+        raise NotImplementedError
+    else:
+        fn = getattr(libisdf, "NPd_i_ij_ij", None)
+        assert(fn is not None)
+
+    if out is None:
+        out = numpy.empty_like(a)
+
+    fn(out.ctypes.data_as(ctypes.c_void_p),
+       a.ctypes.data_as(ctypes.c_void_p),
+       b.ctypes.data_as(ctypes.c_void_p),
+       ctypes.c_size_t(b.shape[0]),
+       ctypes.c_size_t(b.shape[1]))
+
+    return out
+
 def d_ij_j_ij(a, b, out=None):
     assert(a.dtype == b.dtype)
     assert(a.shape[1] == b.shape[0])
