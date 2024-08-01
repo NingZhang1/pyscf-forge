@@ -631,7 +631,7 @@ class PBC_ISDF_Info_Quad_K(ISDF_Local.PBC_ISDF_Info_Quad):
                                                   self.group_global,
                                                   self.distance_matrix, 
                                                   self.AtmConnectionInfo, 
-                                                  self.use_mpi, self.use_mpi, sync_aoR)
+                                                  self.use_mpi, self.use_mpi, sync_aoR) ### full col, store aoR[:, :ngrid_prim]
         
     
         memory = ISDF_Local_Utils._get_aoR_holders_memory(self.aoR) ### full col
@@ -649,7 +649,7 @@ class PBC_ISDF_Info_Quad_K(ISDF_Local.PBC_ISDF_Info_Quad):
                                                    self.group_global,
                                                    self.distance_matrix, 
                                                    self.AtmConnectionInfo, 
-                                                   self.use_mpi, self.use_mpi, sync_aoR)
+                                                   self.use_mpi, self.use_mpi, sync_aoR) ### full row , store aoR[:nao_prim, :]
         
         memory = ISDF_Local_Utils._get_aoR_holders_memory(self.aoR1)  ### full row 
         assert len(self.aoR1) == natm

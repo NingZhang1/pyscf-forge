@@ -178,8 +178,12 @@ def isdf_eri(mydf, mo_coeff = None, verbose=None):
         moR = aoR
         moRg = aoRg
     
-    max_nao_involved   = np.max([aoR_holder.aoR.shape[0] for aoR_holder in moR  if aoR_holder is not None])
-    max_ngrid_involved = np.max([aoR_holder.aoR.shape[1] for aoR_holder in moR  if aoR_holder is not None])
+    if with_robust_fitting:
+        max_nao_involved   = np.max([aoR_holder.aoR.shape[0] for aoR_holder in moR  if aoR_holder is not None])
+        max_ngrid_involved = np.max([aoR_holder.aoR.shape[1] for aoR_holder in moR  if aoR_holder is not None])
+    else:
+        max_nao_involved   = np.max([aoR_holder.aoR.shape[0] for aoR_holder in moRg if aoR_holder is not None])
+        max_ngrid_involved = None
     max_nIP_involved   = np.max([aoR_holder.aoR.shape[1] for aoR_holder in moRg if aoR_holder is not None])
     
     ###### loop over basic info to allocate the buf ######
@@ -272,7 +276,7 @@ def isdf_eri(mydf, mo_coeff = None, verbose=None):
                 transpose = 1
                 fn_unpack_suberi_to_eri(
                     eri.ctypes.data_as(ctypes.c_void_p),
-                    ctypes.c_int(nao),
+                    ctypes.c_int(nmo),
                     sub_eri.ctypes.data_as(ctypes.c_void_p),
                     ctypes.c_int(nao_i),
                     ao_involved_i.ctypes.data_as(ctypes.c_void_p),
@@ -280,7 +284,7 @@ def isdf_eri(mydf, mo_coeff = None, verbose=None):
                     ao_involved_j.ctypes.data_as(ctypes.c_void_p),
                     ctypes.c_int(transpose)
                 )
-    
+        
     ### W   term ### 
     
     W = mydf.W
@@ -349,7 +353,7 @@ def isdf_eri(mydf, mo_coeff = None, verbose=None):
 
             fn_unpack_suberi_to_eri(
                 eri.ctypes.data_as(ctypes.c_void_p),
-                ctypes.c_int(nao),
+                ctypes.c_int(nmo),
                 sub_eri.ctypes.data_as(ctypes.c_void_p),
                 ctypes.c_int(nao_i),
                 ao_involved_i.ctypes.data_as(ctypes.c_void_p),
@@ -994,7 +998,7 @@ def general(mydf, mo_coeffs, kpts=None,
         if ((iden_coeffs(mo_coeffs[0], mo_coeffs[1]) and
              iden_coeffs(mo_coeffs[0], mo_coeffs[2]) and
              iden_coeffs(mo_coeffs[0], mo_coeffs[3]))):
-            
+                        
             #### Full MO-ERI ####
             
             t1  = (lib.logger.process_clock(), lib.logger.perf_counter())
@@ -1002,7 +1006,7 @@ def general(mydf, mo_coeffs, kpts=None,
             # eri = isdf_eri_2(mydf, mo_coeffs[0].copy(), verbose=mydf.cell.verbose) # requires aoPairR, which is very expensive
             t2  = (lib.logger.process_clock(), lib.logger.perf_counter())
             _benchmark_time(t1, t2, 'isdf_eri', mydf)
-        
+                
             if compact:
                 return eri
             else:
