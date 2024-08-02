@@ -912,10 +912,10 @@ class PBC_ISDF_Info(df.fft.FFTDF):
                     #### xxx use the original version, Xing's code is not the same as FFTDF's result xxx ####
                     if hasattr(self, "_use_super_pp"):
                         if self._use_super_pp:
-                            print("super pp is used!")
+                            # print("super pp is used!")
                             self.PP = super().get_pp(kpts=np.zeros(3))
                     #### use the calculated one by default ####
-                    print("single kpt case!")
+                    # print("single kpt case!")
                     return self.PP
                 
                 #### the following is used to test KRHF #### 
@@ -923,18 +923,7 @@ class PBC_ISDF_Info(df.fft.FFTDF):
                 ### info used in super().get_pp() ###
                 
                 assert hasattr(self, "prim_cell")
-                
-                # super_cell = self.cell
-                # super_mesh = self.cell.mesh
-                # self.cell = self.prim_cell
-                # self.mesh = self.cell.mesh
-                # from pyscf.pbc.dft import gen_grid
-                # self.grids = gen_grid.UniformGrids(self.cell)
-                # self.PP = super().get_pp(kpts=kpts)
-                # self.cell = super_cell
-                # self.mesh = super_mesh
-                # return self.PP
-                
+                                
                 nao_prim = self.cell.nao_nr() // nkpts 
                 assert self.cell.nao_nr() % nkpts == 0
                 self.PP = self.PP[:nao_prim, :].copy()
@@ -965,6 +954,73 @@ class PBC_ISDF_Info(df.fft.FFTDF):
                 self.PP = pack_JK_in_FFT_space(PP_complex, kmesh, nao_prim)
                 
             return self.PP
+        
+    def get_nuc(self, kpts=None):
+        if hasattr(self, "nuc") and self.nuc is not None:
+            return self.nuc
+        else:
+            
+            t0 = (lib.logger.process_clock(), lib.logger.perf_counter())
+            self.nuc = super().get_nuc(kpts=np.zeros(3))
+            t1 = (lib.logger.process_clock(), lib.logger.perf_counter()) 
+            if self.verbose:
+                _benchmark_time(t0, t1, "get_pp", self)
+                
+            #### kpts #### 
+            
+            if kpts is not None:
+                
+                nkpts = kpts.shape[0]
+                
+                if hasattr(self, "kmesh") and self.kmesh is not None:
+                    pass
+                else:
+                    self.kmesh = np.asarray([1,1,1], dtype=np.int32)
+                kmesh = np.asarray(self.kmesh, dtype=np.int32)
+                #print("kmesh = ", kmesh)
+                #print("kpts.shape = ", kpts.shape)
+                assert kpts.shape[0] == np.prod(self.kmesh, dtype=np.int32) or kpts.shape[0] == 1 or kpts.ndim == 1
+                is_single_kpt = kpts.shape[0] == 1 or kpts.ndim == 1
+                
+                if is_single_kpt:
+                    return self.nuc
+                
+                #### the following is used in KRHF #### 
+                
+                ### info used in super().get_pp() ###
+                
+                assert hasattr(self, "prim_cell")
+                                
+                nao_prim = self.cell.nao_nr() // nkpts 
+                assert self.cell.nao_nr() % nkpts == 0
+                self.nuc = self.nuc[:nao_prim, :].copy()
+                
+                n_complex = self.kmesh[0] * self.kmesh[1] * (self.kmesh[2]//2+1)
+                n_cell    = np.prod(self.kmesh)
+                
+                nuc_complex = np.zeros((nao_prim, n_complex * nao_prim), dtype=np.complex128)
+                nuc_real    = np.ndarray((nao_prim, n_cell * nao_prim), dtype=np.double, buffer=nuc_complex)
+                nuc_real.ravel()[:] = self.nuc.ravel()
+                buf_fft    = np.zeros((nao_prim, n_complex, nao_prim), dtype=np.complex128)
+                
+                fn1 = getattr(libisdf, "_FFT_Matrix_Col_InPlace", None)
+                assert fn1 is not None 
+                
+                fn1(
+                    nuc_real.ctypes.data_as(ctypes.c_void_p),
+                    ctypes.c_int(nao_prim),
+                    ctypes.c_int(nao_prim),
+                    kmesh.ctypes.data_as(ctypes.c_void_p),
+                    buf_fft.ctypes.data_as(ctypes.c_void_p)
+                )
+                del buf_fft 
+                
+                from  pyscf.isdf.isdf_tools_densitymatrix import pack_JK_in_FFT_space
+                
+                nuc_complex = nuc_complex.conj().copy()
+                self.nuc = pack_JK_in_FFT_space(nuc_complex, kmesh, nao_prim)
+                
+            return self.nuc
         
     def LS_THC_recompression(self, X:np.ndarray, force_LS_THC=True):
         

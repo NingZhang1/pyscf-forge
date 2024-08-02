@@ -1401,11 +1401,19 @@ class PBC_ISDF_Info_Quad(ISDF.PBC_ISDF_Info):
         
         sys.stdout.flush()
 
-    def get_nuc(self, kpts=None):
-        if hasattr(self, "gdf"):
-            return self.gdf.get_nuc(kpts)
-        else:
-            super().get_nuc(kpts)   
+    # def get_nuc(self, kpts=None):
+    #     if hasattr(self, "prim_cell"):
+    #         cell2 = self.cell
+    #         self.cell = self.prim_cell
+    #     else:
+    #         assert hasattr(self, "cell")
+    #     if hasattr(self, "gdf"):
+    #         res = self.gdf.get_nuc(kpts)
+    #     else:
+    #         res = super().get_nuc(kpts)  
+    #     if hasattr(self, "prim_cell"):
+    #         self.cell = cell2
+    #     return res 
 
     def get_coulG(self):
         if hasattr(self, "rsjk") and self.rsjk is not None:
