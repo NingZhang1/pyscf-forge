@@ -19,6 +19,7 @@
 ############ sys module ############
 
 import copy
+from copy import deepcopy
 import numpy as np
 import ctypes
 
@@ -1163,8 +1164,10 @@ class PBC_ISDF_Info_Quad_K(ISDF_Local.PBC_ISDF_Info_Quad):
 
     #### subroutine to deal with _ewald_exxdiv_for_G0
 
-    def get_jk(self, dm, hermi=1, kpts=None, kpts_band=None,
+    def get_jk(self, _dm, hermi=1, kpts=None, kpts_band=None,
                with_j=True, with_k=True, omega=None, exxdiv=None):
+        
+        dm = deepcopy(_dm)
         
         if omega is not None:  # J/K for RSH functionals
             raise NotImplementedError

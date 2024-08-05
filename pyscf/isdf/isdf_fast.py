@@ -912,10 +912,8 @@ class PBC_ISDF_Info(df.fft.FFTDF):
                     #### xxx use the original version, Xing's code is not the same as FFTDF's result xxx ####
                     if hasattr(self, "_use_super_pp"):
                         if self._use_super_pp:
-                            # print("super pp is used!")
                             self.PP = super().get_pp(kpts=np.zeros(3))
                     #### use the calculated one by default ####
-                    # print("single kpt case!")
                     return self.PP
                 
                 #### the following is used to test KRHF #### 
@@ -952,7 +950,6 @@ class PBC_ISDF_Info(df.fft.FFTDF):
                 
                 PP_complex = PP_complex.conj().copy()
                 self.PP = pack_JK_in_FFT_space(PP_complex, kmesh, nao_prim)
-                
             return self.PP
         
     def get_nuc(self, kpts=None):
