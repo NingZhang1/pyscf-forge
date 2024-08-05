@@ -877,18 +877,26 @@ class PBC_ISDF_Info(df.fft.FFTDF):
             return self.PP
         else:
             
-            t0 = (lib.logger.process_clock(), lib.logger.perf_counter())
-            cell = self.cell.copy()
-            cell.omega = 0.0
-            if hasattr(self, "ke_cutoff_pp"):
-                cell.ke_cutoff = self.ke_cutoff_pp
-            cell.build()
-            df_tmp = multigrid.MultiGridFFTDF2(cell)
-            v_pp_loc2_nl = df_tmp.get_pp()
-            v_pp_loc1_G = df_tmp.vpplocG_part1
-            v_pp_loc1 = multigrid.multigrid_pair._get_j_pass2(df_tmp, v_pp_loc1_G)
-            self.PP = (v_pp_loc1 + v_pp_loc2_nl)[0]
-            t1 = (lib.logger.process_clock(), lib.logger.perf_counter()) 
+            use_super_pp = False 
+            if hasattr(self, "_use_super_pp"):
+                if self._use_super_pp:
+                    use_super_pp = True
+                    t0 = (lib.logger.process_clock(), lib.logger.perf_counter())
+                    self.PP = super().get_pp(kpts=np.zeros(3))
+                    t1 = (lib.logger.process_clock(), lib.logger.perf_counter()) 
+            if not use_super_pp:
+                t0 = (lib.logger.process_clock(), lib.logger.perf_counter())
+                cell = self.cell.copy()
+                cell.omega = 0.0
+                if hasattr(self, "ke_cutoff_pp"):
+                    cell.ke_cutoff = self.ke_cutoff_pp
+                cell.build()
+                df_tmp = multigrid.MultiGridFFTDF2(cell)
+                v_pp_loc2_nl = df_tmp.get_pp()
+                v_pp_loc1_G = df_tmp.vpplocG_part1
+                v_pp_loc1 = multigrid.multigrid_pair._get_j_pass2(df_tmp, v_pp_loc1_G)
+                self.PP = (v_pp_loc1 + v_pp_loc2_nl)[0]
+                t1 = (lib.logger.process_clock(), lib.logger.perf_counter()) 
             if self.verbose:
                 _benchmark_time(t0, t1, "get_pp", self)
                 
@@ -903,16 +911,10 @@ class PBC_ISDF_Info(df.fft.FFTDF):
                 else:
                     self.kmesh = np.asarray([1,1,1], dtype=np.int32)
                 kmesh = np.asarray(self.kmesh, dtype=np.int32)
-                #print("kmesh = ", kmesh)
-                #print("kpts.shape = ", kpts.shape)
                 assert kpts.shape[0] == np.prod(self.kmesh, dtype=np.int32) or kpts.shape[0] == 1 or kpts.ndim == 1
                 is_single_kpt = kpts.shape[0] == 1 or kpts.ndim == 1
                 
                 if is_single_kpt:
-                    #### xxx use the original version, Xing's code is not the same as FFTDF's result xxx ####
-                    if hasattr(self, "_use_super_pp"):
-                        if self._use_super_pp:
-                            self.PP = super().get_pp(kpts=np.zeros(3))
                     #### use the calculated one by default ####
                     return self.PP
                 
