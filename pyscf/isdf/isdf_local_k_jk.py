@@ -97,8 +97,8 @@ def _preprocess_dm(mydf, dm):
                             log.debug4("warning, the input density matrix is not symmetric.")
                             log.debug4("k1    = (%d, %d, %d) " % (ix, iy, iz))
                             log.debug4("k2    = (%d, %d, %d) " % ((kmesh[0] - ix) % kmesh[0], (kmesh[1] - iy) % kmesh[1], (kmesh[2] - iz) % kmesh[2]))
-                            log.debug4("kmesh = ", kmesh)
-                            log.debug4("diff  = ", diff)
+                            # log.debug4("kmesh = ", kmesh)
+                            log.debug4("diff  = %15.6f" % (diff))
             dm_complex = np.zeros((ncell_complex, nao_prim, nao_prim), dtype=np.complex128)
             loc = 0
             for ix in range(kmesh[0]):
