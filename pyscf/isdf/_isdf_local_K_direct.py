@@ -40,6 +40,63 @@ from   pyscf.isdf.isdf_jk             import _benchmark_time
 from   pyscf.isdf.isdf_tools_local    import _pack_aoR_holder, _get_aoR_holders_memory
 import pyscf.isdf.isdf_tools_linearop as     lib_isdf
 
+############ profile ############ 
+
+cputime_RgAO   = 0.0
+cputime_V      = 0.0
+cputime_W      = 0.0
+cputime_RgR    = 0.0 
+cputime_Ktmp1  = 0.0
+cputime_Ktmp2  = 0.0
+
+walltime_RgAO  = 0.0
+walltime_V     = 0.0
+walltime_W     = 0.0
+walltime_RgR   = 0.0 
+walltime_Ktmp1 = 0.0
+walltime_Ktmp2 = 0.0
+
+def add_cputime_RgAO(t1):
+    global cputime_RgAO
+    cputime_RgAO += t1
+
+def add_walltime_RgAO(t1):
+    global walltime_RgAO
+    walltime_RgAO += t1
+
+def reset_profile_buildK_time():
+    
+    global cputime_RgAO, cputime_V, cputime_W, cputime_RgR, cputime_Ktmp1, cputime_Ktmp2
+    global walltime_RgAO, walltime_V, walltime_W, walltime_RgR, walltime_Ktmp1, walltime_Ktmp2
+    
+    cputime_RgAO   = 0.0
+    cputime_V      = 0.0
+    cputime_W      = 0.0
+    cputime_RgR    = 0.0 
+    cputime_Ktmp1  = 0.0
+    cputime_Ktmp2  = 0.0
+    
+    walltime_RgAO  = 0.0
+    walltime_V     = 0.0
+    walltime_W     = 0.0
+    walltime_RgR   = 0.0 
+    walltime_Ktmp1 = 0.0
+    walltime_Ktmp2 = 0.0
+
+def log_profile_buildK_time(mydf):
+    
+    global cputime_RgAO, cputime_V, cputime_W, cputime_RgR, cputime_Ktmp1, cputime_Ktmp2
+    global walltime_RgAO, walltime_V, walltime_W, walltime_RgR, walltime_Ktmp1, walltime_Ktmp2
+    
+    log = logger.Logger(mydf.stdout, mydf.verbose)
+    
+    log.info('In _isdf_get_K_direct_kernel RgAO  cputime = %16.3f walltime = %16.3f paralell = %4.2f' % (cputime_RgAO, walltime_RgAO, cputime_RgAO/walltime_RgAO))
+    log.info('In _isdf_get_K_direct_kernel RgR   cputime = %16.3f walltime = %16.3f paralell = %4.2f' % (cputime_RgR, walltime_RgR, cputime_RgR/walltime_RgR))
+    log.info('In _isdf_get_K_direct_kernel V     cputime = %16.3f walltime = %16.3f paralell = %4.2f' % (cputime_V, walltime_V, cputime_V/walltime_V))
+    log.info('In _isdf_get_K_direct_kernel W     cputime = %16.3f walltime = %16.3f paralell = %4.2f' % (cputime_W, walltime_W, cputime_W/walltime_W))
+    log.info('In _isdf_get_K_direct_kernel Ktmp1 cputime = %16.3f walltime = %16.3f paralell = %4.2f' % (cputime_Ktmp1, walltime_Ktmp1, cputime_Ktmp1/walltime_Ktmp1))
+    log.info('In _isdf_get_K_direct_kernel Ktmp2 cputime = %16.3f walltime = %16.3f paralell = %4.2f' % (cputime_Ktmp2, walltime_Ktmp2, cputime_Ktmp2/walltime_Ktmp2))
+
 ############ GLOBAL PARAMETER ############
 
 K_DIRECT_NAUX_BUNCHSIZE = 256
@@ -134,6 +191,9 @@ def _isdf_get_K_direct_kernel_1(
 ):
     
     log = logger.Logger(mydf.stdout, mydf.verbose)
+  
+    global cputime_RgAO, cputime_V, cputime_W, cputime_RgR, cputime_Ktmp1, cputime_Ktmp2
+    global walltime_RgAO, walltime_V, walltime_W, walltime_RgR, walltime_Ktmp1, walltime_Ktmp2
     
     ######### info #########
     
@@ -245,6 +305,9 @@ def _isdf_get_K_direct_kernel_1(
     # aoRg_packed = _pack_aoR_holder(aoRg_holders, nao)
     # memory      = _get_aoR_holders_memory(aoRg_holders)
     
+    memory      = _get_aoR_holders_memory(aoRg_packed)
+    log.info('In _isdf_get_K_direct_kernel1 aoRg_packed Memory = %d Bytes' % (memory))
+    
     # log.debug4('In _isdf_get_K_direct_kernel1 group_id = %d, naux = %d' % (group_id, naux_tmp))
     # log.debug4('In _isdf_get_K_direct_kernel1 aoRg_holders Memory = %d Bytes' % (memory))
     # log.debug4('In _isdf_get_K_direct_kernel1 naux_bunchsize      = %d' % (naux_bunchsize))
@@ -301,6 +364,8 @@ def _isdf_get_K_direct_kernel_1(
                                 buffer=build_VW_buf, 
                                 offset=offset_V_tmp, 
                                 dtype =np.float64)
+
+            t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
         
             construct_V(aux_basis[group_id][p0:p1, :], 
                         buf_build_V_thread,
@@ -309,6 +374,11 @@ def _isdf_get_K_direct_kernel_1(
                         mydf.grid_ID_ordered,
                         mesh,
                         coulG_real)
+            
+            t2 = (lib.logger.process_clock(), lib.logger.perf_counter()) 
+            
+            cputime_V  += t2[0] - t1[0]
+            walltime_V += t2[1] - t1[1]
         
         else:
             
@@ -328,6 +398,8 @@ def _isdf_get_K_direct_kernel_1(
                                          buffer=Density_RgR_buf, 
                                          offset=0, 
                                          dtype =np.float64)
+
+        t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
 
         ILOC = 0
         for kx in range(kmesh[0]):
@@ -389,6 +461,11 @@ def _isdf_get_K_direct_kernel_1(
         
                     ILOC += 1
         
+        t2 = (lib.logger.process_clock(), lib.logger.perf_counter())
+        
+        cputime_RgR  += t2[0] - t1[0]
+        walltime_RgR += t2[1] - t1[1]
+        
         Density_RgR = Density_RgR_tmp
         
         #### 3.2 V_tmp = Density_RgR * V
@@ -400,6 +477,8 @@ def _isdf_get_K_direct_kernel_1(
         
         K1_tmp1 = np.ndarray((p1-p0, nao), buffer=K1_tmp1_buf)
         K1_tmp1.ravel()[:] = 0.0
+        
+        t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
         
         ILOC = 0
         for kx in range(kmesh[0]):
@@ -453,7 +532,14 @@ def _isdf_get_K_direct_kernel_1(
 
                     ILOC += 1
 
+        t2 = (lib.logger.process_clock(), lib.logger.perf_counter())
+        
+        cputime_Ktmp1  += t2[0] - t1[0]
+        walltime_Ktmp1 += t2[1] - t1[1]
+
         #### 3.4 K1_or_2 += aoRg * K1_tmp1
+        
+        t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
         
         ILOC = 0
         for kx in range(kmesh[0]):
@@ -480,12 +566,19 @@ def _isdf_get_K_direct_kernel_1(
                     
                     ILOC += 1
         
+        t2 = (lib.logger.process_clock(), lib.logger.perf_counter())
+        
+        cputime_Ktmp2  += t2[0] - t1[0]
+        walltime_Ktmp2 += t2[1] - t1[1]
+        
         #### 4. build the W matrix ####
         
         if calculate_W:
                         
             aux_ket_shift = 0
             grid_shift = 0
+
+            t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
         
             for ix in range(kmesh[0]):
                 for iy in range(kmesh[1]):
@@ -498,6 +591,11 @@ def _isdf_get_K_direct_kernel_1(
                                V_tmp[:, grid_shift:grid_shift+ngrid_now], aux_basis_ket.T)
                             aux_ket_shift += naux_ket
                             grid_shift += ngrid_now 
+            
+            t2 = (lib.logger.process_clock(), lib.logger.perf_counter())
+            
+            cputime_W  += t2[0] - t1[0]
+            walltime_W += t2[1] - t1[1]
             
             assert grid_shift == ngrid
         

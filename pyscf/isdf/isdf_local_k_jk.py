@@ -1399,6 +1399,10 @@ def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
     K1 = np.zeros((nset, nao_prim, nao), dtype=np.float64) # contribution from V matrix
     K2 = np.zeros((nset, nao_prim, nao), dtype=np.float64) # contribution from W matrix
     
+    from pyscf.isdf._isdf_local_K_direct import reset_profile_buildK_time, add_cputime_RgAO, add_walltime_RgAO, log_profile_buildK_time
+    
+    reset_profile_buildK_time()
+    
     for group_id, atm_ids in enumerate(group):
         
         if use_mpi:
@@ -1416,10 +1420,19 @@ def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
         
         #### 1. build the involved DM_RgR #### 
         
+        t1 = (logger.process_clock(), logger.perf_counter())
+        
         Density_RgAO_tmp        = np.ndarray((nset, naux_tmp, nao), buffer=Density_RgAO_buf)
         offset_density_RgAO_buf = Density_RgAO_tmp.size * Density_RgAO_buf.dtype.itemsize
         Density_RgAO_tmp.ravel()[:] = 0.0
         Density_RgAO_tmp            = __get_DensityMatrixonRgAO_qradratic(mydf, dm, aoRg_holders, "all", Density_RgAO_tmp, verbose=mydf.verbose)
+        
+        t2 = (logger.process_clock(), logger.perf_counter())
+        
+        #cputime_RgAO  += t2[0] - t1[0]
+        #walltime_RgAO += t2[1] - t1[1]
+        add_cputime_RgAO(t2[0] - t1[0])
+        add_walltime_RgAO(t2[1] - t1[1])
         
         #### 2. build the V matrix #### 
         
@@ -1477,6 +1490,8 @@ def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
                 use_mpi=use_mpi,
                 ##### out #####
                 K1_or_2=K2[iset])
+    
+    log_profile_buildK_time(mydf)
                 
     ######### finally delete the buffer #########
     
