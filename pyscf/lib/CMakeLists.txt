@@ -122,26 +122,22 @@ set_target_properties (clib_pdft PROPERTIES
     OUTPUT_NAME "pdft")
 
 # Build the ISDF library
-
-# add_subdirectory(isdf)
-
 add_library(isdf SHARED 
-  ../isdf/pbc_isdf_samplek.c 
-  ../isdf/pbc_isdf_V.c 
-  ../isdf/pbc_isdf_auxbasis.c 
-  ../isdf/pbc_isdf_sparse.c 
-  ../isdf/pbc_isdf_eri.c)
-
-set_target_properties(isdf PROPERTIES
-  LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR})
+../isdf/pbc_isdf_samplek.c 
+../isdf/pbc_isdf_V.c 
+../isdf/pbc_isdf_auxbasis.c 
+../isdf/pbc_isdf_sparse.c 
+../isdf/pbc_isdf_eri.c)
 
 target_link_libraries(isdf cgto cint cvhf np_helper ${BLAS_LIBRARIES} ${OPENMP_C_PROPERTIES})
+set_target_properties(isdf PROPERTIES
+LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR})
 
 if(ENABLE_FFTW)
 add_library(fft SHARED ../isdf/fft.c)
 set_target_properties(fft PROPERTIES
-  LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}
-  COMPILE_FLAGS ${OpenMP_C_FLAGS}
-  LINK_FLAGS ${OpenMP_C_FLAGS})
+LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}
+COMPILE_FLAGS ${OpenMP_C_FLAGS}
+LINK_FLAGS ${OpenMP_C_FLAGS})
 target_link_libraries(fft fftw3_threads fftw3 ${BLAS_LIBRARIES})
 endif()
