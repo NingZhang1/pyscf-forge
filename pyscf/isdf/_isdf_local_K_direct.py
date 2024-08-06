@@ -192,8 +192,26 @@ def _isdf_get_K_direct_kernel_1(
     
     log = logger.Logger(mydf.stdout, mydf.verbose)
   
-    global cputime_RgAO, cputime_V, cputime_W, cputime_RgR, cputime_Ktmp1, cputime_Ktmp2
+  
+    ######### profile #########
+     
+    global cputime_RgAO,  cputime_V,  cputime_W,  cputime_RgR,  cputime_Ktmp1,  cputime_Ktmp2
     global walltime_RgAO, walltime_V, walltime_W, walltime_RgR, walltime_Ktmp1, walltime_Ktmp2
+    
+    ######### cutoff #########
+    
+    use_cutoff  = False
+    rela_cutoff = None
+    abs_cutoff  = None
+    
+    if hasattr(mydf, "_build_K_rela_cutoff"):
+        rela_cutoff = mydf._build_K_rela_cutoff
+        if rela_cutoff is not None:
+            use_cutoff = True
+    if hasattr(mydf, "_build_K_abs_cutoff"):
+        abs_cutoff = mydf._build_K_abs_cutoff
+    if use_cutoff and abs_cutoff is None:
+        abs_cutoff = 1.0e-10
     
     ######### info #########
     
@@ -352,6 +370,14 @@ def _isdf_get_K_direct_kernel_1(
         offset_after_V_tmp = offset_V_tmp
         W_tmp = None
 
+    ###### CUTOFF ######
+    
+    if use_cutoff:    
+        dm_RgAO_max = np.max(np.abs(dm_RgAO[:, :nao_prim]))
+        log.debug2('In _isdf_get_K_direct_kernel1 dm_RgAO_max = %16.8e' % (dm_RgAO_max))
+        
+    ####################
+
     #### loop over Rg ####
     
     for p0, p1 in lib.prange(0, naux_tmp, bunchsize):
@@ -398,6 +424,7 @@ def _isdf_get_K_direct_kernel_1(
                                          buffer=Density_RgR_buf, 
                                          offset=0, 
                                          dtype =np.float64)
+        Density_RgR_tmp.ravel()[:] = 0.0 # clean 
 
         t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
 
@@ -450,6 +477,16 @@ def _isdf_get_K_direct_kernel_1(
                                 ao_permutation.ctypes.data_as(ctypes.c_void_p)
                             )
 
+                        ###### CUTOFF ######
+
+                        if use_cutoff:
+                            dm_RgAO_packed_max = np.max(np.abs(Density_RgAO_packed))
+                            if dm_RgAO_packed_max < abs_cutoff or dm_RgAO_packed_max < rela_cutoff * dm_RgAO_max:
+                                log.debug4('In _isdf_get_K_direct_kernel1 dm_RgAO_packed_max = %16.8e for box (%d,%d,%d) atm %d is too small, skip' % (dm_RgAO_packed_max, kx, ky, kz, atm_id))
+                                continue
+                        
+                        ####################
+
                         if construct_K1:
                             grid_begin   = aoR_holder.global_gridID_begin + ILOC*ngrid_prim
                         else:
@@ -472,6 +509,18 @@ def _isdf_get_K_direct_kernel_1(
         
         lib_isdf.cwise_mul(V_tmp, Density_RgR, out=Density_RgR)
         V2_tmp = Density_RgR
+        
+        
+        ###### CUTOFF ######
+        
+        if use_cutoff:
+            if construct_K1:
+                V2_tmp_max = np.max(np.abs(V2_tmp[:, :ngrid_prim]))
+            else:
+                V2_tmp_max = np.max(np.abs(V2_tmp[:, :nIP_prim]))
+            log.debug2('In _isdf_get_K_direct_kernel1 V2_tmp_max = %16.8e' % (V2_tmp_max))
+        
+        ####################
         
         #### 3.3 K1_tmp1 = V2_tmp * aoR.T
         
@@ -498,20 +547,30 @@ def _isdf_get_K_direct_kernel_1(
                         else:
                             aoR_holder = aoRg[atm_id]
             
-                        ngrid_now      = aoR_holder.aoR.shape[1]
-                        nao_involved   = aoR_holder.aoR.shape[0]
-                        ddot_res       = np.ndarray((p1-p0, nao_involved), buffer=K1_tmp1_ddot_res_buf)
+                        ngrid_now    = aoR_holder.aoR.shape[1]
+                        nao_involved = aoR_holder.aoR.shape[0]
+                        ddot_res     = np.ndarray((p1-p0, nao_involved), buffer=K1_tmp1_ddot_res_buf)
                         
                         if construct_K1:
                             grid_loc_begin = aoR_holder.global_gridID_begin + ILOC*ngrid_prim
                         else:
                             grid_loc_begin = aoR_holder.global_gridID_begin + ILOC*nIP_prim
             
+                        ###### CUTOFF ######
+                        
+                        if use_cutoff:
+                            V2_tmp_max2 = np.max(np.abs(V2_tmp[:, grid_loc_begin:grid_loc_begin+ngrid_now]))
+                            if V2_tmp_max2 < abs_cutoff or V2_tmp_max2 < rela_cutoff * V2_tmp_max:
+                                log.debug4('In _isdf_get_K_direct_kernel1 V2_tmp_max2 = %16.8e for box (%d,%d,%d) atm %d is too small, skip' % (V2_tmp_max2, kx, ky, kz, atm_id))
+                                continue
+                        
+                        ####################
+            
                         lib.ddot(V2_tmp[:, grid_loc_begin:grid_loc_begin+ngrid_now],
                                  aoR_holder.aoR.T, 
                                  c=ddot_res)
             
-                        if kx ==0 and ky == 0 and kz == 0:
+                        if kx == 0 and ky == 0 and kz == 0:
                             ao_permutation = aoR_holder.ao_involved
                         else:
                             ao_permutation = col_permutation[atm_id]
@@ -549,7 +608,7 @@ def _isdf_get_K_direct_kernel_1(
                     box_permutation = permutation[ILOC]
                     
                     nao_involved = aoRg_packed[ILOC].nao_involved
-                    ddot_res = np.ndarray((nao_involved, nao), buffer=K1_final_ddot_buf)
+                    ddot_res     = np.ndarray((nao_involved, nao), buffer=K1_final_ddot_buf)
                     lib.ddot(aoRg_packed[ILOC].aoR[:,p0:p1], K1_tmp1, c=ddot_res)
                     fn_packadd_row_k(
                         K1_or_2.ctypes.data_as(ctypes.c_void_p),
@@ -576,7 +635,7 @@ def _isdf_get_K_direct_kernel_1(
         if calculate_W:
                         
             aux_ket_shift = 0
-            grid_shift = 0
+            grid_shift    = 0
 
             t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
         
@@ -584,13 +643,13 @@ def _isdf_get_K_direct_kernel_1(
                 for iy in range(kmesh[1]):
                     for iz in range(kmesh[2]):
                        for j in range(len(group)):
-                            aux_basis_ket = mydf.aux_basis[j]
-                            ngrid_now = aux_basis_ket.shape[1]
-                            naux_ket = aux_basis_ket.shape[0]
+                            aux_basis_ket  = mydf.aux_basis[j]
+                            ngrid_now      = aux_basis_ket.shape[1]
+                            naux_ket       = aux_basis_ket.shape[0]
                             W_tmp[p0:p1, aux_ket_shift:aux_ket_shift+naux_ket] = lib.ddot(
                                V_tmp[:, grid_shift:grid_shift+ngrid_now], aux_basis_ket.T)
                             aux_ket_shift += naux_ket
-                            grid_shift += ngrid_now 
+                            grid_shift    += ngrid_now 
             
             t2 = (lib.logger.process_clock(), lib.logger.perf_counter())
             

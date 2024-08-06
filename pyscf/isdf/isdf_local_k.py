@@ -1232,7 +1232,7 @@ if __name__ == "__main__":
     # prim_partition = [[0,1,2,3,4,5,6,7]]
     prim_partition = [[0,1],[2,3],[4,5],[6,7]]
     
-    Ls = [1, 1, 2]
+    Ls = [2, 2, 2]
     kpts = prim_cell.make_kpts(Ls)
     Ls = np.array(Ls, dtype=np.int32)
     mesh = [Ls[0] * prim_mesh[0], Ls[1] * prim_mesh[1], Ls[2] * prim_mesh[2]]

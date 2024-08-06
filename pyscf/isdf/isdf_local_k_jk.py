@@ -1278,6 +1278,7 @@ def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
         size = comm.Get_size()
     
     t1 = (logger.process_clock(), logger.perf_counter())
+    t0 = (logger.process_clock(), logger.perf_counter())
     
     ############# preprocess #############
     
@@ -1560,7 +1561,7 @@ def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
     K  = np.array(Res)
     t2 = (logger.process_clock(), logger.perf_counter())
     
-    _benchmark_time(t1, t2, "_contract_k_dm_quadratic_direct", mydf)
+    _benchmark_time(t0, t2, "_contract_k_dm_quadratic_direct", mydf)
     
     return K
    
