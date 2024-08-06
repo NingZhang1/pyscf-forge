@@ -990,17 +990,12 @@ class PBC_ISDF_Info_Quad_K(ISDF_Local.PBC_ISDF_Info_Quad):
             size_buf1 = 0
             
             ### in construct W ###
-            
-            # print("nIP_Prim = ", nIP_Prim)
-            # print("ncell_complex = ", ncell_complex)    
-            
+
             size_buf2  = nIP_Prim * nIP_Prim * 2
             size_buf2 += nIP_Prim * nGridPrim * 2 * 2
             size_buf2 += nIP_Prim * nIP_Prim *  ncell_complex * 2 * 2
             size_buf2 = 0
-            
-            # print("size_buf2 = ", size_buf2)
-            
+                        
             ### in get_j ###
                     
             buf_J = self._get_bufsize_get_j()
@@ -1012,19 +1007,9 @@ class PBC_ISDF_Info_Quad_K(ISDF_Local.PBC_ISDF_Info_Quad):
             
             ### ddot_buf ###
             
-            # size_ddot_buf = max(naux*naux+2,ngrids)*num_threads
-            size_ddot_buf = (nIP_Prim*nIP_Prim+2)*num_threads
-            
-            # print("size_buf1 = ", size_buf1)
-            # print("size_buf2 = ", size_buf2)
-            # print("size_buf3 = ", size_buf3)
-            # print("size_buf4 = ", size_buf4)
-            # print("size_buf5 = ", size_buf5)
-            
-            size_buf = max(size_buf1,size_buf2,buf_J,buf_K)
-            
-            # print("size_buf = ", size_buf)
-            
+            size_ddot_buf = (nIP_Prim*nIP_Prim+2)*num_threads            
+            size_buf      = max(size_buf1,size_buf2,buf_J,buf_K)
+                        
             if hasattr(self, "IO_buf"):
                 if self.IO_buf.size < (size_buf+size_ddot_buf):
                     self.IO_buf = np.zeros((size_buf+size_ddot_buf), dtype=np.float64)
@@ -1114,30 +1099,7 @@ class PBC_ISDF_Info_Quad_K(ISDF_Local.PBC_ISDF_Info_Quad):
             return self.aoRg_col_permutation[loc][loc_internal]
         else:
             return self.aoRg_col_permutation[loc]
-    
-    # def get_aoR_Row(self, box_x, box_y, box_z):
-    #     loc = box_x * self.kmesh[1] * self.kmesh[2] + box_y * self.kmesh[2] + box_z
-    #     return self.aoR_Full[loc]
-    
-    # def _get_aoR_Row(self, box_x, box_y, box_z):
-    #     assert box_x < self.kmesh[0]
-    #     assert box_y < self.kmesh[1]
-    #     assert box_z < self.kmesh[2]
-    #     if box_x == 0 and box_y == 0 and box_z == 0:
-    #         return self.aoR1
-    #     else:
-    #         Res = []
-    #         for ix in range(self.kmesh[0]):
-    #             for iy in range(self.kmesh[1]):
-    #                 for iz in range(self.kmesh[2]):
-    #                     ix_ = (ix - box_x + self.kmesh[0]) % self.kmesh[0]
-    #                     iy_ = (iy - box_y + self.kmesh[1]) % self.kmesh[1]
-    #                     iz_ = (iz - box_z + self.kmesh[2]) % self.kmesh[2]
-    #                     loc_ = ix_ * self.kmesh[1] * self.kmesh[2] + iy_ * self.kmesh[2] + iz_
-    #                     for i in range(loc_*self.natmPrim, (loc_+1)*self.natmPrim):
-    #                         Res.append(self.aoR1[i])
-    #         return Res
-    
+        
     def _get_aoRg_Row(self, box_x, box_y, box_z):
         
         assert box_x < self.kmesh[0]
@@ -1158,9 +1120,6 @@ class PBC_ISDF_Info_Quad_K(ISDF_Local.PBC_ISDF_Info_Quad):
                         for i in range(loc_*self.natmPrim, (loc_+1)*self.natmPrim):
                             Res.append(self.aoRg1[i])
             return Res
-
-                       
-    # get_jk = get_jk_dm_translation_symmetry
 
     #### subroutine to deal with _ewald_exxdiv_for_G0
 
@@ -1198,10 +1157,13 @@ class PBC_ISDF_Info_Quad_K(ISDF_Local.PBC_ISDF_Info_Quad):
             vk = np.zeros_like(dm, dtype=np.complex128)
             
             for iset in range(nset):
-                vj[iset] = _contract_j_dm_k_ls(self, dm[iset])
+                if iset<=1:
+                    vj[iset] = _contract_j_dm_k_ls(self, dm[iset])
                 if self.with_robust_fitting:
                     if self.direct:
-                        vk[iset] = _get_k_kSym_direct(self, dm[iset])
+                        # vk[iset] = _get_k_kSym_direct(self, dm[iset])
+                        if iset == 0:
+                            vk = _get_k_kSym_direct(self, dm)
                     else:
                         vk[iset] = _get_k_kSym_robust_fitting_fast(self, dm[iset])
                 else:
@@ -1283,47 +1245,16 @@ if __name__ == "__main__":
     
     # pbc_isdf_info = PBC_ISDF_Info_Quad_K(cell, kmesh=Ls, with_robust_fitting=True, aoR_cutoff=1e-8, direct=False, rela_cutoff_QRCP=3e-3)
     pbc_isdf_info = PBC_ISDF_Info_Quad_K(prim_cell, kmesh=Ls, with_robust_fitting=True, aoR_cutoff=1e-8, 
-                                         # direct=True, 
-                                         direct=False, 
+                                         direct=True, 
+                                         # direct=False, 
                                          rela_cutoff_QRCP=3e-3,
                                          limited_memory=True, build_K_bunchsize=32)
     pbc_isdf_info.build_IP_local(c=C, m=5, group=prim_partition, Ls=[Ls[0]*10, Ls[1]*10, Ls[2]*10])
     pbc_isdf_info.verbose = 10
     
-    # exit(1)
-    
-    #print("grid_segment         = ", pbc_isdf_info.grid_segment)
-    #print("len of grid_ordering = ", len(pbc_isdf_info.grid_ID_ordered))
-    
-    #aoR_unpacked = []
-    #for aoR_holder in pbc_isdf_info.aoR1:
-    #    aoR_unpacked.append(aoR_holder.todense(prim_cell.nao_nr()))
-    #aoR_unpacked = np.concatenate(aoR_unpacked, axis=1)
-    #print("aoR_unpacked shape = ", aoR_unpacked.shape)
-    
     weight = np.sqrt(cell.vol / pbc_isdf_info.coords.shape[0])
     aoR_benchmark = ISDF_eval_gto(cell, coords=pbc_isdf_info.coords[pbc_isdf_info.grid_ID_ordered]) * weight
-    
-    # loc = 0
-    # nao_prim = prim_cell.nao_nr()
-    # for ix in range(Ls[0]):
-    #     for iy in range(Ls[1]):
-    #         for iz in range(Ls[2]):
-    #             aoR_unpacked = []
-    #             aoR_holder = pbc_isdf_info.get_aoR_Row(ix, iy, iz)
-    #             for data in aoR_holder:
-    #                 # print("data = ", data.aoR.shape)
-    #                 aoR_unpacked.append(data.todense(nao_prim))
-    #             aoR_unpacked = np.concatenate(aoR_unpacked, axis=1)
-    #             aoR_benchmark_now = aoR_benchmark[loc*nao_prim:(loc+1)*nao_prim,:]
-    #             loc += 1
-    #             diff = aoR_benchmark_now - aoR_unpacked
-    #             where = np.where(np.abs(diff) > 1e-4)
-    #             print("diff = ", np.linalg.norm(diff)/np.sqrt(aoR_unpacked.size))
-    # print("prim_mesh = ", prim_mesh)
-    
-    # exit(1)
-    
+        
     naux_prim = 0
     for data in pbc_isdf_info.aoRg:
         naux_prim += data.aoR.shape[1]
@@ -1358,16 +1289,13 @@ if __name__ == "__main__":
         grid_ID_prim2.extend(pbc_isdf_info.partition[i])
     grid_ID_prim2 = np.array(grid_ID_prim2, dtype=np.int32)
     assert np.allclose(grid_ID_prim, grid_ID_prim2)
-    
-    # exit(1)
-    
-    pbc_isdf_info.build_auxiliary_Coulomb(debug=True)
-    
-    # print("grid_segment = ", pbc_isdf_info.grid_segment)
-    
+        
+    # pbc_isdf_info.build_auxiliary_Coulomb(debug=True)
+        
     from pyscf.pbc import scf
 
     mf = scf.KRHF(prim_cell, kpts)
+    # mf = scf.KUHF(prim_cell, kpts)
     # pbc_isdf_info.kpts = np.array([[0,0,0]])  
     # mf = scf.addons.smearing_(mf, sigma=0.2, method='fermi')
     pbc_isdf_info.direct_scf = mf.direct_scf
@@ -1403,11 +1331,3 @@ if __name__ == "__main__":
     mf.max_cycle = 16
     mf.conv_tol = 1e-7
     mf.kernel()
-    
-    # pp = mf.with_df.get_pp()
-    # mf = scf.RHF(cell)
-    # pbc_isdf_info.direct_scf = mf.direct_scf
-    # mf.with_df.get_pp = lambda *args, **kwargs: pp
-    # mf.max_cycle = 16
-    # mf.conv_tol = 1e-7
-    # mf.kernel()

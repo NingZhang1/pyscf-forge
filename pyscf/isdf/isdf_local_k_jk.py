@@ -91,8 +91,8 @@ def _preprocess_dm(mydf, dm):
                         #print("dm[loc1] = ", dm[loc1])
                         #print("dm[loc2] = ", dm[loc2])
                         diff = np.linalg.norm(dm[loc1] - dm[loc2].conj()) / np.sqrt(dm.size)
-                        #print("diff = ", diff) ## NOTE: should be very small
-                        #assert diff < 1e-7
+                        # print("diff = ", diff) ## NOTE: should be very small
+                        # assert diff < 1e-7
                         if diff > 1e-7:
                             log.debug4("warning, the input density matrix is not symmetric.")
                             log.debug4("k1    = (%d, %d, %d) " % (ix, iy, iz))
@@ -106,7 +106,7 @@ def _preprocess_dm(mydf, dm):
                     for iz in range(kmesh[2]//2+1):
                         loc1 = ix * kmesh[1] * kmesh[2] + iy * kmesh[2] + iz
                         loc2 = (kmesh[0] - ix) % kmesh[0] * kmesh[1] * kmesh[2] + (kmesh[1] - iy) % kmesh[1] * kmesh[2] + (kmesh[2] - iz) % kmesh[2]
-                        #dm_complex[loc].ravel()[:] = dm[loc1].ravel()[:]
+                        # dm_complex[loc].ravel()[:] = dm[loc1].ravel()[:]
                         dm_input = ((dm[loc1] + dm[loc2].conj()) / 2.0).copy()
                         dm_complex[loc].ravel()[:] = dm_input.ravel()[:]
                         loc += 1
@@ -1077,10 +1077,7 @@ def _get_k_kSym(mydf, _dm):
     ngrid = np.prod(cell.mesh)
     vol = cell.vol
     
-    W         = mydf.W
-    # aoRg      = mydf.aoRg
-    # aoRg_Prim = mydf.aoRg_Prim
-    # naux      = aoRg.shape[1]
+    W    = mydf.W
     naux = mydf.naux
     
     kmesh = np.array(mydf.kmesh, dtype=np.int32)
@@ -1105,9 +1102,7 @@ def _get_k_kSym(mydf, _dm):
     offset += (nao_prim * nao_prim * ncell_complex) * DM_complex.itemsize
     
     #### get D ####
-    
-    #_get_DM_RgRg_real(mydf, DM_real, DM_complex, DM_RgRg_real, DM_RgRg_complex, offset)
-    
+        
     fn1 = getattr(libisdf, "_FFT_Matrix_Col_InPlace", None)
     assert fn1 is not None
     
@@ -1286,15 +1281,24 @@ def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
     
     ############# preprocess #############
     
-    dm, in_real_space = _preprocess_dm(mydf, _dm)
-    if in_real_space:
-        if np.prod(mydf.kmesh) == 1:
-            in_real_space = False
+    dm = []
+    nset = _dm.shape[0]
+    
+    for iset in range(nset):
+        _dm_tmp, in_real_space = _preprocess_dm(mydf, _dm[iset])
+        dm.append(_dm_tmp)
+        if in_real_space:
+            if np.prod(mydf.kmesh) == 1:
+                in_real_space = False
     assert not in_real_space
     
+    dm = np.asarray(dm)
+    
     if len(dm.shape) == 3:
-        assert dm.shape[0] == 1
-        dm = dm[0]
+        assert dm.shape[0] <= 4
+        #dm = dm[0]
+    else:
+        dm = dm.reshape(1, *dm.shape)
         
     aoR  = mydf.aoR
     aoRg = mydf.aoRg    
@@ -1306,7 +1310,7 @@ def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
         
     ####### preparing the data #######
         
-    nao  = dm.shape[0]
+    nset, nao  = dm.shape[0], dm.shape[1]
     cell = mydf.cell
     assert cell.nao == nao
     vol = cell.vol
@@ -1337,7 +1341,7 @@ def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
     coulG = mydf.coulG
     coulG_real = coulG.reshape(*mesh)[:, :, :mesh[2]//2+1].reshape(-1).copy()
     
-    mydf.allocate_k_buffer()
+    mydf.allocate_k_buffer(nset)
     build_k_buf  = mydf.build_k_buf
     build_VW_buf = mydf.build_VW_in_k_buf
     
@@ -1392,8 +1396,8 @@ def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
 
     ######### begin work #########
     
-    K1 = np.zeros((nao_prim, nao), dtype=np.float64) # contribution from V matrix
-    K2 = np.zeros((nao_prim, nao), dtype=np.float64) # contribution from W matrix
+    K1 = np.zeros((nset, nao_prim, nao), dtype=np.float64) # contribution from V matrix
+    K2 = np.zeros((nset, nao_prim, nao), dtype=np.float64) # contribution from W matrix
     
     for group_id, atm_ids in enumerate(group):
         
@@ -1412,58 +1416,67 @@ def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
         
         #### 1. build the involved DM_RgR #### 
         
-        Density_RgAO_tmp        = np.ndarray((naux_tmp, nao), buffer=Density_RgAO_buf)
+        Density_RgAO_tmp        = np.ndarray((nset, naux_tmp, nao), buffer=Density_RgAO_buf)
         offset_density_RgAO_buf = Density_RgAO_tmp.size * Density_RgAO_buf.dtype.itemsize
         Density_RgAO_tmp.ravel()[:] = 0.0
         Density_RgAO_tmp            = __get_DensityMatrixonRgAO_qradratic(mydf, dm, aoRg_holders, "all", Density_RgAO_tmp, verbose=mydf.verbose)
         
         #### 2. build the V matrix #### 
         
-        W_tmp = _isdf_get_K_direct_kernel_1(
-            mydf, coulG_real,
-            group_id, Density_RgAO_tmp,
-            None, True,
-            ##### buffer #####
-            buf_build_V,
-            build_VW_buf,
-            offset_now,
-            Density_RgR_buf,
-            Density_RgAO_buf,
-            offset_density_RgAO_buf,
-            ddot_res_RgR_buf,
-            K1_tmp1_buf,
-            K1_tmp1_ddot_res_buf,
-            K1_final_ddot_buf,
-            ##### bunchsize #####
-            #maxsize_group_naux,
-            build_K_bunchsize,
-            ##### other info #####
-            use_mpi=use_mpi,
-            ##### out #####
-            K1_or_2=K1)
+        W_tmp = None
         
-        _isdf_get_K_direct_kernel_1(
-            mydf, coulG_real,
-            group_id, Density_RgAO_tmp,
-            W_tmp, False,
-            ##### buffer #####
-            buf_build_V,
-            build_VW_buf,
-            offset_now,
-            Density_RgR_buf,
-            Density_RgAO_buf,
-            offset_density_RgAO_buf,
-            ddot_res_RgR_buf,
-            K1_tmp1_buf,
-            K1_tmp1_ddot_res_buf,
-            K1_final_ddot_buf,
-            ##### bunchsize #####
-            #maxsize_group_naux,
-            build_K_bunchsize,
-            ##### other info #####
-            use_mpi=use_mpi,
-            ##### out #####
-            K1_or_2=K2)
+        for iset in range(nset):
+            
+            calculate_W_tmp = (iset == 0) 
+            
+            _W_tmp = _isdf_get_K_direct_kernel_1(
+                mydf, coulG_real,
+                group_id, Density_RgAO_tmp[iset],
+                None, True, calculate_W_tmp,
+                ##### buffer #####
+                buf_build_V,
+                build_VW_buf,
+                offset_now,
+                Density_RgR_buf,
+                Density_RgAO_buf,
+                offset_density_RgAO_buf,
+                ddot_res_RgR_buf,
+                K1_tmp1_buf,
+                K1_tmp1_ddot_res_buf,
+                K1_final_ddot_buf,
+                ##### bunchsize #####
+                #maxsize_group_naux,
+                build_K_bunchsize,
+                ##### other info #####
+                use_mpi=use_mpi,
+                ##### out #####
+                K1_or_2=K1[iset])
+            
+            if calculate_W_tmp:
+                W_tmp = _W_tmp
+        
+            _isdf_get_K_direct_kernel_1(
+                mydf, coulG_real,
+                group_id, Density_RgAO_tmp[iset],
+                W_tmp, False, False,
+                ##### buffer #####
+                buf_build_V,
+                build_VW_buf,
+                offset_now,
+                Density_RgR_buf,
+                Density_RgAO_buf,
+                offset_density_RgAO_buf,
+                ddot_res_RgR_buf,
+                K1_tmp1_buf,
+                K1_tmp1_ddot_res_buf,
+                K1_final_ddot_buf,
+                ##### bunchsize #####
+                #maxsize_group_naux,
+                build_K_bunchsize,
+                ##### other info #####
+                use_mpi=use_mpi,
+                ##### out #####
+                K1_or_2=K2[iset])
                 
     ######### finally delete the buffer #########
     
@@ -1475,40 +1488,65 @@ def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
         K2 = reduce(K2, root = 0)
         if rank == 0:
             # K = K1 + K1.T - K2
-            K1 = pack_JK(K1, kmesh, nao_prim)
-            K2 = pack_JK(K2, kmesh, nao_prim)
-            K  = K1 + K1.T - K2
+            K1_packed = []
+            K2_packed = []
+            for iset in range(nset):
+                #K1 = pack_JK(K1, kmesh, nao_prim)
+                #K2 = pack_JK(K2, kmesh, nao_prim)
+                K1_packed.apepnd(pack_JK(K1[iset], kmesh, nao_prim))
+                K2_packed.append(pack_JK(K2[iset], kmesh, nao_prim))
+            K1 = np.array(K1_packed)
+            K2 = np.array(K2_packed)
+            K = np.zeros_like(K1)
+            # K  = K1 + K1.T - K2
+            for iset in range(nset):
+                K[iset] = K1[iset] + K1[iset].T - K2[iset]
         else:
             K = None
         K = bcast(K, root = 0)
     else:
         # K = K1 + K1.T - K2 
-        K1 = pack_JK(K1, kmesh, nao_prim)
-        K2 = pack_JK(K2, kmesh, nao_prim)
-        K  = K1 + K1.T - K2
+        K1_packed = []
+        K2_packed = []
+        for iset in range(nset):
+            #K1 = pack_JK(K1, kmesh, nao_prim)
+            #K2 = pack_JK(K2, kmesh, nao_prim)
+            K1_packed.append(pack_JK(K1[iset], kmesh, nao_prim))
+            K2_packed.append(pack_JK(K2[iset], kmesh, nao_prim))
+        K1 = np.array(K1_packed)
+        K2 = np.array(K2_packed)
+        K  = np.zeros_like(K1)
+        # K  = K1 + K1.T - K2
+        for iset in range(nset):
+            K[iset] = K1[iset] + K1[iset].T - K2[iset]
     
     del K1
     del K2
     
     ############ transform back to K ############
-        
-    # print("K = ", K[0])
-        
-    K = _RowCol_FFT_bench(K[:nao_prim, :], kmesh, inv=True, TransBra=False, TransKet=True)
-    K*= nkpts
-    K*= ngrid / vol
+    
+    K_res = []
+    
+    for iset in range(nset):
+        Ktmp  = _RowCol_FFT_bench(K[iset, :nao_prim, :], kmesh, inv=True, TransBra=False, TransKet=True)
+        K_res.append(Ktmp)
+    
+    K  = np.asarray(K_res)
+    K *= nkpts
+    K *= ngrid / vol
     
     Res = []
+    for iset in range(nset):
+        Res.append([])
     for i in range(np.prod(kmesh)):
-        Res.append(K[:, i*nao_prim:(i+1)*nao_prim])
-    K = np.array(Res)
-    
+        for iset in range(nset):
+            Res[iset].append(K[iset, :, i*nao_prim:(i+1)*nao_prim])
+            
+    K  = np.array(Res)
     t2 = (logger.process_clock(), logger.perf_counter())
     
-    #if mydf.verbose:
     _benchmark_time(t1, t2, "_contract_k_dm_quadratic_direct", mydf)
     
-    # return K * ngrid / vol
     return K
    
 def get_jk_dm_translation_symmetry(mydf, dm, hermi=1, kpt=np.zeros(3),
@@ -1574,7 +1612,6 @@ def get_jk_dm_translation_symmetry(mydf, dm, hermi=1, kpt=np.zeros(3),
     for iset in range(nset):
         if with_j:
             vj[iset] = _contract_j_dm_k_ls(mydf, dm[iset], use_mpi)  
-            sys.stdout.flush()
         if with_k:
             if mydf.direct:
                 raise NotImplementedError

@@ -113,6 +113,7 @@ def _isdf_get_K_direct_kernel_1(
     dm_RgAO,
     V_or_W_tmp,
     construct_K1,
+    calculate_W,
     ##### buffer #####, 
     buf_build_V_thread,
     build_VW_buf,
@@ -328,8 +329,6 @@ def _isdf_get_K_direct_kernel_1(
                                          offset=0, 
                                          dtype =np.float64)
 
-        # print("Density_RgR_tmp.shape = ", Density_RgR_tmp.shape)
-
         ILOC = 0
         for kx in range(kmesh[0]):
             for ky in range(kmesh[1]):
@@ -340,9 +339,7 @@ def _isdf_get_K_direct_kernel_1(
                             col_permutation = mydf._get_permutation_column_aoR(kx, ky, kz)
                         else:
                             col_permutation = mydf._get_permutation_column_aoRg(kx, ky, kz)
-                        # print("col_permutation = ", col_permutation)
 
-                    # print("atm_ordering = ", atm_ordering)
                     for atm_id in atm_ordering[:natm_prim]:
             
                         if construct_K1:
@@ -355,9 +352,7 @@ def _isdf_get_K_direct_kernel_1(
                         
                         ngrid_now    = aoR_holder.aoR.shape[1]
                         nao_involved = aoR_holder.aoR.shape[0]
-                        
-                        # print("atm_id = ", atm_id, "ILOC = ", ILOC, "shape = ", aoR_holder.aoR.shape)
-            
+                                    
                         ##### packed involved DgAO #####
             
                         if kx ==0 and ky == 0 and kz == 0:
@@ -380,7 +375,6 @@ def _isdf_get_K_direct_kernel_1(
                                 dm_RgAO[p0:p1, :].ctypes.data_as(ctypes.c_void_p),
                                 ctypes.c_int(p1-p0),
                                 ctypes.c_int(nao),
-                                # aoR_holder.ao_involved.ctypes.data_as(ctypes.c_void_p)
                                 ao_permutation.ctypes.data_as(ctypes.c_void_p)
                             )
 
@@ -389,7 +383,6 @@ def _isdf_get_K_direct_kernel_1(
                         else:
                             grid_begin   = aoR_holder.global_gridID_begin + ILOC*nIP_prim
                         
-                        # print("grid_begin = ", grid_begin)
                         ddot_res_RgR = np.ndarray((p1-p0, ngrid_now), buffer=ddot_res_RgR_buf)
                         lib.ddot(Density_RgAO_packed, aoR_holder.aoR, c=ddot_res_RgR)
                         Density_RgR_tmp[:, grid_begin:grid_begin+ngrid_now] = ddot_res_RgR
@@ -430,7 +423,6 @@ def _isdf_get_K_direct_kernel_1(
                         nao_involved   = aoR_holder.aoR.shape[0]
                         ddot_res       = np.ndarray((p1-p0, nao_involved), buffer=K1_tmp1_ddot_res_buf)
                         
-                        #grid_loc_begin = aoR_holder.global_gridID_begin + ILOC*ngrid_prim
                         if construct_K1:
                             grid_loc_begin = aoR_holder.global_gridID_begin + ILOC*ngrid_prim
                         else:
@@ -445,13 +437,8 @@ def _isdf_get_K_direct_kernel_1(
                         else:
                             ao_permutation = col_permutation[atm_id]
                             assert col_permutation[atm_id].shape[0] == nao_involved
-
-                        #print("nao_involved = ", nao_involved)
-                        #print("nao = ", nao)
             
                         if (nao_involved == nao) and (kx == 0 and ky == 0 and kz == 0):
-                            #print("K1_tmp1.shape  = ", K1_tmp1.shape)
-                            #print("ddot_res.shape = ", ddot_res.shape)
                             K1_tmp1 += ddot_res
                         else:
                             fn_packadd_col(
@@ -461,7 +448,6 @@ def _isdf_get_K_direct_kernel_1(
                                 ddot_res.ctypes.data_as(ctypes.c_void_p),
                                 ctypes.c_int(ddot_res.shape[0]),
                                 ctypes.c_int(ddot_res.shape[1]),
-                                # aoR_holder.ao_involved.ctypes.data_as(ctypes.c_void_p)
                                 ao_permutation.ctypes.data_as(ctypes.c_void_p)
                             )
 
@@ -476,21 +462,9 @@ def _isdf_get_K_direct_kernel_1(
                     
                     box_permutation = permutation[ILOC]
                     
-                    #print("nao = ", nao)
-                    #print("K1_final_ddot_buf.shape=",K1_final_ddot_buf.shape)
                     nao_involved = aoRg_packed[ILOC].nao_involved
-                    #print("nao_involved = ", nao_involved)
                     ddot_res = np.ndarray((nao_involved, nao), buffer=K1_final_ddot_buf)
                     lib.ddot(aoRg_packed[ILOC].aoR[:,p0:p1], K1_tmp1, c=ddot_res)
-                    # fn_packadd_row(
-                    #     K1_or_2.ctypes.data_as(ctypes.c_void_p),
-                    #     ctypes.c_int(K1_or_2.shape[0]),
-                    #     ctypes.c_int(K1_or_2.shape[1]),
-                    #     ddot_res.ctypes.data_as(ctypes.c_void_p),
-                    #     ctypes.c_int(ddot_res.shape[0]),
-                    #     ctypes.c_int(ddot_res.shape[1]),
-                    #     aoRg_packed[ILOC].ao_involved.ctypes.data_as(ctypes.c_void_p)
-                    # )
                     fn_packadd_row_k(
                         K1_or_2.ctypes.data_as(ctypes.c_void_p),
                         ctypes.c_int(K1_or_2.shape[0]),
@@ -508,19 +482,8 @@ def _isdf_get_K_direct_kernel_1(
         
         #### 4. build the W matrix ####
         
-        if construct_K1:
-            
-            # grid_shift  = 0
-            # aux_col_loc = 0
-            # for j in range(len(group)):
-            #     grid_ID_now = mydf.partition_group_to_gridID[j]
-            #     aux_bas_ket = aux_basis[j]
-            #     naux_ket    = aux_bas_ket.shape[0]
-            #     ngrid_now   = grid_ID_now.size
-            #     W_tmp[p0:p1, aux_col_loc:aux_col_loc+naux_ket] = lib.ddot(V_tmp[:, grid_shift:grid_shift+ngrid_now], aux_bas_ket.T)
-            #     grid_shift += ngrid_now
-            #     aux_col_loc+= naux_ket
-            
+        if calculate_W:
+                        
             aux_ket_shift = 0
             grid_shift = 0
         

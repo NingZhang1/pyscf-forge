@@ -1135,7 +1135,7 @@ class PBC_ISDF_Info_Quad(ISDF.PBC_ISDF_Info):
             del self.build_VW_in_k_buf
             self.build_VW_in_k_buf = None
     
-    def allocate_k_buffer(self): 
+    def allocate_k_buffer(self, nset=1): 
         
         log = lib.logger.Logger(self.cell.stdout, self.cell.verbose)
         
@@ -1170,7 +1170,7 @@ class PBC_ISDF_Info_Quad(ISDF.PBC_ISDF_Info):
                 
                 #### compare build_K_bunchsize with those buf used for W matrix ####
                 
-                size1 = maxsize_group_naux * self.nao
+                size1 = maxsize_group_naux * self.nao * nset
                 size2 = maxsize_group_naux * max_nao_involved
                 self.Density_RgAO_buf = np.zeros((size1+size2,), dtype=np.float64)
 
@@ -1400,20 +1400,6 @@ class PBC_ISDF_Info_Quad(ISDF.PBC_ISDF_Info):
             _benchmark_time(t1, t2, "build_aux_basis", self)
         
         sys.stdout.flush()
-
-    # def get_nuc(self, kpts=None):
-    #     if hasattr(self, "prim_cell"):
-    #         cell2 = self.cell
-    #         self.cell = self.prim_cell
-    #     else:
-    #         assert hasattr(self, "cell")
-    #     if hasattr(self, "gdf"):
-    #         res = self.gdf.get_nuc(kpts)
-    #     else:
-    #         res = super().get_nuc(kpts)  
-    #     if hasattr(self, "prim_cell"):
-    #         self.cell = cell2
-    #     return res 
 
     def get_coulG(self):
         if hasattr(self, "rsjk") and self.rsjk is not None:
@@ -1669,8 +1655,8 @@ if __name__ == '__main__':
     # pbc_isdf_info = PBC_ISDF_Info_Quad(cell, with_robust_fitting=True, aoR_cutoff=1e-8, direct=False, use_occ_RI_K=False)
     pbc_isdf_info = PBC_ISDF_Info_Quad(cell, with_robust_fitting=True, 
                                        aoR_cutoff=1e-8, 
-                                       direct=False, 
-                                       # direct=True, 
+                                       # direct=False, 
+                                       direct=True, 
                                        limited_memory=True, build_K_bunchsize=32,
                                        use_occ_RI_K=False, rela_cutoff_QRCP=3e-3)
     pbc_isdf_info.build_IP_local(c=C, m=5, group=group_partition)
