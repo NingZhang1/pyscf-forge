@@ -211,7 +211,7 @@ def _isdf_get_K_direct_kernel_1(
     if hasattr(mydf, "_build_K_abs_cutoff"):
         abs_cutoff = mydf._build_K_abs_cutoff
     if use_cutoff and abs_cutoff is None:
-        abs_cutoff = 1.0e-10
+        abs_cutoff = 1.0e-9
     
     ######### info #########
     
@@ -326,9 +326,9 @@ def _isdf_get_K_direct_kernel_1(
     memory      = _get_aoR_holders_memory(aoRg_packed)
     log.info('In _isdf_get_K_direct_kernel1 aoRg_packed Memory = %d Bytes' % (memory))
     
-    # log.debug4('In _isdf_get_K_direct_kernel1 group_id = %d, naux = %d' % (group_id, naux_tmp))
-    # log.debug4('In _isdf_get_K_direct_kernel1 aoRg_holders Memory = %d Bytes' % (memory))
-    # log.debug4('In _isdf_get_K_direct_kernel1 naux_bunchsize      = %d' % (naux_bunchsize))
+    # log.info('In _isdf_get_K_direct_kernel1 group_id = %d, naux = %d' % (group_id, naux_tmp))
+    # log.info('In _isdf_get_K_direct_kernel1 aoRg_holders Memory = %d Bytes' % (memory))
+    # log.info('In _isdf_get_K_direct_kernel1 naux_bunchsize      = %d' % (naux_bunchsize))
     
     # assert aoRg_packed.ngrid_tot == naux_tmp
     
@@ -372,9 +372,9 @@ def _isdf_get_K_direct_kernel_1(
 
     ###### CUTOFF ######
     
-    if use_cutoff:    
-        dm_RgAO_max = np.max(np.abs(dm_RgAO[:, :nao_prim]))
-        log.debug2('In _isdf_get_K_direct_kernel1 dm_RgAO_max = %16.8e' % (dm_RgAO_max))
+    # if use_cutoff:    
+        # dm_RgAO_max = np.max(np.abs(dm_RgAO[:, :nao_prim]))
+        # log.info('In _isdf_get_K_direct_kernel1 dm_RgAO_max = %16.8e' % (dm_RgAO_max))
         
     ####################
 
@@ -481,8 +481,9 @@ def _isdf_get_K_direct_kernel_1(
 
                         if use_cutoff:
                             dm_RgAO_packed_max = np.max(np.abs(Density_RgAO_packed))
-                            if dm_RgAO_packed_max < abs_cutoff or dm_RgAO_packed_max < rela_cutoff * dm_RgAO_max:
-                                log.debug4('In _isdf_get_K_direct_kernel1 dm_RgAO_packed_max = %16.8e for box (%d,%d,%d) atm %d is too small, skip' % (dm_RgAO_packed_max, kx, ky, kz, atm_id))
+                            # if dm_RgAO_packed_max < abs_cutoff or dm_RgAO_packed_max < rela_cutoff * dm_RgAO_max:
+                            if dm_RgAO_packed_max < abs_cutoff:
+                                # log.info('In _isdf_get_K_direct_kernel1 dm_RgAO_packed_max = %16.8e for box (%d,%d,%d) atm %d is too small, skip' % (dm_RgAO_packed_max, kx, ky, kz, atm_id))
                                 continue
                         
                         ####################
@@ -513,12 +514,12 @@ def _isdf_get_K_direct_kernel_1(
         
         ###### CUTOFF ######
         
-        if use_cutoff:
-            if construct_K1:
-                V2_tmp_max = np.max(np.abs(V2_tmp[:, :ngrid_prim]))
-            else:
-                V2_tmp_max = np.max(np.abs(V2_tmp[:, :nIP_prim]))
-            log.debug2('In _isdf_get_K_direct_kernel1 V2_tmp_max = %16.8e' % (V2_tmp_max))
+        # if use_cutoff:
+        #     if construct_K1:
+        #         V2_tmp_max = np.max(np.abs(V2_tmp[:, :ngrid_prim]))
+        #     else:
+        #         V2_tmp_max = np.max(np.abs(V2_tmp[:, :nIP_prim]))
+            # log.info('In _isdf_get_K_direct_kernel1 V2_tmp_max = %16.8e' % (V2_tmp_max))
         
         ####################
         
@@ -560,8 +561,9 @@ def _isdf_get_K_direct_kernel_1(
                         
                         if use_cutoff:
                             V2_tmp_max2 = np.max(np.abs(V2_tmp[:, grid_loc_begin:grid_loc_begin+ngrid_now]))
-                            if V2_tmp_max2 < abs_cutoff or V2_tmp_max2 < rela_cutoff * V2_tmp_max:
-                                log.debug4('In _isdf_get_K_direct_kernel1 V2_tmp_max2 = %16.8e for box (%d,%d,%d) atm %d is too small, skip' % (V2_tmp_max2, kx, ky, kz, atm_id))
+                            # if V2_tmp_max2 < abs_cutoff or V2_tmp_max2 < rela_cutoff * V2_tmp_max:
+                            if V2_tmp_max2 < abs_cutoff:
+                                # log.info('In _isdf_get_K_direct_kernel1 V2_tmp_max2 = %16.8e for box (%d,%d,%d) atm %d is too small, skip' % (V2_tmp_max2, kx, ky, kz, atm_id))
                                 continue
                         
                         ####################
