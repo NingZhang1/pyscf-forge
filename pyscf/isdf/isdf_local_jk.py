@@ -56,7 +56,7 @@ def _half_J(mydf, dm, use_mpi=False,
     
     if use_mpi:
         assert mydf.direct == True
-        from isdf_tools_mpi import rank, comm, comm_size, bcast, reduce
+        from pyscf.isdf.isdf_tools_mpi import rank, comm, comm_size, bcast, reduce
         size = comm.Get_size()
         
     ######### prepare the parameter #########
@@ -348,7 +348,7 @@ def _contract_j_dm_ls(mydf, dm,
     
     if use_mpi:
         assert mydf.direct == True
-        from isdf_tools_mpi import rank, comm, comm_size, bcast, reduce
+        from pyscf.isdf.isdf_tools_mpi import rank, comm, comm_size, bcast, reduce
         size = comm.Get_size()
     
     ###### Prepocess parameter for RS ######
@@ -1166,7 +1166,7 @@ def _contract_k_dm_quadratic_direct(mydf, dm, use_mpi=False):
     
     if use_mpi:
         assert mydf.direct == True
-        from isdf_tools_mpi import rank, comm, comm_size, bcast, reduce
+        from pyscf.isdf.isdf_tools_mpi import rank, comm, comm_size, bcast, reduce
         size = comm.Get_size()
     
     t1 = (logger.process_clock(), logger.perf_counter())
@@ -2007,7 +2007,7 @@ def get_jk_dm_quadratic(mydf, dm, hermi=1, kpt=np.zeros(3),
             dm = symmetrize_dm(dm, mydf.kmesh)
 
     if use_mpi:
-        from isdf_tools_mpi import rank, comm, comm_size, bcast, reduce
+        from pyscf.isdf.isdf_tools_mpi import rank, comm, comm_size, bcast, reduce
         dm = bcast(dm, root=0)
 
     dm = lib.tag_array(dm, mo_coeff=mo_coeff, mo_occ=mo_occ)

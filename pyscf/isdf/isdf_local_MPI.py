@@ -22,12 +22,14 @@ from pyscf import lib
 import pyscf.pbc.gto as pbcgto
 from pyscf.pbc.gto import Cell
 from pyscf.gto.mole import *
-libpbc = lib.load_library('libpbc')
 
-from isdf_tools_mpi import rank, comm, comm_size, allgather, bcast
-import isdf_local as ISDF_Local
+from   pyscf.isdf.isdf_tools_mpi import rank, comm, comm_size, allgather, bcast
+import pyscf.isdf.isdf_local   as isdf_local
+import pyscf.isdf.isdf_local_k as isdf_local_k
 
-class PBC_ISDF_Info_Quad_MPI(ISDF_Local.PBC_ISDF_Info_Quad):
+############## MPI version of PBC_ISDF_Info_Quad ##############
+
+class PBC_ISDF_Info_Quad_MPI(isdf_local.PBC_ISDF_Info_Quad):
     ''' Interpolative separable density fitting (ISDF) for periodic systems with MPI.
     
     The locality is explored! 
@@ -39,15 +41,51 @@ class PBC_ISDF_Info_Quad_MPI(ISDF_Local.PBC_ISDF_Info_Quad):
     # Quad stands for quadratic scaling
     
     def __init__(self, mol:Cell, 
-                 Ls=None,
-                 verbose = 1,
-                 rela_cutoff_QRCP = None,
-                 aoR_cutoff = 1e-8,
-                 ):
+                 kmesh             = None,
+                 verbose           = None,
+                 rela_cutoff_QRCP  = None,
+                 aoR_cutoff        = 1e-8,
+                 limited_memory    = False,
+                 build_K_bunchsize = None):
         
-        super().__init__(mol, True, Ls, verbose, rela_cutoff_QRCP, aoR_cutoff, True, use_occ_RI_K=False)
+        super().__init__(mol, True, kmesh, verbose, rela_cutoff_QRCP, aoR_cutoff, True, 
+                         use_occ_RI_K      = False,
+                         limited_memory    = limited_memory,
+                         build_K_bunchsize = build_K_bunchsize)
         self.use_mpi = True
         assert self.use_aft_ao == False
+
+###############################################################
+
+############## MPI version of PBC_ISDF_Info_Quad_K ##############
+
+class PBC_ISDF_Info_Quad_K_MPI(isdf_local_k.PBC_ISDF_Info_Quad_K):
+    ''' Interpolative separable density fitting (ISDF) for periodic systems with MPI.
+    
+    The locality is explored! 
+    
+    k-point sampling is not currently supported!
+    
+    '''
+
+    # Quad stands for quadratic scaling
+    
+    def __init__(self, mol:Cell, 
+                 kmesh             = None,
+                 verbose           = None,
+                 rela_cutoff_QRCP  = None,
+                 aoR_cutoff        = 1e-8,
+                 limited_memory    = False,
+                 build_K_bunchsize = None):
+        
+        super().__init__(mol, True, kmesh, verbose, rela_cutoff_QRCP, aoR_cutoff, True, 
+                         # use_occ_RI_K      = False,
+                         limited_memory    = limited_memory,
+                         build_K_bunchsize = build_K_bunchsize)
+        self.use_mpi = True
+        assert self.use_aft_ao == False
+
+#################################################################
 
 if __name__ == '__main__':
 
@@ -55,7 +93,7 @@ if __name__ == '__main__':
     from pyscf.lib.parameters import BOHR
     from isdf_tools_cell import build_supercell, build_supercell_with_partition
     
-    verbose = 4
+    verbose = 6
     if rank != 0:
         verbose = 0
     
@@ -69,9 +107,10 @@ if __name__ == '__main__':
 ['O1',	(0.000000,	1.927800,	1.590250)],
 ['Ca',	(0.000000,	0.000000,	0.000000)],
     ]
-    basis = {
-        'Cu1':'ecpccpvdz', 'Cu2':'ecpccpvdz', 'O1': 'ecpccpvdz', 'Ca':'ecpccpvdz'
-    }
+    from pyscf.gto.basis import parse_nwchem
+    fbas="basis2.dat"  ## NOTE: you should copy it from examples/isdf to run this scripts
+    atms = ['O', 'Cu', "Ca"]
+    basis = {atm:parse_nwchem.load(fbas, atm) for atm in atms}
     pseudo = {'Cu1': 'gth-pbe-q19', 'Cu2': 'gth-pbe-q19', 'O1': 'gth-pbe', 'Ca': 'gth-pbe'}
     ke_cutoff = 128 
     prim_cell = build_supercell(atm, prim_a, Ls = [1,1,1], ke_cutoff=ke_cutoff, basis=basis, pseudo=pseudo)
@@ -93,9 +132,7 @@ if __name__ == '__main__':
     if rank == 0:
         print("group_partition = ", group_partition)
     
-    pbc_isdf_info = PBC_ISDF_Info_Quad_MPI(cell, aoR_cutoff=1e-8, verbose=verbose)
-    # pbc_isdf_info.build_IP_local(c=C, m=5, group=group_partition, Ls=[Ls[0]*10, Ls[1]*10, Ls[2]*10])
-    # pbc_isdf_info.build_IP_local(c=C, m=5, group=group_partition, Ls=[Ls[0]*3, Ls[1]*3, Ls[2]*3])
+    pbc_isdf_info = PBC_ISDF_Info_Quad_MPI(cell, aoR_cutoff=1e-8, verbose=verbose, limited_memory=True, build_K_bunchsize=16)
     pbc_isdf_info.build_IP_local(c=C, m=5, group=group_partition)
     pbc_isdf_info.Ls = Ls
     pbc_isdf_info.build_auxiliary_Coulomb(debug=True)

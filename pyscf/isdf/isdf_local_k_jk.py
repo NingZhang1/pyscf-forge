@@ -1430,8 +1430,6 @@ def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
         
         t2 = (logger.process_clock(), logger.perf_counter())
         
-        #cputime_RgAO  += t2[0] - t1[0]
-        #walltime_RgAO += t2[1] - t1[1]
         add_cputime_RgAO(t2[0] - t1[0])
         add_walltime_RgAO(t2[1] - t1[1])
         

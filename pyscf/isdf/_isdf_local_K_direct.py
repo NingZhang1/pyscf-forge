@@ -83,19 +83,29 @@ def reset_profile_buildK_time():
     walltime_Ktmp1 = 0.0
     walltime_Ktmp2 = 0.0
 
-def log_profile_buildK_time(mydf):
+def log_profile_buildK_time(mydf, use_mpi=False):
     
     global cputime_RgAO, cputime_V, cputime_W, cputime_RgR, cputime_Ktmp1, cputime_Ktmp2
     global walltime_RgAO, walltime_V, walltime_W, walltime_RgR, walltime_Ktmp1, walltime_Ktmp2
     
     log = logger.Logger(mydf.stdout, mydf.verbose)
     
-    log.info('In _isdf_get_K_direct_kernel RgAO  cputime = %16.3f walltime = %16.3f paralell = %4.2f' % (cputime_RgAO, walltime_RgAO, cputime_RgAO/walltime_RgAO))
-    log.info('In _isdf_get_K_direct_kernel RgR   cputime = %16.3f walltime = %16.3f paralell = %4.2f' % (cputime_RgR, walltime_RgR, cputime_RgR/walltime_RgR))
-    log.info('In _isdf_get_K_direct_kernel V     cputime = %16.3f walltime = %16.3f paralell = %4.2f' % (cputime_V, walltime_V, cputime_V/walltime_V))
-    log.info('In _isdf_get_K_direct_kernel W     cputime = %16.3f walltime = %16.3f paralell = %4.2f' % (cputime_W, walltime_W, cputime_W/walltime_W))
-    log.info('In _isdf_get_K_direct_kernel Ktmp1 cputime = %16.3f walltime = %16.3f paralell = %4.2f' % (cputime_Ktmp1, walltime_Ktmp1, cputime_Ktmp1/walltime_Ktmp1))
-    log.info('In _isdf_get_K_direct_kernel Ktmp2 cputime = %16.3f walltime = %16.3f paralell = %4.2f' % (cputime_Ktmp2, walltime_Ktmp2, cputime_Ktmp2/walltime_Ktmp2))
+    if not use_mpi:
+        log.info('In _isdf_get_K_direct_kernel RgAO  cputime = %16.3f walltime = %16.3f paralell = %4.2f' % (cputime_RgAO, walltime_RgAO, cputime_RgAO/walltime_RgAO))
+        log.info('In _isdf_get_K_direct_kernel RgR   cputime = %16.3f walltime = %16.3f paralell = %4.2f' % (cputime_RgR, walltime_RgR, cputime_RgR/walltime_RgR))
+        log.info('In _isdf_get_K_direct_kernel V     cputime = %16.3f walltime = %16.3f paralell = %4.2f' % (cputime_V, walltime_V, cputime_V/walltime_V))
+        log.info('In _isdf_get_K_direct_kernel W     cputime = %16.3f walltime = %16.3f paralell = %4.2f' % (cputime_W, walltime_W, cputime_W/walltime_W))
+        log.info('In _isdf_get_K_direct_kernel Ktmp1 cputime = %16.3f walltime = %16.3f paralell = %4.2f' % (cputime_Ktmp1, walltime_Ktmp1, cputime_Ktmp1/walltime_Ktmp1))
+        log.info('In _isdf_get_K_direct_kernel Ktmp2 cputime = %16.3f walltime = %16.3f paralell = %4.2f' % (cputime_Ktmp2, walltime_Ktmp2, cputime_Ktmp2/walltime_Ktmp2))
+    else:
+        if rank == 0:
+            log.info('In _isdf_get_K_direct_kernel RgAO  cputime = %16.3f walltime = %16.3f paralell = %4.2f' % (cputime_RgAO, walltime_RgAO, cputime_RgAO/walltime_RgAO))
+            log.info('In _isdf_get_K_direct_kernel RgR   cputime = %16.3f walltime = %16.3f paralell = %4.2f' % (cputime_RgR, walltime_RgR, cputime_RgR/walltime_RgR))
+            log.info('In _isdf_get_K_direct_kernel V     cputime = %16.3f walltime = %16.3f paralell = %4.2f' % (cputime_V, walltime_V, cputime_V/walltime_V))
+            log.info('In _isdf_get_K_direct_kernel W     cputime = %16.3f walltime = %16.3f paralell = %4.2f' % (cputime_W, walltime_W, cputime_W/walltime_W))
+            log.info('In _isdf_get_K_direct_kernel Ktmp1 cputime = %16.3f walltime = %16.3f paralell = %4.2f' % (cputime_Ktmp1, walltime_Ktmp1, cputime_Ktmp1/walltime_Ktmp1))
+            log.info('In _isdf_get_K_direct_kernel Ktmp2 cputime = %16.3f walltime = %16.3f paralell = %4.2f' % (cputime_Ktmp2, walltime_Ktmp2, cputime_Ktmp2/walltime_Ktmp2))
+        comm.Barrier()
 
 ############ GLOBAL PARAMETER ############
 
@@ -185,7 +195,9 @@ def _isdf_get_K_direct_kernel_1(
     ##### bunchsize #####
     naux_bunchsize = K_DIRECT_NAUX_BUNCHSIZE,
     ##### other info #####
-    use_mpi=False,
+    use_mpi =False,
+    begin_id=None,
+    end_id  =None,
     ##### out #####
     K1_or_2 = None
 ):
@@ -232,11 +244,11 @@ def _isdf_get_K_direct_kernel_1(
     if construct_K1 == False:
         assert V_or_W_tmp is not None
     
-    if use_mpi:
-        from isdf_tools_mpi import rank, comm_size, comm, allgather, bcast
-        size = comm.Get_size()
-        if group_id % comm_size != rank:
-            raise ValueError
+    # if use_mpi:
+    #     from pyscf.isdf.isdf_tools_mpi import rank, comm_size, comm, allgather, bcast
+    #     size = comm.Get_size()
+    #     if group_id % comm_size != rank:
+    #         raise ValueError
     
     nao   = mydf.nao
     mesh  = np.array(mydf.cell.mesh, dtype=np.int32)
@@ -394,12 +406,16 @@ def _isdf_get_K_direct_kernel_1(
         
     ####################
 
+    if begin_id is None:
+        begin_id = 0
+    if end_id is None:
+        end_id = naux_tmp
+
     #### loop over Rg ####
     
-    for p0, p1 in lib.prange(0, naux_tmp, bunchsize):
+    for p0, p1 in lib.prange(begin_id, end_id, bunchsize):
         
         unique_elements = np.unique(IP_2_atm_id[p0:p1])
-        # print("unique_elements = ", unique_elements)    
         
         #### 2. build the V matrix if constructK1 ####
         
@@ -476,7 +492,6 @@ def _isdf_get_K_direct_kernel_1(
                         if use_cutoff:
                             if distance_cutoff is not None:
                                 distance = np.min(distance_matrix[unique_elements, ILOC*natm_prim+atm_id])
-                                # print("distance = ", distance, "cutoff = ", distance_cutoff)
                                 if distance > distance_cutoff:
                                     continue
                                 
@@ -512,14 +527,8 @@ def _isdf_get_K_direct_kernel_1(
                         if use_cutoff:
                             if distance_cutoff is None:
                                 dm_RgAO_packed_max = np.max(np.abs(Density_RgAO_packed))
-                                # if dm_RgAO_packed_max < abs_cutoff or dm_RgAO_packed_max < rela_cutoff * dm_RgAO_max:
                                 if dm_RgAO_packed_max < abs_cutoff:
-                                    # log.info('In _isdf_get_K_direct_kernel1 dm_RgAO_packed_max = %16.8e for box (%d,%d,%d) atm %d is too small, skip' % (dm_RgAO_packed_max, kx, ky, kz, atm_id))
                                     continue
-                        
-                        #dm_RgAO_packed_max = np.max(np.abs(Density_RgAO_packed))
-                        #distance = np.min(distance_matrix[unique_elements, ILOC*natm_prim+atm_id])
-                        #print("distance = %15.8e, dm_RgAO_packed_max = %15.8e" % (distance, dm_RgAO_packed_max))
                         
                         ####################
 
@@ -597,19 +606,12 @@ def _isdf_get_K_direct_kernel_1(
                         if use_cutoff:
                             if distance_cutoff is None:
                                 V2_tmp_max2 = np.max(np.abs(V2_tmp[:, grid_loc_begin:grid_loc_begin+ngrid_now]))
-                                # if V2_tmp_max2 < abs_cutoff or V2_tmp_max2 < rela_cutoff * V2_tmp_max:
                                 if V2_tmp_max2 < abs_cutoff:
-                                    # log.info('In _isdf_get_K_direct_kernel1 V2_tmp_max2 = %16.8e for box (%d,%d,%d) atm %d is too small, skip' % (V2_tmp_max2, kx, ky, kz, atm_id))
                                     continue
                             else:
                                 distance = np.min(distance_matrix[unique_elements, ILOC*natm_prim+atm_id])
-                                # print("distance = ", distance, "cutoff = ", distance_cutoff)
                                 if distance > distance_cutoff:
                                     continue
-                        
-                        #V2_tmp_max2 = np.max(np.abs(V2_tmp[:, grid_loc_begin:grid_loc_begin+ngrid_now]))
-                        #distance    = np.min(distance_matrix[unique_elements, ILOC*natm_prim+atm_id])
-                        #print("distance = %15.8e, V2_tmp_max2 = %15.8e" % (distance, V2_tmp_max2))
                         
                         ####################
             
@@ -695,10 +697,7 @@ def _isdf_get_K_direct_kernel_1(
                         if use_cutoff:
                             if distance_cutoff is not None:
                                 distance = np.min(distance_matrix[unique_elements, ILOC*natm_prim:(ILOC+1)*natm_prim])
-                                # print("distance = ", distance)
                                 if distance > distance_cutoff:
-                                    #ILOC += 1
-                                    #continue
                                     skip = True
                         
                         for j in range(len(group)):

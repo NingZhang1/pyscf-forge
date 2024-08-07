@@ -54,7 +54,7 @@ def select_IP_atm_ls(mydf, c:int, m:int, first_natm=None,
                      use_mpi=False):
 
     if use_mpi:
-        from isdf_tools_mpi import rank, comm, comm_size
+        from pyscf.isdf.isdf_tools_mpi import rank, comm, comm_size
     else:
         rank = 0
         comm = None
@@ -384,7 +384,7 @@ def select_IP_group_ls(mydf, aoRg_possible, c:int, m:int, group=None, atm_2_IP_p
 def select_IP_local_ls_drive(mydf, c, m, IP_possible_atm, group, use_mpi=False):
     
     if use_mpi:
-        from isdf_tools_mpi import rank, comm, comm_size
+        from pyscf.isdf.isdf_tools_mpi import rank, comm, comm_size
     else:
         rank = 0
         comm = None
@@ -498,7 +498,7 @@ def build_aux_basis_ls(mydf, group, IP_group, debug=True, use_mpi=False):
     log = lib.logger.Logger(mydf.cell.stdout, mydf.cell.verbose)
 
     if use_mpi:
-        from isdf_tools_mpi import rank, comm, comm_size
+        from pyscf.isdf.isdf_tools_mpi import rank, comm, comm_size
     else:
         rank = 0
         comm = None
@@ -904,16 +904,15 @@ class PBC_ISDF_Info_Quad(ISDF.PBC_ISDF_Info):
     # if not set then each atom is treated as a group 
     
     def __init__(self, mol:Cell, 
-                 with_robust_fitting=True,
-                 kmesh              =None,
-                 verbose            =None,
-                 rela_cutoff_QRCP   =None,
-                 aoR_cutoff         =1e-8,
-                 direct             =False,
-                 use_occ_RI_K       =False,
-                 limited_memory     =False,
-                 build_K_bunchsize  =None,
-                 ):
+                 with_robust_fitting = True,
+                 kmesh               = None,
+                 verbose             = None,
+                 rela_cutoff_QRCP    = None,
+                 aoR_cutoff          = 1e-8,
+                 direct              = False,
+                 use_occ_RI_K        = False,
+                 limited_memory      = False,
+                 build_K_bunchsize   = None):
         
         assert use_occ_RI_K == False
         
@@ -1054,7 +1053,7 @@ class PBC_ISDF_Info_Quad(ISDF.PBC_ISDF_Info):
         if not self.use_mpi:
             rank = 0
         else:
-            from isdf_tools_mpi import rank
+            from pyscf.isdf.isdf_tools_mpi import rank
         
         if rank == 0:
             _benchmark_time(t1, t2, "build_partition", self)
@@ -1625,9 +1624,9 @@ if __name__ == '__main__':
         ['C', (0.8917 , 2.6751 , 2.6751)],
     ] 
     KE_CUTOFF = 70
-    # basis = 'unc-gth-cc-tzvp'
+    # basis  = 'unc-gth-cc-tzvp'
     # pseudo = "gth-hf"  
-    basis = 'gth-dzvp'
+    basis  = 'gth-dzvp'
     pseudo = "gth-pade"   
     prim_cell = build_supercell(atm, prim_a, Ls = [1,1,1], ke_cutoff=KE_CUTOFF, basis=basis, pseudo=pseudo)    
     prim_partition = [[0,1],[2,3],[4,5],[6,7]]

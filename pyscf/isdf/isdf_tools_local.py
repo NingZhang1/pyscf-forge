@@ -313,7 +313,7 @@ def get_partition(cell:Cell, coords, AtmConnectionInfoList:list[AtmConnectionInf
     ##### we simply perform it on root and broadcast it to all other processes #####
     
     if use_mpi:
-        from isdf_tools_mpi import rank, comm, comm_size, allgather, bcast, reduce, gather, alltoall, _comm_bunch, allgather_list, bcast_pickel
+        from pyscf.isdf.isdf_tools_mpi import rank, comm, comm_size, allgather, bcast, reduce, gather, alltoall, _comm_bunch, allgather_list, bcast_pickel
     
     if with_translation_symmetry and kmesh is None:
         raise ValueError("kmesh must be provided if with_translation_symmetry is True")
@@ -607,7 +607,7 @@ def _range_partition(ngroup, rank, comm_size, use_mpi=False):
     if use_mpi == False:
         return 0, ngroup
     else:
-        from isdf_tools_mpi import comm_size
+        from pyscf.isdf.isdf_tools_mpi import comm_size
         if ngroup % comm_size == 0:
             ngroup_local = ngroup // comm_size
             return rank * ngroup_local, (rank+1) * ngroup_local
@@ -630,7 +630,7 @@ def _range_partition_array(ngroup, comm_size, use_mpi=False):
     if use_mpi == False:
         return np.array([0, ngroup], dtype=np.int32)
     else:
-        from isdf_tools_mpi import comm_size
+        from pyscf.isdf.isdf_tools_mpi import comm_size
         if ngroup % comm_size == 0:
             ngroup_local = ngroup // comm_size
             for i in range(comm_size):
@@ -678,7 +678,7 @@ def _get_grid_ordering(atmid_to_gridID, group, use_mpi=False):
 def _get_grid_partition(atmid_to_gridID, group, use_mpi=False):
     
     if use_mpi:
-        from isdf_tools_mpi import comm_size
+        from pyscf.isdf.isdf_tools_mpi import comm_size
     
     ngrid = np.sum([len(x) for x in atmid_to_gridID])
     
@@ -722,7 +722,7 @@ def _get_atm_2_grid_segment(atmid_to_gridID, group):
 def _sync_list(list_data, ngroup):
 
     # if use_mpi:
-    from isdf_tools_mpi import rank, comm_size, bcast
+    from pyscf.isdf.isdf_tools_mpi import rank, comm_size, bcast
 
     ### check data ### 
     
@@ -831,7 +831,7 @@ def get_aoR(cell:Cell, coords, partition,
     log = lib.logger.Logger(cell.stdout, cell.verbose)
     
     if use_mpi:
-        from isdf_tools_mpi import rank, comm, comm_size, allgather, bcast, reduce, gather, alltoall, _comm_bunch, allgather_list, bcast_pickel
+        from pyscf.isdf.isdf_tools_mpi import rank, comm, comm_size, allgather, bcast, reduce, gather, alltoall, _comm_bunch, allgather_list, bcast_pickel
         if rank == 0:
             log.debug4("************* get_aoR *************")
     else:
