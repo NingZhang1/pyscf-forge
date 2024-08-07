@@ -936,7 +936,8 @@ def get_aoR(cell:Cell, coords, partition,
     del aoR
     
     if use_mpi and sync_res:
-        aoR_holder = _sync_aoR(aoR_holder, cell.natm)
+        # aoR_holder = _sync_aoR(aoR_holder, cell.natm)
+        aoR_holder = _sync_aoR(aoR_holder, first_npartition)
         
     if use_mpi:
         if rank == 0:

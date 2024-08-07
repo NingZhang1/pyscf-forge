@@ -48,10 +48,12 @@ USE_SCIPY_QR = False  ## true for single-thread mode to compare with Kori's code
 
 ############ ls refers to linear scaling ############
 
-def select_IP_atm_ls(mydf, c:int, m:int, first_natm=None, 
-                     rela_cutoff = 0.0, 
+def select_IP_atm_ls(mydf, 
+                     c:int, m:int, 
+                     first_natm           = None, 
+                     rela_cutoff          = 0.0, 
                      no_retriction_on_nIP = False,
-                     use_mpi=False):
+                     use_mpi              = False):
 
     if use_mpi:
         from pyscf.isdf.isdf_tools_mpi import rank, comm, comm_size
@@ -493,7 +495,6 @@ def find_common_elements_positions(arr1, arr2):
     return np.array(position1, dtype=np.int32), np.array(position2, dtype=np.int32)
 
 def build_aux_basis_ls(mydf, group, IP_group, debug=True, use_mpi=False):
-
 
     log = lib.logger.Logger(mydf.cell.stdout, mydf.cell.verbose)
 

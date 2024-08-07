@@ -2007,8 +2007,12 @@ def get_jk_dm_quadratic(mydf, dm, hermi=1, kpt=np.zeros(3),
             dm = symmetrize_dm(dm, mydf.kmesh)
 
     if use_mpi:
-        from pyscf.isdf.isdf_tools_mpi import rank, comm, comm_size, bcast, reduce
+        from pyscf.isdf.isdf_tools_mpi import rank, bcast
         dm = bcast(dm, root=0)
+        if mo_coeff is not None:
+            mo_coeff = bcast(mo_coeff, root=0)
+        if mo_occ is not None:
+            mo_occ   = bcast(mo_occ,   root=0)
 
     dm = lib.tag_array(dm, mo_coeff=mo_coeff, mo_occ=mo_occ)
 
@@ -2066,19 +2070,21 @@ def get_jk_dm_quadratic(mydf, dm, hermi=1, kpt=np.zeros(3),
 
     ##### the following code is added to deal with _ewald_exxdiv_for_G0 #####
     
-    if not use_mpi or (use_mpi and rank==0):
+    if not use_mpi or (use_mpi and rank == 0):
     
-        kpts = kpt.reshape(1,3)
-        kpts = np.asarray(kpts)
+        kpts    = kpt.reshape(1,3)
+        kpts    = np.asarray(kpts)
         dm_kpts = dm.reshape(-1, dm.shape[0], dm.shape[1]).copy()
         dm_kpts = lib.asarray(dm_kpts, order='C')
-        dms = _format_dms(dm_kpts, kpts)
+        dms     = _format_dms(dm_kpts, kpts)
         nset, nkpts, nao = dms.shape[:3]
+        
         assert nset  <= 4
         assert nkpts == 1
     
         kpts_band, input_band = _format_kpts_band(kpts_band, kpts), kpts_band
         nband = len(kpts_band)
+        
         assert nband == 1
 
         if is_zero(kpts_band) and is_zero(kpts):
@@ -2092,6 +2098,7 @@ def get_jk_dm_quadratic(mydf, dm, hermi=1, kpt=np.zeros(3),
         vk = vk[:,0,:,:]
     
     if use_mpi:
+        vj = bcast(vj, root=0)
         vk = bcast(vk, root=0)
 
     ##### end of dealing with _ewald_exxdiv_for_G0 #####

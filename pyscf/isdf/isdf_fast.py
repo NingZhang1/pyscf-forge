@@ -895,6 +895,7 @@ class PBC_ISDF_Info(df.fft.FFTDF):
         else:
             
             use_super_pp = False 
+            
             if hasattr(self, "_use_super_pp"):
                 if self._use_super_pp:
                     use_super_pp = True
@@ -933,6 +934,9 @@ class PBC_ISDF_Info(df.fft.FFTDF):
                 
                 if is_single_kpt:
                     #### use the calculated one by default ####
+                    if self.use_mpi:
+                        from pyscf.isdf.isdf_tools_mpi import bcast
+                        self.PP = bcast(self.PP, root = 0)
                     return self.PP
                 
                 #### the following is used to test KRHF #### 
@@ -969,6 +973,11 @@ class PBC_ISDF_Info(df.fft.FFTDF):
                 
                 PP_complex = PP_complex.conj().copy()
                 self.PP = pack_JK_in_FFT_space(PP_complex, kmesh, nao_prim)
+                
+            if self.use_mpi:
+                from pyscf.isdf.isdf_tools_mpi import bcast
+                self.PP = bcast(self.PP, root = 0)
+                
             return self.PP
         
     def get_nuc(self, kpts=None):
@@ -993,12 +1002,15 @@ class PBC_ISDF_Info(df.fft.FFTDF):
                 else:
                     self.kmesh = np.asarray([1,1,1], dtype=np.int32)
                 kmesh = np.asarray(self.kmesh, dtype=np.int32)
-                #print("kmesh = ", kmesh)
-                #print("kpts.shape = ", kpts.shape)
+
                 assert kpts.shape[0] == np.prod(self.kmesh, dtype=np.int32) or kpts.shape[0] == 1 or kpts.ndim == 1
+
                 is_single_kpt = kpts.shape[0] == 1 or kpts.ndim == 1
                 
                 if is_single_kpt:
+                    if self.use_mpi:
+                        from pyscf.isdf.isdf_tools_mpi import bcast
+                        self.nuc = bcast(self.nuc, root = 0)
                     return self.nuc
                 
                 #### the following is used in KRHF #### 
@@ -1035,6 +1047,10 @@ class PBC_ISDF_Info(df.fft.FFTDF):
                 
                 nuc_complex = nuc_complex.conj().copy()
                 self.nuc = pack_JK_in_FFT_space(nuc_complex, kmesh, nao_prim)
+                
+            if self.use_mpi:
+                from pyscf.isdf.isdf_tools_mpi import bcast
+                self.nuc = bcast(self.nuc, root = 0)
                 
             return self.nuc
         

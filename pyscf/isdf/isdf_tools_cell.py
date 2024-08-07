@@ -90,8 +90,8 @@ def build_primitive_cell(supercell:Cell, kmesh):
     
     prim_a = np.array( [supercell.a[0]/kmesh[0], supercell.a[1]/kmesh[1], supercell.a[2]/kmesh[2]], dtype=np.float64 )
     
-    print("supercell.a = ", supercell.a)
-    print("prim_a = ", prim_a)
+    #print("supercell.a = ", supercell.a)
+    #print("prim_a = ", prim_a)
     
     Cell.a = prim_a
     
