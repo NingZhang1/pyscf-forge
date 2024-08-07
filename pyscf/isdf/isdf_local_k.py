@@ -782,7 +782,7 @@ class PBC_ISDF_Info_Quad_K(ISDF_Local.PBC_ISDF_Info_Quad):
         
         #if self.verbose and debug:
         if not self.use_mpi:
-            rank == 0
+            rank = 0
         else:
             from pyscf.isdf.isdf_tools_mpi import rank
         
@@ -1125,6 +1125,10 @@ class PBC_ISDF_Info_Quad_K(ISDF_Local.PBC_ISDF_Info_Quad):
         
         dm = deepcopy(_dm)
         
+        if self.use_mpi:
+            from pyscf.isdf.isdf_tools_mpi import rank, bcast
+            dm = bcast(dm, root=0)
+        
         if omega is not None:  # J/K for RSH functionals
             raise NotImplementedError
             # with self.range_coulomb(omega) as rsh_df:
@@ -1134,8 +1138,10 @@ class PBC_ISDF_Info_Quad_K(ISDF_Local.PBC_ISDF_Info_Quad):
         from pyscf.pbc.df.aft import _check_kpts
         
         kpts, is_single_kpt = _check_kpts(self, kpts)
+        
         if is_single_kpt:
             assert np.allclose(kpts[0], np.zeros(3))
+            assert not self.use_mpi
             vj, vk = get_jk_dm_translation_symmetry(self, dm, hermi, kpts[0], kpts_band,
                                                     with_j, with_k, exxdiv=exxdiv)
         else:
@@ -1155,12 +1161,12 @@ class PBC_ISDF_Info_Quad_K(ISDF_Local.PBC_ISDF_Info_Quad):
             
             for iset in range(nset):
                 if iset<=1:
-                    vj[iset] = _contract_j_dm_k_ls(self, dm[iset])
+                    vj[iset] = _contract_j_dm_k_ls(self, dm[iset], self.use_mpi)
                 if self.with_robust_fitting:
                     if self.direct:
                         # vk[iset] = _get_k_kSym_direct(self, dm[iset])
                         if iset == 0:
-                            vk = _get_k_kSym_direct(self, dm)
+                            vk = _get_k_kSym_direct(self, dm, self.use_mpi)
                     else:
                         vk[iset] = _get_k_kSym_robust_fitting_fast(self, dm[iset])
                 else:
@@ -1168,33 +1174,41 @@ class PBC_ISDF_Info_Quad_K(ISDF_Local.PBC_ISDF_Info_Quad):
             
             ### post process J and K ###
             
-            kpts = np.asarray(kpts)
-            dm_kpts = lib.asarray(dm, order='C')
-            assert dm_kpts.ndim == 4
-            assert dm_kpts.shape[1] == len(kpts)
-            assert dm_kpts.shape[2] == dm_kpts.shape[3]
-            dms = _format_dms(dm_kpts, kpts)
-            nset, nkpts, nao = dms.shape[:3]
-            assert nset <= 4
+            if not self.use_mpi or (self.use_mpi and rank == 0):
+                
+                kpts = np.asarray(kpts)
+                dm_kpts = lib.asarray(dm, order='C')
+                assert dm_kpts.ndim == 4
+                assert dm_kpts.shape[1] == len(kpts)
+                assert dm_kpts.shape[2] == dm_kpts.shape[3]
+                dms = _format_dms(dm_kpts, kpts)
+                nset, nkpts, nao = dms.shape[:3]
+                assert nset <= 4
                         
-            kpts_band, input_band = _format_kpts_band(kpts_band, kpts), kpts_band
-            nband = len(kpts_band)
-            assert nband == nkpts
+                kpts_band, input_band = _format_kpts_band(kpts_band, kpts), kpts_band
+                nband = len(kpts_band)
+                assert nband == nkpts
             
-            vk_kpts = vk.reshape(nset, nband, nao, nao)
+                vk_kpts = vk.reshape(nset, nband, nao, nao)
             
-            cell = self.prim_cell
+                cell = self.prim_cell
             
-            if exxdiv == 'ewald':
-                _ewald_exxdiv_for_G0(cell, kpts, dms, vk_kpts, kpts_band=kpts_band)
+                if exxdiv == 'ewald':
+                    _ewald_exxdiv_for_G0(cell, kpts, dms, vk_kpts, kpts_band=kpts_band)
             
-            vk = _format_jks(vk_kpts, dm_kpts, input_band, kpts)
-            vj_kpts = vj.reshape(nset, nband, nao, nao)
-            vj = _format_jks(vj_kpts, dm_kpts, input_band, kpts)
+                vk      = _format_jks(vk_kpts, dm_kpts, input_band, kpts)
+                vj_kpts = vj.reshape(nset, nband, nao, nao)
+                vj      = _format_jks(vj_kpts, dm_kpts, input_band, kpts)
             
-            if nset == 1:
-                vj = vj[0]
-                vk = vk[0]
+                if nset == 1:
+                    
+                    vj = vj[0]
+                    vk = vk[0]
+        
+        if self.use_mpi:
+            
+            vj = bcast(vj, root = 0)
+            vk = bcast(vk, root = 0)
             
         return vj, vk
 

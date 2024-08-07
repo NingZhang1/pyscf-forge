@@ -352,8 +352,8 @@ def _isdf_get_K_direct_kernel_1(
     # memory      = _get_aoR_holders_memory(aoRg_holders)
     
     memory      = _get_aoR_holders_memory(aoRg_packed)
-    log.info('In _isdf_get_K_direct_kernel1 aoRg_packed Memory = %d Bytes' % (memory))
     
+    # log.info('In _isdf_get_K_direct_kernel1 aoRg_packed Memory = %d Bytes' % (memory))
     # log.info('In _isdf_get_K_direct_kernel1 group_id = %d, naux = %d' % (group_id, naux_tmp))
     # log.info('In _isdf_get_K_direct_kernel1 aoRg_holders Memory = %d Bytes' % (memory))
     # log.info('In _isdf_get_K_direct_kernel1 naux_bunchsize      = %d' % (naux_bunchsize))

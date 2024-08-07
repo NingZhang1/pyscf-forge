@@ -42,7 +42,7 @@ SuperCell_ARRAY = [
     #[5,5,5],
     #[6,6,6],
 ]
-# Ke_CUTOFF = [128, 192]
+# Ke_CUTOFF = [128]
 Ke_CUTOFF = [192]
 Basis     = ['gth-cc-tzvp-Ye']
 
@@ -93,7 +93,7 @@ if __name__ == '__main__':
                                                                                 kmesh               = nk,  
                                                                                 rela_cutoff_QRCP    = rela_qr, 
                                                                                 limited_memory      = True,
-                                                                                build_K_bunchsize   = 32  ## NOTE:control the memory cost in building K
+                                                                                build_K_bunchsize   = 8  ## NOTE:control the memory cost in building K
                                                                                 )
                         pbc_isdf_info.verbose = 10
                         pbc_isdf_info.build_IP_local(c=c, m=5, group=prim_partition)
@@ -103,7 +103,7 @@ if __name__ == '__main__':
                         if rank == 0:
                             print(isdf_jk._benchmark_time(t1, t2, 'build ISDF', pbc_isdf_info))
                         
-                        exit(1)
+                        # exit(1)
                         
                         t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
                         mf = scf.KRHF(cell, kpts)

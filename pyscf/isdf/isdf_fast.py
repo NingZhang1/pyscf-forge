@@ -915,7 +915,13 @@ class PBC_ISDF_Info(df.fft.FFTDF):
                 v_pp_loc1 = multigrid.multigrid_pair._get_j_pass2(df_tmp, v_pp_loc1_G)
                 self.PP = (v_pp_loc1 + v_pp_loc2_nl)[0]
                 t1 = (lib.logger.process_clock(), lib.logger.perf_counter()) 
-            if self.verbose:
+                
+            #if self.verbose:
+            if self.use_mpi:
+                from pyscf.isdf.isdf_tools_mpi import rank
+                if rank == 0:
+                    _benchmark_time(t0, t1, "get_pp", self)
+            else:
                 _benchmark_time(t0, t1, "get_pp", self)
                 
             #### kpts #### 
@@ -989,7 +995,7 @@ class PBC_ISDF_Info(df.fft.FFTDF):
             self.nuc = super().get_nuc(kpts=np.zeros(3))
             t1 = (lib.logger.process_clock(), lib.logger.perf_counter()) 
             if self.verbose:
-                _benchmark_time(t0, t1, "get_pp", self)
+                _benchmark_time(t0, t1, "get_nuc", self)
                 
             #### kpts #### 
             

@@ -149,9 +149,10 @@ def _contract_j_dm_k_ls(mydf, _dm, use_mpi=False):
     
     if use_mpi:
         assert mydf.direct == True
-        from isdf_tools_mpi import rank, comm, comm_size, bcast, reduce
+        from pyscf.isdf.isdf_tools_mpi import rank, comm, comm_size, bcast, reduce
         size = comm_size
-        raise NotImplementedError("MPI is not supported yet.")
+        # raise NotImplementedError("MPI is not supported yet.")
+        dm = bcast(dm, root=0)
     
     t1 = (logger.process_clock(), logger.perf_counter())
 
@@ -179,17 +180,16 @@ def _contract_j_dm_k_ls(mydf, _dm, use_mpi=False):
     
     #### step 0. allocate buffer 
     
-    max_nao_involved = np.max([aoR_holder.aoR.shape[0] for aoR_holder in aoR if aoR_holder is not None])
-    max_nao_involved1 = np.max([aoR_holder.aoR.shape[0] for aoR_holder in aoR1 if aoR_holder is not None])
-    max_nao_involved = max(max_nao_involved, max_nao_involved1)
-    max_ngrid_involved = np.max([aoR_holder.aoR.shape[1] for aoR_holder in aoR if aoR_holder is not None])
+    max_nao_involved    = np.max([aoR_holder.aoR.shape[0] for aoR_holder in aoR if aoR_holder is not None])
+    max_nao_involved1   = np.max([aoR_holder.aoR.shape[0] for aoR_holder in aoR1 if aoR_holder is not None])
+    max_nao_involved    = max(max_nao_involved, max_nao_involved1)
+    max_ngrid_involved  = np.max([aoR_holder.aoR.shape[1] for aoR_holder in aoR if aoR_holder is not None])
     max_ngrid_involved1 = np.max([aoR_holder.aoR.shape[1] for aoR_holder in aoR1 if aoR_holder is not None])
-    max_ngrid_involved = max(max_ngrid_involved, max_ngrid_involved1)
+    max_ngrid_involved  = max(max_ngrid_involved, max_ngrid_involved1)
 
     density_R_prim = np.zeros((ngrid_prim,), dtype=np.float64)
     
     dm_buf      = np.zeros((max_nao_involved, max_nao_involved), dtype=np.float64)
-    # max_dim_buf = max(max_ngrid_involved, max_nao_involved)
     max_dim_buf = max_nao_involved
     max_col_buf = min(max_ngrid_involved, J_MAX_GRID_BUNCHSIZE)
     aoR_buf1    = np.zeros((max_nao_involved, max_ngrid_involved), dtype=np.float64)
@@ -208,8 +208,7 @@ def _contract_j_dm_k_ls(mydf, _dm, use_mpi=False):
     #### step 1. get density value on real space grid and IPs
     
     density_R_tmp = None
-    
-    ddot_buf    = np.zeros((max_nao_involved, max_col_buf), dtype=np.float64)
+    ddot_buf      = np.zeros((max_nao_involved, max_col_buf), dtype=np.float64)
     
     for atm_id, aoR_holder in enumerate(aoR):
         
@@ -240,7 +239,7 @@ def _contract_j_dm_k_ls(mydf, _dm, use_mpi=False):
         for p0, p1 in lib.prange(0, ngrids_now, J_MAX_GRID_BUNCHSIZE):
             ddot_res = np.ndarray((nao_involved, p1-p0), buffer=ddot_buf)
             lib.ddot(dm_now, aoR_holder.aoR[:,p0:p1], c=ddot_res)
-            #density_R_tmp = lib.multiply_sum_isdf(aoR_holder.aoR[:,p0:p1], ddot_res)
+            # density_R_tmp = lib.multiply_sum_isdf(aoR_holder.aoR[:,p0:p1], ddot_res)
             _res_tmp = np.ndarray((p1-p0,),
                                 dtype =density_R_prim.dtype, 
                                 buffer=density_R_prim, 
@@ -260,10 +259,10 @@ def _contract_j_dm_k_ls(mydf, _dm, use_mpi=False):
                     ctypes.c_int(p1-p0),
                     ctypes.c_int(0),
                     ctypes.c_int(0))
-        #ddot_res = np.ndarray((nao_involved, ngrids_now), buffer=ddot_buf)
-        #lib.ddot(dm_now, aoR_holder.aoR, c=ddot_res)
-        #density_R_tmp = lib.multiply_sum_isdf(aoR_holder.aoR, ddot_res)
-        #density_R_prim[global_gridID_begin:global_gridID_begin+ngrids_now] = density_R_tmp
+        # ddot_res = np.ndarray((nao_involved, ngrids_now), buffer=ddot_buf)
+        # lib.ddot(dm_now, aoR_holder.aoR, c=ddot_res)
+        # density_R_tmp = lib.multiply_sum_isdf(aoR_holder.aoR, ddot_res)
+        # density_R_prim[global_gridID_begin:global_gridID_begin+ngrids_now] = density_R_tmp
     
     if use_mpi:
         density_R_prim = reduce(density_R_prim, root=0)
@@ -288,7 +287,7 @@ def _contract_j_dm_k_ls(mydf, _dm, use_mpi=False):
     
     J = None
     
-    ddot_buf    = np.zeros((max_nao_involved, max_nao_involved), dtype=np.float64)
+    ddot_buf = np.zeros((max_nao_involved, max_nao_involved), dtype=np.float64)
     
     if (use_mpi and rank == 0) or (use_mpi == False):
     
@@ -330,7 +329,7 @@ def _contract_j_dm_k_ls(mydf, _dm, use_mpi=False):
     #### step 3. get J , using translation symmetry ###
 
     nao_prim = mydf.nao_prim
-    J_Res = np.zeros((nao_prim, nao), dtype=np.float64)
+    J_Res    = np.zeros((nao_prim, nao), dtype=np.float64)
 
     partition_activated_ID = mydf.partition_activated_id
         
@@ -390,41 +389,47 @@ def _contract_j_dm_k_ls(mydf, _dm, use_mpi=False):
     J = J_Res
     if use_mpi:
         J = reduce(J, root=0)
-    
-    t2 = (logger.process_clock(), logger.perf_counter())
-    
-    _benchmark_time(t1, t2, "_contract_j_dm_k_ls", mydf)
-    
+        
     ######### delete the buffer #########
     
     del dm_buf, ddot_buf, density_R_prim
     del density_R_tmp
     del aoR_buf1
     
-    J *= ngrid / vol
+    if not use_mpi or (use_mpi and rank == 0):
+        
+        J *= ngrid / vol
     
-    if in_real_space:
-        J = pack_JK(J, mydf.kmesh, nao_prim)
-    else:
-        ## transform J back to FFT space ##
-        fn1 = getattr(libisdf, "_FFT_Matrix_Col_InPlace", None)
-        assert fn1 is not None
-        J_complex = np.ndarray((nao_prim,nao_prim*ncell_complex), dtype=np.complex128)
-        fft_buf   = np.ndarray((nao_prim,nao_prim*ncell_complex), dtype=np.complex128)
-        J_real    = np.ndarray((nao_prim,nao_prim*ncell),         dtype=np.float64,    buffer=J_complex)
-        J_real.ravel()[:]    = J.ravel()[:]
-        fn1(
-            J_real.ctypes.data_as(ctypes.c_void_p),
-            ctypes.c_int(nao_prim),
-            ctypes.c_int(nao_prim),
-            kmesh.ctypes.data_as(ctypes.c_void_p),
-            fft_buf.ctypes.data_as(ctypes.c_void_p)
-        )
-        del fft_buf
-        ## pack J in FFT space ##
-        J_complex = J_complex.conj().copy()
-        J = pack_JK_in_FFT_space(J_complex, mydf.kmesh, nao_prim)
+        if in_real_space:
+            J = pack_JK(J, mydf.kmesh, nao_prim)
+        else:
+            ## transform J back to FFT space ##
+            fn1 = getattr(libisdf, "_FFT_Matrix_Col_InPlace", None)
+            assert fn1 is not None
+            J_complex = np.ndarray((nao_prim,nao_prim*ncell_complex), dtype=np.complex128)
+            fft_buf   = np.ndarray((nao_prim,nao_prim*ncell_complex), dtype=np.complex128)
+            J_real    = np.ndarray((nao_prim,nao_prim*ncell),         dtype=np.float64,  buffer=J_complex)
+            J_real.ravel()[:]    = J.ravel()[:]
+            fn1(
+                J_real.ctypes.data_as(ctypes.c_void_p),
+                ctypes.c_int(nao_prim),
+                ctypes.c_int(nao_prim),
+                kmesh.ctypes.data_as(ctypes.c_void_p),
+                fft_buf.ctypes.data_as(ctypes.c_void_p)
+            )
+            del fft_buf
+            ## pack J in FFT space ##
+            J_complex = J_complex.conj().copy()
+            J = pack_JK_in_FFT_space(J_complex, mydf.kmesh, nao_prim)
     
+    if use_mpi:
+        J = bcast(J, root=0)
+    
+    t2 = (logger.process_clock(), logger.perf_counter())
+    
+    if not use_mpi or (use_mpi and rank == 0):
+        _benchmark_time(t1, t2, "_contract_j_dm_k_ls", mydf)
+        
     return J
 
 def _get_k_kSym_robust_fitting_fast(mydf, _dm):
@@ -1274,7 +1279,7 @@ def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
     
     if use_mpi:
         assert mydf.direct == True
-        from isdf_tools_mpi import rank, comm, comm_size, bcast, reduce
+        from pyscf.isdf.isdf_tools_mpi import rank, comm, comm_size, bcast, reduce
         size = comm.Get_size()
     
     t1 = (logger.process_clock(), logger.perf_counter())
@@ -1282,22 +1287,28 @@ def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
     
     ############# preprocess #############
     
-    dm = []
-    nset = _dm.shape[0]
+    dm = None 
     
-    for iset in range(nset):
-        _dm_tmp, in_real_space = _preprocess_dm(mydf, _dm[iset])
-        dm.append(_dm_tmp)
-        if in_real_space:
-            if np.prod(mydf.kmesh) == 1:
-                in_real_space = False
-    assert not in_real_space
+    if (use_mpi and rank == 0) or not use_mpi:
+        
+        dm = []
+        nset = _dm.shape[0]
     
-    dm = np.asarray(dm)
+        for iset in range(nset):
+            _dm_tmp, in_real_space = _preprocess_dm(mydf, _dm[iset])
+            dm.append(_dm_tmp)
+            if in_real_space:
+                if np.prod(mydf.kmesh) == 1:
+                    in_real_space = False
+        assert not in_real_space
+    
+        dm = np.asarray(dm)
+    
+    if use_mpi:
+        dm = bcast(dm, root=0)
     
     if len(dm.shape) == 3:
         assert dm.shape[0] <= 4
-        #dm = dm[0]
     else:
         dm = dm.reshape(1, *dm.shape)
         
@@ -1314,7 +1325,7 @@ def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
     nset, nao  = dm.shape[0], dm.shape[1]
     cell = mydf.cell
     assert cell.nao == nao
-    vol = cell.vol
+    vol  = cell.vol
     mesh = np.array(cell.mesh, dtype=np.int32)
     mesh_int32 = mesh
     ngrid = np.prod(mesh)
@@ -1404,11 +1415,59 @@ def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
     
     reset_profile_buildK_time()
     
+    ######## distribution task among different process ########
+    
+    task_info = []
+    
+    nIP_prim = mydf.nIP_Prim
+    if use_mpi:
+        nIP_bunchsize = (nIP_prim + comm_size) // comm_size
+        bunch_begin   = rank * nIP_bunchsize
+        bunch_end     = min(nIP_prim, (rank + 1) * nIP_bunchsize)
+        
+    else:
+        bunch_begin = 0
+        bunch_end   = nIP_prim
+    
+    iIP = 0
     for group_id, atm_ids in enumerate(group):
         
-        if use_mpi:
-            if group_id % comm_size != rank:
-                continue
+        naux_tmp = 0
+        for atm_id in atm_ids:
+            naux_tmp += aoRg[atm_id].aoR.shape[1]
+        assert naux_tmp == aux_basis[group_id].shape[0]
+        assert iIP + naux_tmp <= nIP_prim
+        
+        ### judge whether [iIP, iIP+naux_tmp) intersects with [bunch_begin, bunch_end) ###
+        
+        if iIP >= bunch_end or iIP + naux_tmp <= bunch_begin:
+            task_info.append((None, None))
+        else:
+            if bunch_begin <= iIP:
+                group_begin = 0
+            else:
+                group_begin = bunch_begin - iIP
+            if bunch_end >= iIP + naux_tmp:
+                group_end = naux_tmp
+            else:
+                group_end = bunch_end - iIP
+            task_info.append((group_begin, group_end))
+        
+        iIP += naux_tmp
+    
+    #if use_mpi:
+    #    print("rank = ", rank, "task_info = ", task_info)
+    
+    ###########################################################
+    
+    for group_id, atm_ids in enumerate(group):
+        
+        if task_info[group_id][0] is None:
+            continue
+        
+        #if use_mpi:
+        #    if group_id % comm_size != rank:
+        #        continue
         
         naux_tmp = 0
         aoRg_holders = []
@@ -1461,6 +1520,8 @@ def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
                 build_K_bunchsize,
                 ##### other info #####
                 use_mpi=use_mpi,
+                begin_id=task_info[group_id][0],
+                end_id  =task_info[group_id][1],
                 ##### out #####
                 K1_or_2=K1[iset])
             
@@ -1487,10 +1548,13 @@ def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
                 build_K_bunchsize,
                 ##### other info #####
                 use_mpi=use_mpi,
+                begin_id=task_info[group_id][0],
+                end_id  =task_info[group_id][1],
                 ##### out #####
                 K1_or_2=K2[iset])
     
-    log_profile_buildK_time(mydf)
+    if (use_mpi and rank == 0) or not use_mpi:
+        log_profile_buildK_time(mydf)
                 
     ######### finally delete the buffer #########
     
@@ -1507,7 +1571,7 @@ def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
             for iset in range(nset):
                 #K1 = pack_JK(K1, kmesh, nao_prim)
                 #K2 = pack_JK(K2, kmesh, nao_prim)
-                K1_packed.apepnd(pack_JK(K1[iset], kmesh, nao_prim))
+                K1_packed.append(pack_JK(K1[iset], kmesh, nao_prim))
                 K2_packed.append(pack_JK(K2[iset], kmesh, nao_prim))
             K1 = np.array(K1_packed)
             K2 = np.array(K2_packed)
@@ -1539,27 +1603,34 @@ def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
     
     ############ transform back to K ############
     
-    K_res = []
+    if (use_mpi and rank == 0) or not use_mpi:
+        
+        K_res = []
     
-    for iset in range(nset):
-        Ktmp  = _RowCol_FFT_bench(K[iset, :nao_prim, :], kmesh, inv=True, TransBra=False, TransKet=True)
-        K_res.append(Ktmp)
-    
-    K  = np.asarray(K_res)
-    K *= nkpts
-    K *= ngrid / vol
-    
-    Res = []
-    for iset in range(nset):
-        Res.append([])
-    for i in range(np.prod(kmesh)):
         for iset in range(nset):
-            Res[iset].append(K[iset, :, i*nao_prim:(i+1)*nao_prim])
+            Ktmp  = _RowCol_FFT_bench(K[iset, :nao_prim, :], kmesh, inv=True, TransBra=False, TransKet=True)
+            K_res.append(Ktmp)
+    
+        K  = np.asarray(K_res)
+        K *= nkpts
+        K *= ngrid / vol
+    
+        Res = []
+        for iset in range(nset):
+            Res.append([])
+        for i in range(np.prod(kmesh)):
+            for iset in range(nset):
+                Res[iset].append(K[iset, :, i*nao_prim:(i+1)*nao_prim])
             
-    K  = np.array(Res)
+        K  = np.array(Res)
+    
+    if use_mpi:
+        K = bcast(K, root=0)
+    
     t2 = (logger.process_clock(), logger.perf_counter())
     
-    _benchmark_time(t0, t2, "_contract_k_dm_quadratic_direct", mydf)
+    if (use_mpi and rank == 0) or not use_mpi:
+        _benchmark_time(t0, t2, "_contract_k_dm_quadratic_direct", mydf)
     
     return K
    
