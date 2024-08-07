@@ -1232,7 +1232,7 @@ if __name__ == "__main__":
     # prim_partition = [[0,1,2,3,4,5,6,7]]
     prim_partition = [[0,1],[2,3],[4,5],[6,7]]
     
-    Ls = [2, 2, 2]
+    Ls = [1, 1, 8]
     kpts = prim_cell.make_kpts(Ls)
     Ls = np.array(Ls, dtype=np.int32)
     mesh = [Ls[0] * prim_mesh[0], Ls[1] * prim_mesh[1], Ls[2] * prim_mesh[2]]
@@ -1298,6 +1298,7 @@ if __name__ == "__main__":
     # mf = scf.KUHF(prim_cell, kpts)
     # pbc_isdf_info.kpts = np.array([[0,0,0]])  
     # mf = scf.addons.smearing_(mf, sigma=0.2, method='fermi')
+    pbc_isdf_info.set_build_K_distance_cutoff(30.0)
     pbc_isdf_info.direct_scf = mf.direct_scf
     mf.with_df = pbc_isdf_info
     mf.max_cycle = 16

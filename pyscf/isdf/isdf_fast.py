@@ -619,8 +619,9 @@ class PBC_ISDF_Info(df.fft.FFTDF):
         
         ########### attr used in build K directly with cutoff ###########
         
-        self._build_K_rela_cutoff = None
-        self._build_K_abs_cutoff  = None
+        self._build_K_rela_cutoff     = None
+        self._build_K_abs_cutoff      = None
+        self._build_K_distance_cutoff = None
 
     def _allocate_jk_buffer(self, datatype):
 
@@ -662,6 +663,11 @@ class PBC_ISDF_Info(df.fft.FFTDF):
         '''
         self._build_K_rela_cutoff = rela_cutoff
         self._build_K_abs_cutoff  = abs_cutoff
+
+    def set_build_K_distance_cutoff(self, distance_cutoff=None):
+        ''' set the cutoff for building K matrix directly.
+        '''
+        self._build_K_distance_cutoff = distance_cutoff
 
     def build(self):
         raise NotImplementedError

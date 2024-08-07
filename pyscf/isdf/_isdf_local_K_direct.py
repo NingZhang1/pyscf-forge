@@ -203,6 +203,7 @@ def _isdf_get_K_direct_kernel_1(
     use_cutoff  = False
     rela_cutoff = None
     abs_cutoff  = None
+    distance_cutoff = None
     
     if hasattr(mydf, "_build_K_rela_cutoff"):
         rela_cutoff = mydf._build_K_rela_cutoff
@@ -210,8 +211,19 @@ def _isdf_get_K_direct_kernel_1(
             use_cutoff = True
     if hasattr(mydf, "_build_K_abs_cutoff"):
         abs_cutoff = mydf._build_K_abs_cutoff
+        if abs_cutoff is not None:
+            use_cutoff = True
+    if hasattr(mydf, "_build_K_distance_cutoff"):
+        distance_cutoff = mydf._build_K_distance_cutoff
+        if distance_cutoff is not None:
+            assert not use_cutoff
+            use_cutoff = True
+        
     if use_cutoff and abs_cutoff is None:
-        abs_cutoff = 1.0e-9
+        if distance_cutoff is None:
+            abs_cutoff = 1.0e-9
+    
+    distance_matrix = mydf.distance_matrix
     
     ######### info #########
     
@@ -298,6 +310,7 @@ def _isdf_get_K_direct_kernel_1(
     
     naux_tmp = 0
     aoRg_packed = []
+    IP_2_atm_id = []
     ILOC = 0
     for kx in range(kmesh[0]):
         for ky in range(kmesh[1]):
@@ -307,12 +320,15 @@ def _isdf_get_K_direct_kernel_1(
                 for atm_id in group[group_id]:
                     # print("atm_id = ", atm_id, "ILOC = ", ILOC, "shape = ", aoRg1[atm_id+ILOC*natm_prim].aoR.shape)
                     naux_tmp += aoRg1[atm_id+ILOC*natm_prim].aoR.shape[1]
+                    IP_2_atm_id.extend([atm_id+ILOC*natm_prim] * aoRg1[atm_id+ILOC*natm_prim].aoR.shape[1])
                     aoRg_holders.append(aoRg1[atm_id+ILOC*natm_prim])
                 aoRg_packed.append(_pack_aoR_holder(aoRg_holders, nao))
                 # print("naux_tmp = ", naux_tmp)
                 # print("aux_basis[group_id].shape[0] = ", aux_basis[group_id].shape[0])
                 assert naux_tmp == aux_basis[group_id].shape[0]
                 ILOC += 1
+    IP_2_atm_id = np.array(IP_2_atm_id, dtype=np.int32)
+    # print("IP_2_atm_id = ", IP_2_atm_id)
     
     # grid ID involved for the given group
     
@@ -381,6 +397,9 @@ def _isdf_get_K_direct_kernel_1(
     #### loop over Rg ####
     
     for p0, p1 in lib.prange(0, naux_tmp, bunchsize):
+        
+        unique_elements = np.unique(IP_2_atm_id[p0:p1])
+        # print("unique_elements = ", unique_elements)    
         
         #### 2. build the V matrix if constructK1 ####
         
@@ -451,10 +470,21 @@ def _isdf_get_K_direct_kernel_1(
                         
                         ngrid_now    = aoR_holder.aoR.shape[1]
                         nao_involved = aoR_holder.aoR.shape[0]
+            
+                        ###### CUTOFF ######
+                        
+                        if use_cutoff:
+                            if distance_cutoff is not None:
+                                distance = np.min(distance_matrix[unique_elements, ILOC*natm_prim+atm_id])
+                                # print("distance = ", distance, "cutoff = ", distance_cutoff)
+                                if distance > distance_cutoff:
+                                    continue
+                                
+                        ####################
                                     
                         ##### packed involved DgAO #####
             
-                        if kx ==0 and ky == 0 and kz == 0:
+                        if kx == 0 and ky == 0 and kz == 0:
                             ao_permutation = aoR_holder.ao_involved
                         else:
                             ao_permutation = col_permutation[atm_id]
@@ -480,11 +510,16 @@ def _isdf_get_K_direct_kernel_1(
                         ###### CUTOFF ######
 
                         if use_cutoff:
-                            dm_RgAO_packed_max = np.max(np.abs(Density_RgAO_packed))
-                            # if dm_RgAO_packed_max < abs_cutoff or dm_RgAO_packed_max < rela_cutoff * dm_RgAO_max:
-                            if dm_RgAO_packed_max < abs_cutoff:
-                                # log.info('In _isdf_get_K_direct_kernel1 dm_RgAO_packed_max = %16.8e for box (%d,%d,%d) atm %d is too small, skip' % (dm_RgAO_packed_max, kx, ky, kz, atm_id))
-                                continue
+                            if distance_cutoff is None:
+                                dm_RgAO_packed_max = np.max(np.abs(Density_RgAO_packed))
+                                # if dm_RgAO_packed_max < abs_cutoff or dm_RgAO_packed_max < rela_cutoff * dm_RgAO_max:
+                                if dm_RgAO_packed_max < abs_cutoff:
+                                    # log.info('In _isdf_get_K_direct_kernel1 dm_RgAO_packed_max = %16.8e for box (%d,%d,%d) atm %d is too small, skip' % (dm_RgAO_packed_max, kx, ky, kz, atm_id))
+                                    continue
+                        
+                        #dm_RgAO_packed_max = np.max(np.abs(Density_RgAO_packed))
+                        #distance = np.min(distance_matrix[unique_elements, ILOC*natm_prim+atm_id])
+                        #print("distance = %15.8e, dm_RgAO_packed_max = %15.8e" % (distance, dm_RgAO_packed_max))
                         
                         ####################
 
@@ -560,11 +595,21 @@ def _isdf_get_K_direct_kernel_1(
                         ###### CUTOFF ######
                         
                         if use_cutoff:
-                            V2_tmp_max2 = np.max(np.abs(V2_tmp[:, grid_loc_begin:grid_loc_begin+ngrid_now]))
-                            # if V2_tmp_max2 < abs_cutoff or V2_tmp_max2 < rela_cutoff * V2_tmp_max:
-                            if V2_tmp_max2 < abs_cutoff:
-                                # log.info('In _isdf_get_K_direct_kernel1 V2_tmp_max2 = %16.8e for box (%d,%d,%d) atm %d is too small, skip' % (V2_tmp_max2, kx, ky, kz, atm_id))
-                                continue
+                            if distance_cutoff is None:
+                                V2_tmp_max2 = np.max(np.abs(V2_tmp[:, grid_loc_begin:grid_loc_begin+ngrid_now]))
+                                # if V2_tmp_max2 < abs_cutoff or V2_tmp_max2 < rela_cutoff * V2_tmp_max:
+                                if V2_tmp_max2 < abs_cutoff:
+                                    # log.info('In _isdf_get_K_direct_kernel1 V2_tmp_max2 = %16.8e for box (%d,%d,%d) atm %d is too small, skip' % (V2_tmp_max2, kx, ky, kz, atm_id))
+                                    continue
+                            else:
+                                distance = np.min(distance_matrix[unique_elements, ILOC*natm_prim+atm_id])
+                                # print("distance = ", distance, "cutoff = ", distance_cutoff)
+                                if distance > distance_cutoff:
+                                    continue
+                        
+                        #V2_tmp_max2 = np.max(np.abs(V2_tmp[:, grid_loc_begin:grid_loc_begin+ngrid_now]))
+                        #distance    = np.min(distance_matrix[unique_elements, ILOC*natm_prim+atm_id])
+                        #print("distance = %15.8e, V2_tmp_max2 = %15.8e" % (distance, V2_tmp_max2))
                         
                         ####################
             
@@ -640,18 +685,32 @@ def _isdf_get_K_direct_kernel_1(
             grid_shift    = 0
 
             t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
-        
+
+            ILOC = 0
             for ix in range(kmesh[0]):
                 for iy in range(kmesh[1]):
                     for iz in range(kmesh[2]):
-                       for j in range(len(group)):
+                        
+                        skip = False
+                        if use_cutoff:
+                            if distance_cutoff is not None:
+                                distance = np.min(distance_matrix[unique_elements, ILOC*natm_prim:(ILOC+1)*natm_prim])
+                                # print("distance = ", distance)
+                                if distance > distance_cutoff:
+                                    #ILOC += 1
+                                    #continue
+                                    skip = True
+                        
+                        for j in range(len(group)):
                             aux_basis_ket  = mydf.aux_basis[j]
                             ngrid_now      = aux_basis_ket.shape[1]
                             naux_ket       = aux_basis_ket.shape[0]
-                            W_tmp[p0:p1, aux_ket_shift:aux_ket_shift+naux_ket] = lib.ddot(
-                               V_tmp[:, grid_shift:grid_shift+ngrid_now], aux_basis_ket.T)
+                            if not skip:
+                                W_tmp[p0:p1, aux_ket_shift:aux_ket_shift+naux_ket] = lib.ddot(
+                                V_tmp[:, grid_shift:grid_shift+ngrid_now], aux_basis_ket.T)
                             aux_ket_shift += naux_ket
                             grid_shift    += ngrid_now 
+                        ILOC += 1
             
             t2 = (lib.logger.process_clock(), lib.logger.perf_counter())
             
