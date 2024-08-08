@@ -36,7 +36,7 @@ boxlen = [4.6492659759,4.6492659759,2.9706828877]
 C_ARRAY = [15,20,25,30]  ## if rela_cutoff_QRCP is set, then c is used to when performing random projection, which can be relative large.
 RELA_QR = [1e-2,1e-3,2e-4,1e-4]
 SuperCell_ARRAY = [
-    [1,1,2],
+    #[1,1,2],
     [2,2,2],
     [3,3,3],
     [4,4,4],

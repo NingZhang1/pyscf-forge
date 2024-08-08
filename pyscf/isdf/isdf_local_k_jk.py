@@ -1578,7 +1578,7 @@ def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
             K = np.zeros_like(K1)
             # K  = K1 + K1.T - K2
             for iset in range(nset):
-                K[iset] = K1[iset] + K1[iset].T - K2[iset]
+                K[iset] = K1[iset] + K1[iset].T - (K2[iset] + K2[iset].T)/2.0
         else:
             K = None
         K = bcast(K, root = 0)
@@ -1596,7 +1596,7 @@ def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
         K  = np.zeros_like(K1)
         # K  = K1 + K1.T - K2
         for iset in range(nset):
-            K[iset] = K1[iset] + K1[iset].T - K2[iset]
+            K[iset] = K1[iset] + K1[iset].T - (K2[iset] + K2[iset].T)/2.0
     
     del K1
     del K2

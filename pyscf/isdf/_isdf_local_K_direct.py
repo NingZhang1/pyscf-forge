@@ -393,6 +393,7 @@ def _isdf_get_K_direct_kernel_1(
                            buffer=build_VW_buf, 
                            offset=offset_after_V_tmp, 
                            dtype =np.float64)
+        W_tmp.ravel()[:] = 0.0 # clean
     
     else:
         offset_after_V_tmp = offset_V_tmp
@@ -425,6 +426,7 @@ def _isdf_get_K_direct_kernel_1(
                                 buffer=build_VW_buf, 
                                 offset=offset_V_tmp, 
                                 dtype =np.float64)
+            V_tmp.ravel()[:] = 0.0 # clean
 
             t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
         
