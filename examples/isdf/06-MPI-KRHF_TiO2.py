@@ -37,10 +37,10 @@ C_ARRAY = [15,20,25,30]  ## if rela_cutoff_QRCP is set, then c is used to when p
 RELA_QR = [1e-2,1e-3,2e-4,1e-4]
 SuperCell_ARRAY = [
     [2,2,2],
-    #[3,3,3],
-    #[4,4,4],
-    #[5,5,5],
-    #[6,6,6],
+    [3,3,3],
+    [4,4,4],
+    [5,5,5],
+    [6,6,6],
 ]
 # Ke_CUTOFF = [128]
 Ke_CUTOFF = [192]
@@ -80,7 +80,7 @@ if __name__ == '__main__':
                         cell.verbose = 0
                         cell.build()
                     
-                    for c,rela_qr in list(zip(C_ARRAY,RELA_QR)):
+                    for c,rela_qr in list(zip(C_ARRAY,RELA_QR))[2:3]:
                         
                         if rank == 0:
                             print('--------------------------------------------')
@@ -108,14 +108,24 @@ if __name__ == '__main__':
                         t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
                         mf = scf.KRHF(cell, kpts)
                         mf.with_df   = pbc_isdf_info
-                        mf.max_cycle = 100
+                        mf.max_cycle = -1
                         mf.conv_tol  = 1e-8
                         mf.conv_tol_grad = 1e-3
+                        mf.init_guess = 'atom'
                         if DM_CACHED is not None:
                             mf.kernel(DM_CACHED)
                         else:
                             mf.kernel()
                         t2 = (lib.logger.process_clock(), lib.logger.perf_counter())
                         
-                        print(isdf_jk._benchmark_time(t1, t2, 'RHF_bench', mf))
-                        DM_CACHED = mf.make_rdm1()
+                        dm0 = mf.init_guess_by_atom()
+                        vj, vk = pbc_isdf_info.get_jk(dm0)
+                        
+                        if rank == 0:
+                            vj.tofile("vj_%d.dat"%(comm_size))
+                            vk.tofile("vk_%d.dat"%(comm_size))
+                        comm.Barrier()
+                        exit(1)
+                        
+                        #print(isdf_jk._benchmark_time(t1, t2, 'RHF_bench', mf))
+                        #DM_CACHED = mf.make_rdm1()

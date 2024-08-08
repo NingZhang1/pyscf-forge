@@ -17,6 +17,7 @@ from pyscf.isdf.isdf_tools_mpi import rank, comm, comm_size, allgather, bcast
 if __name__ == '__main__':
 
     C = 15
+    qr=1e-3
     from pyscf.lib.parameters import BOHR
     from pyscf.isdf.isdf_tools_cell import build_supercell, build_supercell_with_partition
     
@@ -40,15 +41,15 @@ if __name__ == '__main__':
     atms = ['O', 'Cu', "Ca"]
     basis = {atm:parse_nwchem.load(fbas, atm) for atm in atms}
     pseudo = {'Cu1': 'gth-pbe-q19', 'Cu2': 'gth-pbe-q19', 'O1': 'gth-pbe', 'Ca': 'gth-pbe'}
-    ke_cutoff = 128 
+    ke_cutoff = 192 
     prim_cell = build_supercell(atm, prim_a, Ls = [1,1,1], ke_cutoff=ke_cutoff, basis=basis, pseudo=pseudo)
     prim_mesh = prim_cell.mesh
-    KE_CUTOFF = 128
+    KE_CUTOFF = 192
         
     prim_mesh = prim_cell.mesh    
     prim_partition = [[0], [1], [2], [3]]    
     
-    Ls = [2, 2, 1]
+    Ls = [4, 4, 2]
     Ls = np.array(Ls, dtype=np.int32)
     mesh = [Ls[0] * prim_mesh[0], Ls[1] * prim_mesh[1], Ls[2] * prim_mesh[2]]
     mesh = np.array(mesh, dtype=np.int32)
@@ -60,7 +61,12 @@ if __name__ == '__main__':
     if rank == 0:
         print("group_partition = ", group_partition)
     
-    pbc_isdf_info = isdf_local_MPI.PBC_ISDF_Info_Quad_MPI(cell, aoR_cutoff=1e-8, verbose=verbose, limited_memory=True, build_K_bunchsize=16)
+    pbc_isdf_info = isdf_local_MPI.PBC_ISDF_Info_Quad_MPI(cell, 
+                                                          aoR_cutoff       = 1e-8, 
+                                                          rela_cutoff_QRCP = qr,
+                                                          verbose          = verbose, 
+                                                          limited_memory   = True, 
+                                                          build_K_bunchsize= 56)
     pbc_isdf_info.build_IP_local(c=C, m=5, group=group_partition)
     pbc_isdf_info.Ls = Ls
     pbc_isdf_info.build_auxiliary_Coulomb(debug=True)
