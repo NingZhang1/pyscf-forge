@@ -773,6 +773,8 @@ def _sync_aoR(aoR_holders, natm):
     ''' used in MPI 
     '''
     
+    assert len(aoR_holders) == natm
+    
     aoR = []
     bas_id = []
     grid_ID_begin = []
@@ -786,8 +788,8 @@ def _sync_aoR(aoR_holders, natm):
             bas_id.append(None)
             grid_ID_begin.append(None)
 
-    aoR = _sync_list(aoR, natm)
-    bas_id = _sync_list(bas_id, natm)
+    aoR           = _sync_list(aoR, natm)
+    bas_id        = _sync_list(bas_id, natm)
     grid_ID_begin = _sync_list(grid_ID_begin, natm)
 
     aoR_holders = []

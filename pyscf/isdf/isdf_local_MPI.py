@@ -60,6 +60,9 @@ def dump_aoR(mydf, filename:str=None):
     for attr in ["aoR", "aoR1", "aoRg", "aoRg"]:
         if hasattr(mydf, attr):
             tmp = getattr(mydf, attr)
+            if tmp is None:
+                print("%s is None" % (attr))
+                continue
             tmp1, tmp2 = flatten_aoR_holder(tmp)
             res_int.append(tmp1)
             res_float.append(tmp2)

@@ -1008,7 +1008,7 @@ class PBC_ISDF_Info_Quad(ISDF.PBC_ISDF_Info):
         else:
             return self.cell.natm
 
-    def build_partition_aoR(self, Ls):
+    def build_partition_aoR(self, Ls=None):
         
         if self.aoR is not None and self.partition is not None:
             return

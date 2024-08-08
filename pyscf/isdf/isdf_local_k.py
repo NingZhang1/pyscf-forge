@@ -607,13 +607,7 @@ class PBC_ISDF_Info_Quad_K(ISDF_Local.PBC_ISDF_Info_Quad):
         
         first_natm = self.first_natm
         natm       = self.cell.natm
-        
-        #################################### 
-        
-        sync_aoR = False
-        if self.direct:
-            sync_aoR = True
-        
+                
         ### we need three types of aoR ### 
         
         # this type of aoR is used in get J and select IP 
@@ -679,9 +673,7 @@ class PBC_ISDF_Info_Quad_K(ISDF_Local.PBC_ISDF_Info_Quad):
         if rank == 0:
             _benchmark_time(t1, t2, "build_aoR", self)
     
-    def build_IP_local(self, c=5, m=5, first_natm=None, group=None, Ls = None, debug=True):
-        
-        assert self.use_aft_ao == False
+    def set_group(self, group=None):
         
         first_natm = self.first_natm 
         if group is None:
@@ -697,16 +689,12 @@ class PBC_ISDF_Info_Quad_K(ISDF_Local.PBC_ISDF_Info_Quad):
                 assert atm_id < first_natm
             natm_involved += len(data)
         assert natm_involved == first_natm 
-    
+        
         for i in range(len(group)):
             group[i] = np.array(group[i], dtype=np.int32)
-        
+
         assert len(group) <= first_natm
-        
-        # build partition and aoR # 
-        
-        t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
-        
+
         self.group = group
         
         self.group_global = []
@@ -725,16 +713,25 @@ class PBC_ISDF_Info_Quad_K(ISDF_Local.PBC_ISDF_Info_Quad):
         for i in range(len(self.group_global)):
             for atm_id in self.group_global[i]:
                 self.atm_id_2_group[atm_id] = i
+    
+    def build_IP_local(self, c=5, m=5, group=None, Ls = None, debug=True):
         
+        assert self.use_aft_ao == False
+
+        self.set_group(group)
+        first_natm = self.first_natm 
+                
+        # build partition and aoR # 
+        
+        t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
+                
         self.build_partition_aoR(None)
         
         self.grid_segment = [0]
         for atm_id in self.atm_ordering:
-            # print("self.partition[atm_id] = ", self.partition[atm_id])
             loc_now = self.grid_segment[-1] + len(self.partition[atm_id])
             self.grid_segment.append(loc_now)
         self.grid_segment = np.array(self.grid_segment, dtype=np.int32)
-        #print("grid_segment = ", self.grid_segment)
         
         ao2atomID = self.ao2atomID
         partition = self.partition
@@ -750,7 +747,6 @@ class PBC_ISDF_Info_Quad_K(ISDF_Local.PBC_ISDF_Info_Quad):
             for atm_id in group[i]:
                 self.partition_group_to_gridID[i].extend(partition[atm_id])
             self.partition_group_to_gridID[i] = np.array(self.partition_group_to_gridID[i], dtype=np.int32)
-            # self.partition_group_to_gridID[i].sort()
             
         ngrids = self.coords.shape[0]
         
@@ -810,6 +806,8 @@ class PBC_ISDF_Info_Quad_K(ISDF_Local.PBC_ISDF_Info_Quad):
                 use_mpi              = self.use_mpi
             )
         
+        self.IP_Atm = IP_Atm
+        
         t3 = (lib.logger.process_clock(), lib.logger.perf_counter()) 
         
         weight = np.sqrt(self.cell.vol / self.coords.shape[0])
@@ -836,9 +834,10 @@ class PBC_ISDF_Info_Quad_K(ISDF_Local.PBC_ISDF_Info_Quad):
         build_aoR_FFT = (self.direct == False)
         
         select_IP_local_ls_k_drive(
-            self, c, m, IP_Atm, group, 
-            build_aoR_FFT=build_aoR_FFT,
-            use_mpi=self.use_mpi
+            self, c, m, 
+            self.IP_Atm, self.group, 
+            build_aoR_FFT = build_aoR_FFT,
+            use_mpi       = self.use_mpi
         )
         
         t2 = (lib.logger.process_clock(), lib.logger.perf_counter())
@@ -867,6 +866,10 @@ class PBC_ISDF_Info_Quad_K(ISDF_Local.PBC_ISDF_Info_Quad):
         if self.direct == False:
             build_auxiliary_Coulomb_local_bas_k(self, debug=debug, use_mpi=self.use_mpi)
 
+    ################ testing code    ################
+    
+    # def test_
+    
     ################ allocate buffer ################ 
     
     def _get_bufsize_get_j(self):
