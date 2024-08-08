@@ -1366,7 +1366,8 @@ def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
     
     nThread            = lib.num_threads()
     bufsize_per_thread = (coulG_real.shape[0] * 2 + np.prod(mesh))
-    buf_build_V        = np.ndarray((nThread, bufsize_per_thread), dtype=np.float64, buffer=build_VW_buf) 
+    # buf_build_V        = np.ndarray((nThread, bufsize_per_thread), dtype=np.float64, buffer=build_VW_buf) 
+    buf_build_V        = np.ndarray((nThread, bufsize_per_thread), dtype=np.float64)
     
     offset_now = buf_build_V.size * buf_build_V.dtype.itemsize
     
@@ -1464,6 +1465,9 @@ def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
         
         if task_info[group_id][0] is None:
             continue
+        
+        build_k_buf.ravel()[:]  = 0.0
+        build_VW_buf.ravel()[:] = 0.0
         
         #if use_mpi:
         #    if group_id % comm_size != rank:

@@ -362,15 +362,14 @@ def _isdf_get_K_direct_kernel_1(
     
     ######### get involved C function #########
     
-    fn_packcol1 = getattr(libisdf, "_buildK_packcol", None)
-    assert fn_packcol1 is not None
-    fn_packcol2 = getattr(libisdf, "_buildK_packcol2", None)
-    assert fn_packcol2 is not None
-    fn_packadd_col = getattr(libisdf, "_buildK_packaddcol", None)
-    assert fn_packadd_col is not None
-    #fn_packadd_row = getattr(libisdf, "_buildK_packaddrow", None)
-    #assert fn_packadd_row is not None
+    fn_packcol1      = getattr(libisdf, "_buildK_packcol",              None)
+    fn_packcol2      = getattr(libisdf, "_buildK_packcol2",             None)
+    fn_packadd_col   = getattr(libisdf, "_buildK_packaddcol",           None)
     fn_packadd_row_k = getattr(libisdf, "_buildK_packaddrow_shift_col", None)
+    
+    assert fn_packcol1      is not None
+    assert fn_packcol2      is not None
+    assert fn_packadd_col   is not None
     assert fn_packadd_row_k is not None
     
     # determine bunchsize #
@@ -409,8 +408,8 @@ def _isdf_get_K_direct_kernel_1(
 
     if begin_id is None:
         begin_id = 0
-    if end_id is None:
-        end_id = naux_tmp
+    if end_id   is None:
+        end_id   = naux_tmp
 
     #### loop over Rg ####
     
