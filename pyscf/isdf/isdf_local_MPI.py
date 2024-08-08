@@ -26,6 +26,51 @@ from pyscf.gto.mole import *
 from   pyscf.isdf.isdf_tools_mpi import rank, comm, comm_size, allgather, bcast
 import pyscf.isdf.isdf_local   as isdf_local
 import pyscf.isdf.isdf_local_k as isdf_local_k
+from   pyscf.isdf.isdf_tools_local import flatten_aoR_holder
+
+###############################################################
+
+# debug code #
+
+def dump_attributes(mydf, attr_lst:list[str], dtype=np.int32, filename:str=None):
+    
+    res = []
+    
+    for attr in attr_lst:
+        assert hasattr(mydf, attr)
+        tmp = getattr(mydf, attr)
+        if isinstance(tmp, list):
+            if all([isinstance(x, np.ndarray) for x in tmp]):
+                tmp = np.concatenate([x.ravel() for x in tmp])
+            else:
+                tmp = np.asarray(tmp, dtype=dtype)
+        else:
+            tmp = np.asarray(tmp, dtype=dtype)
+        res.append(tmp.flatten().astype(dtype))
+    
+    res = np.concatenate(res)
+    print("rank = ", rank, res.shape)
+    res.tofile(filename)
+
+def dump_aoR(mydf, filename:str=None):
+    
+    res_int   = []
+    res_float = []
+    
+    for attr in ["aoR", "aoR1", "aoRg", "aoRg"]:
+        if hasattr(mydf, attr):
+            tmp = getattr(mydf, attr)
+            tmp1, tmp2 = flatten_aoR_holder(tmp)
+            res_int.append(tmp1)
+            res_float.append(tmp2)
+    
+    res_int   = np.concatenate(res_int)
+    res_float = np.concatenate(res_float)
+    
+    print("rank = ", rank, res_int.shape, res_float.shape)
+    res_int.tofile(filename   + "_int.dat")
+    res_float.tofile(filename + "_float.dat")
+    
 
 ############## MPI version of PBC_ISDF_Info_Quad ##############
 
@@ -54,6 +99,9 @@ class PBC_ISDF_Info_Quad_MPI(isdf_local.PBC_ISDF_Info_Quad):
                          build_K_bunchsize = build_K_bunchsize)
         self.use_mpi = True
         assert self.use_aft_ao == False
+    
+    dump_attributes = dump_attributes
+    dump_aoR = dump_aoR
 
 ###############################################################
 
@@ -84,6 +132,9 @@ class PBC_ISDF_Info_Quad_K_MPI(isdf_local_k.PBC_ISDF_Info_Quad_K):
                          build_K_bunchsize = build_K_bunchsize)
         self.use_mpi = True
         assert self.use_aft_ao == False
+
+    dump_attributes = dump_attributes
+    dump_aoR = dump_aoR
 
 #################################################################
 

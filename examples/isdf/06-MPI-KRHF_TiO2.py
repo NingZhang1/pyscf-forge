@@ -36,6 +36,7 @@ boxlen = [4.6492659759,4.6492659759,2.9706828877]
 C_ARRAY = [15,20,25,30]  ## if rela_cutoff_QRCP is set, then c is used to when performing random projection, which can be relative large.
 RELA_QR = [1e-2,1e-3,2e-4,1e-4]
 SuperCell_ARRAY = [
+    [1,1,2],
     [2,2,2],
     [3,3,3],
     [4,4,4],
@@ -80,7 +81,7 @@ if __name__ == '__main__':
                         cell.verbose = 0
                         cell.build()
                     
-                    for c,rela_qr in list(zip(C_ARRAY,RELA_QR))[2:3]:
+                    for c,rela_qr in list(zip(C_ARRAY,RELA_QR))[:1]:
                         
                         if rank == 0:
                             print('--------------------------------------------')
@@ -119,12 +120,39 @@ if __name__ == '__main__':
                         t2 = (lib.logger.process_clock(), lib.logger.perf_counter())
                         
                         dm0 = mf.init_guess_by_atom()
+                        dm0 = bcast(dm0, root=0)
                         vj, vk = pbc_isdf_info.get_jk(dm0)
                         
-                        if rank == 0:
-                            vj.tofile("vj_%d.dat"%(comm_size))
-                            vk.tofile("vk_%d.dat"%(comm_size))
+                        #if rank == 0:
+                        vj.tofile("vj_%d_%d.dat"%(comm_size, rank))
+                        vk.tofile("vk_%d_%d.dat"%(comm_size, rank))
                         comm.Barrier()
+                        
+                        #### dump attributes #### 
+                        
+                        filename = "attributes_%d_%d.dat" % (comm_size, rank)
+                        pbc_isdf_info.dump_attributes(
+                            filename=filename,
+                            attr_lst=[
+                                "IP_flat_prim", "IP_flat", "IP_segment",
+                                "partition_group_to_gridID",
+                                "partition_prim", "partition",
+                                "grid_ID_ordered_prim", "grid_ID_ordered", "gridID_2_atmID"
+                            ]
+                        )
+                        
+                        filename = "attributes_%d_%d_float.dat" % (comm_size, rank)
+                        pbc_isdf_info.dump_attributes(
+                            filename=filename,
+                            attr_lst=[
+                                "aux_basis"
+                            ],
+                            dtype=np.float64
+                        )
+                        
+                        filename = "aoValues_%d_%d" % (comm_size, rank)
+                        pbc_isdf_info.dump_aoR(filename)
+                        
                         exit(1)
                         
                         #print(isdf_jk._benchmark_time(t1, t2, 'RHF_bench', mf))

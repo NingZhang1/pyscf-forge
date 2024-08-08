@@ -100,25 +100,22 @@ class aoR_Holder:
         self.aoR         = self.aoR[np.argsort(self.ao_involved)]
         self.ao_involved = self.ao_involved_sorted 
         
-        diff            = np.diff(self.ao_involved)
-        segment_indices = np.where(diff > 1)[0] + 1
-        segments        = np.split(self.ao_involved, segment_indices)
-        
-        self.segments = []
-        if len(segments) == 1 and len(segments[0]) == 0:
-            self.segments.append(0)
-        else:
-            loc_begin = 0
-            for segment in segments:
-                self.segments.append(loc_begin)
-                self.segments.append(segment[0])
-                self.segments.append(segment[-1]+1)
-                loc_begin += len(segment)
-            self.segments.append(loc_begin)
-        
-        self.segments = np.array(self.segments, dtype=np.int32)
-
-        segments = None
+        # diff            = np.diff(self.ao_involved)
+        # segment_indices = np.where(diff > 1)[0] + 1
+        # segments        = np.split(self.ao_involved, segment_indices)
+        # self.segments = []
+        # if len(segments) == 1 and len(segments[0]) == 0:
+        #     self.segments.append(0)
+        # else:
+        #     loc_begin = 0
+        #     for segment in segments:
+        #         self.segments.append(loc_begin)
+        #         self.segments.append(segment[0])
+        #         self.segments.append(segment[-1]+1)
+        #         loc_begin += len(segment)
+        #     self.segments.append(loc_begin)
+        # self.segments = np.array(self.segments, dtype=np.int32)
+        # segments = None
     
     def RangeSeparation(self, IsCompact:np.ndarray):
         ordering_C = []
@@ -141,7 +138,8 @@ class aoR_Holder:
             assert IsCompact[self.ao_involved[i]]
     
     def size(self):
-        return self.aoR.nbytes + self.ao_involved.nbytes + self.segments.nbytes
+        return self.aoR.nbytes + self.ao_involved.nbytes 
+        # + self.segments.nbytes
 
     def todense(self, nao):
         aoR = np.zeros((nao, self.aoR.shape[1]))
@@ -151,6 +149,17 @@ class aoR_Holder:
 def _get_aoR_holders_memory(aoR_holders:list[aoR_Holder]):
     
     return sum([_aoR_holder.size() for _aoR_holder in aoR_holders if _aoR_holder is not None])
+
+def flatten_aoR_holder(aoR_holders:list[aoR_Holder]):
+    res_int   = []
+    res_float = []
+    for _aoR_holder in aoR_holders:
+        res_int.extend(_aoR_holder.ao_involved)
+        res_int.extend([_aoR_holder.local_gridID_begin, _aoR_holder.local_gridID_end, _aoR_holder.global_gridID_begin, _aoR_holder.global_gridID_end])
+        res_float.extend(_aoR_holder.aoR.ravel())
+    res_int = np.array(res_int, dtype=np.int32)
+    res_float = np.array(res_float, dtype=np.float64)
+    return res_int, res_float
 
 def _pack_aoR_holder(aoR_holders:list[aoR_Holder], nao):
     
