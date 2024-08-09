@@ -1129,7 +1129,7 @@ class PBC_ISDF_Info_Quad_K(ISDF_Local.PBC_ISDF_Info_Quad):
         dm = deepcopy(_dm)
         
         if self.use_mpi:
-            from pyscf.isdf.isdf_tools_mpi import rank, bcast
+            from pyscf.isdf.isdf_tools_mpi import rank, bcast, comm
             dm = bcast(dm, root=0)
         
         if omega is not None:  # J/K for RSH functionals
@@ -1175,6 +1175,19 @@ class PBC_ISDF_Info_Quad_K(ISDF_Local.PBC_ISDF_Info_Quad):
                 else:
                     vk[iset] = _get_k_kSym(self, dm[iset])
             
+            if self.use_mpi:
+                from   pyscf.isdf.isdf_tools_mpi import rank, comm, comm_size
+                
+                for i in range(comm_size):
+                    if i == rank:
+                        print("rank == ", rank)
+                        print("vk   = ", vk[0][0][0,:32])
+                        print("vk   = ", vk[0][0][:32,0])
+                    comm.Barrier()
+            else:
+                print("vk   = ", vk[0][0][0,:32])
+                print("vk   = ", vk[0][0][:32,0])
+            
             ### post process J and K ###
             
             if not self.use_mpi or (self.use_mpi and rank == 0):
@@ -1202,16 +1215,31 @@ class PBC_ISDF_Info_Quad_K(ISDF_Local.PBC_ISDF_Info_Quad):
                 vk      = _format_jks(vk_kpts, dm_kpts, input_band, kpts)
                 vj_kpts = vj.reshape(nset, nband, nao, nao)
                 vj      = _format_jks(vj_kpts, dm_kpts, input_band, kpts)
-            
+
+                print("vk   = ", vk[0][0][0,:32])
+                print("vk   = ", vk[0][0][:32,0])
+                
                 if nset == 1:
                     
                     vj = vj[0]
                     vk = vk[0]
+                
         
         if self.use_mpi:
             
             vj = bcast(vj, root = 0)
             vk = bcast(vk, root = 0)
+            
+            comm.Barrier()
+            
+            for i in range(comm_size):
+                if i == rank:
+                    print("rank == ", rank)
+                    print("vk   = ", vk[0][0,:32])
+                    print("vk   = ", vk[0][:32,0])
+        else:
+            print("vk   = ", vk[0][0,:32])
+            print("vk   = ", vk[0][:32,0])
             
         return vj, vk
 
