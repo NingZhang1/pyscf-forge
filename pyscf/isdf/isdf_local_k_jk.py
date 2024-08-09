@@ -1739,3 +1739,326 @@ def get_jk_dm_translation_symmetry(mydf, dm, hermi=1, kpt=np.zeros(3),
     t1 = log.timer('sr jk', *t1)
 
     return vj, vk
+
+def _get_k_kSym_direct_mimic_MPI(mydf, _dm, use_mpi=False):
+    
+    if use_mpi:
+        raise NotImplementedError
+        assert mydf.direct == True
+        from pyscf.isdf.isdf_tools_mpi import rank, comm, comm_size, bcast, reduce
+        size = comm.Get_size()
+    
+    t1 = (logger.process_clock(), logger.perf_counter())
+    t0 = (logger.process_clock(), logger.perf_counter())
+    
+    ############# preprocess #############
+    
+    dm = []
+    nset = _dm.shape[0]
+    for iset in range(nset):
+        _dm_tmp, in_real_space = _preprocess_dm(mydf, _dm[iset])
+        dm.append(_dm_tmp)
+        if in_real_space:
+            if np.prod(mydf.kmesh) == 1:
+                in_real_space = False
+    assert not in_real_space
+    dm = np.asarray(dm)
+        
+    if len(dm.shape) == 3:
+        assert dm.shape[0] <= 4
+    else:
+        dm = dm.reshape(1, *dm.shape)
+        
+    aoR  = mydf.aoR
+    aoRg = mydf.aoRg    
+    
+    max_nao_involved   = mydf.max_nao_involved
+    max_ngrid_involved = mydf.max_ngrid_involved
+    max_nIP_involved   = mydf.max_nIP_involved
+    maxsize_group_naux = mydf.maxsize_group_naux
+        
+    ####### preparing the data #######
+        
+    nset, nao  = dm.shape[0], dm.shape[1]
+    cell = mydf.cell
+    assert cell.nao == nao
+    vol  = cell.vol
+    mesh = np.array(cell.mesh, dtype=np.int32)
+    mesh_int32 = mesh
+    ngrid = np.prod(mesh)
+    
+    aoRg = mydf.aoRg
+    assert isinstance(aoRg, list)
+    aoR = mydf.aoR
+    assert isinstance(aoR, list)
+    
+    naux = mydf.naux
+    nao  = cell.nao
+    nao_prim  = mydf.nao_prim
+    aux_basis = mydf.aux_basis
+    kmesh     = np.array(mydf.kmesh, dtype=np.int32)
+    nkpts     = np.prod(kmesh)
+    
+    grid_ordering = mydf.grid_ID_ordered 
+    
+    if hasattr(mydf, "coulG") == False:
+        if mydf.omega is not None:
+            assert mydf.omega >= 0.0
+        raise NotImplementedError("coulG is not implemented yet.")
+    
+    coulG = mydf.coulG
+    coulG_real = coulG.reshape(*mesh)[:, :, :mesh[2]//2+1].reshape(-1).copy()
+    
+    mydf.allocate_k_buffer(nset)
+    build_k_buf  = mydf.build_k_buf
+    build_VW_buf = mydf.build_VW_in_k_buf
+    
+    group = mydf.group
+    assert len(group) == len(aux_basis)
+    
+    ######### allocate buffer ######### 
+        
+    Density_RgAO_buf = mydf.Density_RgAO_buf
+    
+    nThread            = lib.num_threads()
+    bufsize_per_thread = (coulG_real.shape[0] * 2 + np.prod(mesh))
+    # buf_build_V        = np.ndarray((nThread, bufsize_per_thread), dtype=np.float64, buffer=build_VW_buf) 
+    buf_build_V        = np.ndarray((nThread, bufsize_per_thread), dtype=np.float64)
+    
+    offset_now = buf_build_V.size * buf_build_V.dtype.itemsize
+    
+    build_K_bunchsize = min(maxsize_group_naux, mydf._build_K_bunchsize)
+    
+    offset_build_now       = 0
+    offset_Density_RgR_buf = 0
+    Density_RgR_buf        = np.ndarray((build_K_bunchsize, ngrid), buffer=build_k_buf, offset=offset_build_now)
+    
+    offset_build_now        += Density_RgR_buf.size * Density_RgR_buf.dtype.itemsize
+    offset_ddot_res_RgR_buf  = offset_build_now
+    ddot_res_RgR_buf         = np.ndarray((build_K_bunchsize, max_ngrid_involved), buffer=build_k_buf, offset=offset_ddot_res_RgR_buf)
+    
+    offset_build_now   += ddot_res_RgR_buf.size * ddot_res_RgR_buf.dtype.itemsize
+    offset_K1_tmp1_buf  = offset_build_now
+    K1_tmp1_buf         = np.ndarray((maxsize_group_naux, nao), buffer=build_k_buf, offset=offset_K1_tmp1_buf)
+    
+    offset_build_now            += K1_tmp1_buf.size * K1_tmp1_buf.dtype.itemsize
+    offset_K1_tmp1_ddot_res_buf  = offset_build_now
+    K1_tmp1_ddot_res_buf         = np.ndarray((maxsize_group_naux, nao), buffer=build_k_buf, offset=offset_K1_tmp1_ddot_res_buf)
+    
+    offset_build_now += K1_tmp1_ddot_res_buf.size * K1_tmp1_ddot_res_buf.dtype.itemsize
+
+    offset_K1_final_ddot_buf = offset_build_now
+    K1_final_ddot_buf        = np.ndarray((nao, nao), buffer=build_k_buf, offset=offset_K1_final_ddot_buf)
+    
+    ########### get involved C function ###########
+    
+    fn_packcol1 = getattr(libisdf, "_buildK_packcol", None)
+    assert fn_packcol1 is not None
+    fn_packcol2 = getattr(libisdf, "_buildK_packcol2", None)
+    assert fn_packcol2 is not None
+    fn_packadd_col = getattr(libisdf, "_buildK_packaddcol", None)
+    assert fn_packadd_col is not None
+    fn_packadd_row = getattr(libisdf, "_buildK_packaddrow", None)
+    assert fn_packadd_row is not None
+
+    ordered_ao_ind = np.arange(nao)
+
+    ######### begin work #########
+    
+    K1 = np.zeros((nset, nao_prim, nao), dtype=np.float64) # contribution from V matrix
+    K2 = np.zeros((nset, nao_prim, nao), dtype=np.float64) # contribution from W matrix
+    
+    from pyscf.isdf._isdf_local_K_direct import reset_profile_buildK_time, add_cputime_RgAO, add_walltime_RgAO, log_profile_buildK_time
+    
+    reset_profile_buildK_time()
+    
+    ######## distribution task among different process ########
+    
+    COMM_SIZE = 2
+    
+    for rank in range(COMM_SIZE):
+        
+        K1_tmp = np.zeros((nset, nao_prim, nao), dtype=np.float64)
+        K2_tmp = np.zeros((nset, nao_prim, nao), dtype=np.float64)
+        
+        task_info = []
+    
+        nIP_prim      = mydf.nIP_Prim
+        nIP_bunchsize = (nIP_prim + COMM_SIZE) // COMM_SIZE
+        bunch_begin   = rank * nIP_bunchsize
+        bunch_end     = min(nIP_prim, (rank + 1) * nIP_bunchsize)
+    
+        iIP = 0
+        for group_id, atm_ids in enumerate(group):
+        
+            naux_tmp = 0
+            for atm_id in atm_ids:
+                naux_tmp += aoRg[atm_id].aoR.shape[1]
+            assert naux_tmp == aux_basis[group_id].shape[0]
+            assert iIP + naux_tmp <= nIP_prim
+        
+            ### judge whether [iIP, iIP+naux_tmp) intersects with [bunch_begin, bunch_end) ###
+        
+            if iIP >= bunch_end or iIP + naux_tmp <= bunch_begin:
+                task_info.append((None, None))
+            else:
+                if bunch_begin <= iIP:
+                    group_begin = 0
+                else:
+                    group_begin = bunch_begin - iIP
+                if bunch_end >= iIP + naux_tmp:
+                    group_end = naux_tmp
+                else:
+                    group_end = bunch_end - iIP
+                task_info.append((group_begin, group_end))
+        
+            iIP += naux_tmp
+    
+        #if use_mpi:
+        #    print("rank = ", rank, "task_info = ", task_info)
+    
+        ###########################################################
+    
+        for group_id, atm_ids in enumerate(group):
+        
+            if task_info[group_id][0] is None:
+                continue
+        
+            build_k_buf.ravel()[:]  = 0.0
+            build_VW_buf.ravel()[:] = 0.0
+        
+            #if use_mpi:
+            #    if group_id % comm_size != rank:
+            #        continue
+        
+            naux_tmp = 0
+            aoRg_holders = []
+            for atm_id in atm_ids:
+                naux_tmp += aoRg[atm_id].aoR.shape[1]
+                aoRg_holders.append(aoRg[atm_id])
+            assert naux_tmp == aux_basis[group_id].shape[0]
+        
+            aux_basis_tmp = aux_basis[group_id]
+        
+            #### 1. build the involved DM_RgR #### 
+        
+            t1 = (logger.process_clock(), logger.perf_counter())
+        
+            Density_RgAO_tmp        = np.ndarray((nset, naux_tmp, nao), buffer=Density_RgAO_buf)
+            offset_density_RgAO_buf = Density_RgAO_tmp.size * Density_RgAO_buf.dtype.itemsize
+            Density_RgAO_tmp.ravel()[:] = 0.0
+            Density_RgAO_tmp            = __get_DensityMatrixonRgAO_qradratic(mydf, dm, aoRg_holders, "all", Density_RgAO_tmp, verbose=mydf.verbose)
+        
+            t2 = (logger.process_clock(), logger.perf_counter())
+        
+            add_cputime_RgAO(t2[0] - t1[0])
+            add_walltime_RgAO(t2[1] - t1[1])
+        
+            #### 2. build the V matrix #### 
+        
+            W_tmp = None
+        
+            for iset in range(nset):
+            
+                calculate_W_tmp = (iset == 0) 
+            
+                _W_tmp = _isdf_get_K_direct_kernel_1(
+                    mydf, coulG_real,
+                    group_id, Density_RgAO_tmp[iset],
+                    None, True, calculate_W_tmp,
+                    ##### buffer #####
+                    buf_build_V,
+                    build_VW_buf,
+                    offset_now,
+                    Density_RgR_buf,
+                    Density_RgAO_buf,
+                    offset_density_RgAO_buf,
+                    ddot_res_RgR_buf,
+                    K1_tmp1_buf,
+                    K1_tmp1_ddot_res_buf,
+                    K1_final_ddot_buf,
+                    ##### bunchsize #####
+                    #maxsize_group_naux,
+                    build_K_bunchsize,
+                    ##### other info #####
+                    use_mpi=use_mpi,
+                    begin_id=task_info[group_id][0],
+                    end_id  =task_info[group_id][1],
+                    ##### out #####
+                    K1_or_2=K1_tmp[iset])
+            
+                if calculate_W_tmp:
+                    W_tmp = _W_tmp
+        
+                _isdf_get_K_direct_kernel_1(
+                    mydf, coulG_real,
+                    group_id, Density_RgAO_tmp[iset],
+                    W_tmp, False, False,
+                    ##### buffer #####
+                    buf_build_V,
+                    build_VW_buf,
+                    offset_now,
+                    Density_RgR_buf,
+                    Density_RgAO_buf,
+                    offset_density_RgAO_buf,
+                    ddot_res_RgR_buf,
+                    K1_tmp1_buf,
+                    K1_tmp1_ddot_res_buf,
+                    K1_final_ddot_buf,
+                    ##### bunchsize #####
+                    #maxsize_group_naux,
+                    build_K_bunchsize,
+                    ##### other info #####
+                    use_mpi=use_mpi,
+                    begin_id=task_info[group_id][0],
+                    end_id  =task_info[group_id][1],
+                    ##### out #####
+                    K1_or_2=K2_tmp[iset])
+    
+        log_profile_buildK_time(mydf)
+                
+        ### reduce ###
+        
+        K1 += K1_tmp
+        K2 += K2_tmp
+                
+    ######### finally delete the buffer #########
+    
+    # K = K1 + K1.T - K2 
+    K1_packed = []
+    K2_packed = []
+    for iset in range(nset):
+        K1_packed.append(pack_JK(K1[iset], kmesh, nao_prim))
+        K2_packed.append(pack_JK(K2[iset], kmesh, nao_prim))
+    K1 = np.array(K1_packed)
+    K2 = np.array(K2_packed)
+    K  = np.zeros_like(K1)
+    # K  = K1 + K1.T - K2
+    for iset in range(nset):
+        K[iset] = K1[iset] + K1[iset].T - (K2[iset] + K2[iset].T)/2.0
+    
+    del K1
+    del K2
+    
+    ############ transform back to K ############
+            
+    K_res = []
+    for iset in range(nset):
+        Ktmp  = _RowCol_FFT_bench(K[iset, :nao_prim, :], kmesh, inv=True, TransBra=False, TransKet=True)
+        K_res.append(Ktmp)
+    K  = np.asarray(K_res)
+    K *= nkpts
+    K *= ngrid / vol
+    Res = []
+    for iset in range(nset):
+        Res.append([])
+    for i in range(np.prod(kmesh)):
+        for iset in range(nset):
+            Res[iset].append(K[iset, :, i*nao_prim:(i+1)*nao_prim])
+    K  = np.array(Res)
+        
+    t2 = (logger.process_clock(), logger.perf_counter())
+    
+    _benchmark_time(t0, t2, "_contract_k_dm_quadratic_direct", mydf)
+    
+    return K

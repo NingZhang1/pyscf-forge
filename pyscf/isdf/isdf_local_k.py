@@ -1151,7 +1151,7 @@ class PBC_ISDF_Info_Quad_K(ISDF_Local.PBC_ISDF_Info_Quad):
             
             ### first construct J and K ### 
             
-            from pyscf.isdf.isdf_local_k_jk import _contract_j_dm_k_ls, _get_k_kSym_robust_fitting_fast, _get_k_kSym, _get_k_kSym_direct
+            from pyscf.isdf.isdf_local_k_jk import _contract_j_dm_k_ls, _get_k_kSym_robust_fitting_fast, _get_k_kSym, _get_k_kSym_direct, _get_k_kSym_direct_mimic_MPI
             from pyscf.pbc.df.df_jk import _ewald_exxdiv_for_G0, _format_dms, _format_kpts_band, _format_jks
             
             ### preprocess dm ### 
@@ -1169,7 +1169,10 @@ class PBC_ISDF_Info_Quad_K(ISDF_Local.PBC_ISDF_Info_Quad):
                     if self.direct:
                         # vk[iset] = _get_k_kSym_direct(self, dm[iset])
                         if iset == 0:
-                            vk = _get_k_kSym_direct(self, dm, self.use_mpi)
+                            if self.use_mpi:
+                                vk = _get_k_kSym_direct(self, dm, self.use_mpi)
+                            else:
+                                vk = _get_k_kSym_direct_mimic_MPI(self, dm, self.use_mpi)
                     else:
                         vk[iset] = _get_k_kSym_robust_fitting_fast(self, dm[iset])
                 else:
