@@ -1058,7 +1058,7 @@ def _contract_k_dm_quadratic(mydf, dm, with_robust_fitting=True, use_mpi=False):
             #### pack the density matrix ####
             
             if nao_involved == nao and np.allclose(aoR_holder.ao_involved, ordered_ao_ind):
-                Density_RgAO_packed = Density_RgAO_packed
+                Density_RgAO_packed = Density_RgAO
             else:
                 # Density_RgAO_packed = Density_RgAO[:, aoR_holder.ao_involved]
                 Density_RgAO_packed = np.ndarray((naux, nao_involved), buffer=pack_buf)
@@ -1216,7 +1216,7 @@ def _contract_k_dm_quadratic_direct(mydf, dm, use_mpi=False):
     coulG_real = coulG.reshape(*mesh)[:, :, :mesh[2]//2+1].reshape(-1).copy()
     
     mydf.allocate_k_buffer(nset)
-    build_k_buf = mydf.build_k_buf
+    build_k_buf  = mydf.build_k_buf
     build_VW_buf = mydf.build_VW_in_k_buf
     
     group = mydf.group
@@ -1229,6 +1229,7 @@ def _contract_k_dm_quadratic_direct(mydf, dm, use_mpi=False):
     nThread            = lib.num_threads()
     bufsize_per_thread = (coulG_real.shape[0] * 2 + np.prod(mesh))
     buf_build_V        = np.ndarray((nThread, bufsize_per_thread), dtype=np.float64, buffer=build_VW_buf) 
+    # buf_build_V        = np.ndarray((nThread, bufsize_per_thread), dtype=np.float64)
     
     offset_now = buf_build_V.size * buf_build_V.dtype.itemsize
     
@@ -1319,7 +1320,6 @@ def _contract_k_dm_quadratic_direct(mydf, dm, use_mpi=False):
                 K1_tmp1_ddot_res_buf,
                 K1_final_ddot_buf,
                 ##### bunchsize #####
-                #maxsize_group_naux,
                 build_K_bunchsize,
                 ##### other info #####
                 use_mpi=use_mpi,
@@ -1345,7 +1345,6 @@ def _contract_k_dm_quadratic_direct(mydf, dm, use_mpi=False):
                 K1_tmp1_ddot_res_buf,
                 K1_final_ddot_buf,
                 ##### bunchsize #####
-                #maxsize_group_naux,
                 build_K_bunchsize,
                 ##### other info #####
                 use_mpi=use_mpi,
