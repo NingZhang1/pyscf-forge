@@ -1367,7 +1367,6 @@ def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
     nThread            = lib.num_threads()
     bufsize_per_thread = (coulG_real.shape[0] * 2 + np.prod(mesh))
     buf_build_V        = np.ndarray((nThread, bufsize_per_thread), dtype=np.float64, buffer=build_VW_buf) 
-    # buf_build_V        = np.ndarray((nThread, bufsize_per_thread), dtype=np.float64)
     
     offset_now = buf_build_V.size * buf_build_V.dtype.itemsize
     
@@ -1487,7 +1486,6 @@ def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
         
         Density_RgAO_tmp            = np.ndarray((nset, naux_tmp, nao), buffer=Density_RgAO_buf)
         offset_density_RgAO_buf     = Density_RgAO_tmp.size * Density_RgAO_buf.dtype.itemsize
-        # Density_RgAO_buf.ravel()[:] = 0.0
         Density_RgAO_tmp.ravel()[:] = 0.0
         Density_RgAO_tmp            = __get_DensityMatrixonRgAO_qradratic(mydf, dm, aoRg_holders, "all", Density_RgAO_tmp, verbose=mydf.verbose)
         
