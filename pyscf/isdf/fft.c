@@ -18,7 +18,7 @@
 
 #include <stdio.h>
 #include <complex.h>
-#include <fft.h>
+#include "fft.h"
 #include "config.h"
 
 #define BLKSIZE 128
