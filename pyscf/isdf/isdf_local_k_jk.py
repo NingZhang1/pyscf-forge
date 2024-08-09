@@ -1366,8 +1366,8 @@ def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
     
     nThread            = lib.num_threads()
     bufsize_per_thread = (coulG_real.shape[0] * 2 + np.prod(mesh))
-    # buf_build_V        = np.ndarray((nThread, bufsize_per_thread), dtype=np.float64, buffer=build_VW_buf) 
-    buf_build_V        = np.ndarray((nThread, bufsize_per_thread), dtype=np.float64)
+    buf_build_V        = np.ndarray((nThread, bufsize_per_thread), dtype=np.float64, buffer=build_VW_buf) 
+    # buf_build_V        = np.ndarray((nThread, bufsize_per_thread), dtype=np.float64)
     
     offset_now = buf_build_V.size * buf_build_V.dtype.itemsize
     
@@ -1458,8 +1458,8 @@ def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
         
         iIP += naux_tmp
     
-    if use_mpi:
-        print("rank = ", rank, "task_info = ", task_info)
+    #if use_mpi:
+    #    print("rank = ", rank, "task_info = ", task_info)
     
     ###########################################################
     
@@ -1487,8 +1487,8 @@ def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
         
         Density_RgAO_tmp            = np.ndarray((nset, naux_tmp, nao), buffer=Density_RgAO_buf)
         offset_density_RgAO_buf     = Density_RgAO_tmp.size * Density_RgAO_buf.dtype.itemsize
-        Density_RgAO_buf.ravel()[:] = 0.0
-        # Density_RgAO_tmp.ravel()[:] = 0.0
+        # Density_RgAO_buf.ravel()[:] = 0.0
+        Density_RgAO_tmp.ravel()[:] = 0.0
         Density_RgAO_tmp            = __get_DensityMatrixonRgAO_qradratic(mydf, dm, aoRg_holders, "all", Density_RgAO_tmp, verbose=mydf.verbose)
         
         #build_k_buf.ravel()[:]  = 0.0
@@ -1507,8 +1507,8 @@ def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
             
             calculate_W_tmp = (iset == 0) 
             
-            build_k_buf.ravel()[:]  = 0.0
-            build_VW_buf.ravel()[:] = 0.0
+            #build_k_buf.ravel()[:]  = 0.0
+            #build_VW_buf.ravel()[:] = 0.0
         
             _W_tmp = _isdf_get_K_direct_kernel_1(
                 mydf, coulG_real,
@@ -1538,8 +1538,8 @@ def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
             if calculate_W_tmp:
                 W_tmp = _W_tmp.copy()
             
-            build_k_buf.ravel()[:]  = 0.0
-            build_VW_buf.ravel()[:] = 0.0
+            #build_k_buf.ravel()[:]  = 0.0
+            #build_VW_buf.ravel()[:] = 0.0
         
             _isdf_get_K_direct_kernel_1(
                 mydf, coulG_real,

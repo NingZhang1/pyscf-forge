@@ -1169,27 +1169,26 @@ class PBC_ISDF_Info_Quad_K(ISDF_Local.PBC_ISDF_Info_Quad):
                     if self.direct:
                         # vk[iset] = _get_k_kSym_direct(self, dm[iset])
                         if iset == 0:
-                            if self.use_mpi:
-                                vk = _get_k_kSym_direct(self, dm, self.use_mpi)
-                            else:
-                                vk = _get_k_kSym_direct_mimic_MPI(self, dm, self.use_mpi)
+                            # if self.use_mpi:
+                            vk = _get_k_kSym_direct(self, dm, self.use_mpi)
+                            #else:
+                            #vk = _get_k_kSym_direct_mimic_MPI(self, dm, self.use_mpi)
                     else:
                         vk[iset] = _get_k_kSym_robust_fitting_fast(self, dm[iset])
                 else:
                     vk[iset] = _get_k_kSym(self, dm[iset])
             
-            if self.use_mpi:
-                from   pyscf.isdf.isdf_tools_mpi import rank, comm, comm_size
-                
-                for i in range(comm_size):
-                    if i == rank:
-                        print("rank == ", rank)
-                        print("vk   = ", vk[0][0][0,:32])
-                        print("vk   = ", vk[0][0][:32,0])
-                    comm.Barrier()
-            else:
-                print("vk   = ", vk[0][0][0,:32])
-                print("vk   = ", vk[0][0][:32,0])
+            # if self.use_mpi:
+            #     from   pyscf.isdf.isdf_tools_mpi import rank, comm, comm_size
+            #     for i in range(comm_size):
+            #         if i == rank:
+            #             print("rank == ", rank)
+            #             print("vk   = ", vk[0][0][0,:32])
+            #             print("vk   = ", vk[0][0][:32,0])
+            #         comm.Barrier()
+            # else:
+            #     print("vk   = ", vk[0][0][0,:32])
+            #     print("vk   = ", vk[0][0][:32,0])
             
             ### post process J and K ###
             
@@ -1219,8 +1218,8 @@ class PBC_ISDF_Info_Quad_K(ISDF_Local.PBC_ISDF_Info_Quad):
                 vj_kpts = vj.reshape(nset, nband, nao, nao)
                 vj      = _format_jks(vj_kpts, dm_kpts, input_band, kpts)
 
-                print("vk   = ", vk[0][0][0,:32])
-                print("vk   = ", vk[0][0][:32,0])
+                #print("vk   = ", vk[0][0][0,:32])
+                #print("vk   = ", vk[0][0][:32,0])
                 
                 if nset == 1:
                     
@@ -1235,14 +1234,14 @@ class PBC_ISDF_Info_Quad_K(ISDF_Local.PBC_ISDF_Info_Quad):
             
             comm.Barrier()
             
-            for i in range(comm_size):
-                if i == rank:
-                    print("rank == ", rank)
-                    print("vk   = ", vk[0][0,:32])
-                    print("vk   = ", vk[0][:32,0])
-        else:
-            print("vk   = ", vk[0][0,:32])
-            print("vk   = ", vk[0][:32,0])
+            # for i in range(comm_size):
+            #     if i == rank:
+            #         print("rank == ", rank)
+            #         print("vk   = ", vk[0][0,:32])
+            #         print("vk   = ", vk[0][:32,0])
+        # else:
+        #     print("vk   = ", vk[0][0,:32])
+        #     print("vk   = ", vk[0][:32,0])
             
         return vj, vk
 
