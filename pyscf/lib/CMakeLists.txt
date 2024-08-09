@@ -65,7 +65,7 @@ option (MKL "Compile using the MKL" ON)
 if (MKL)
     set ( ENV{BLA_VENDOR} "Intel10_64lp" )
 endif (MKL)
-#link_directories ($ENV{LD_LIBRARY_PATH})
+link_directories ($ENV{LD_LIBRARY_PATH})
 
 find_package(BLAS REQUIRED)
 #find_package (LAPACK REQUIRED)
@@ -96,6 +96,7 @@ configure_file(
 # to find config.h
 link_directories(${PYSCF_SOURCE_DIR}/lib/deps/lib ${PYSCF_SOURCE_DIR}/lib/deps/lib64)
 link_directories(${PYSCF_SOURCE_DIR}/lib)
+# link_directories(/home/nzhang/miniconda3/envs/pyscf_isdf/lib) #NOTE: set the path to libcint.so
 message(STATUS "${PYSCF_SOURCE_DIR}/lib may need to be put in the environment LD_LIBRARY_PATH")
 
 # See also https://gitlab.kitware.com/cmake/community/wikis/doc/cmake/RPATH-handling
@@ -127,17 +128,9 @@ add_library(isdf SHARED
 ../isdf/pbc_isdf_V.c 
 ../isdf/pbc_isdf_auxbasis.c 
 ../isdf/pbc_isdf_sparse.c 
-../isdf/pbc_isdf_eri.c)
+../isdf/pbc_isdf_eri.c
+../isdf/fft.c)
 
-target_link_libraries(isdf cgto cint cvhf np_helper ${BLAS_LIBRARIES} ${OPENMP_C_PROPERTIES})
+target_link_libraries(isdf cgto cint cvhf np_helper fftw3_threads fftw3 ${BLAS_LIBRARIES} ${OPENMP_C_PROPERTIES})
 set_target_properties(isdf PROPERTIES
 LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR})
-
-if(ENABLE_FFTW)
-add_library(fft SHARED ../isdf/fft.c)
-set_target_properties(fft PROPERTIES
-LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}
-COMPILE_FLAGS ${OpenMP_C_FLAGS}
-LINK_FLAGS ${OpenMP_C_FLAGS})
-target_link_libraries(fft fftw3_threads fftw3 ${BLAS_LIBRARIES})
-endif()
