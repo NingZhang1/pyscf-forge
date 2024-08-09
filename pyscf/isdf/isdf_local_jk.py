@@ -764,9 +764,9 @@ def __get_DensityMatrixonRgAO_qradratic(mydf, dm,
     
     ### allocate buf ###
     
-    offset = 0
-    ddot_buf = np.ndarray((max_ngrid_bra, nao), buffer=mydf.build_k_buf, offset=offset)
-    offset  += ddot_buf.size * ddot_buf.dtype.itemsize
+    offset      = 0
+    ddot_buf    = np.ndarray((max_ngrid_bra, nao), buffer=mydf.build_k_buf, offset=offset)
+    offset     += ddot_buf.size * ddot_buf.dtype.itemsize
     dm_pack_buf = np.ndarray((dm.shape[1], dm.shape[2]), buffer=mydf.build_k_buf, offset=offset)
         
     ### get pack fn ### 
@@ -779,8 +779,8 @@ def __get_DensityMatrixonRgAO_qradratic(mydf, dm,
     ### perform aoR_bra.T * dm
     
     ordered_ao_ind = np.arange(nao)
-    grid_shift = None
-    ngrid_loc = 0
+    grid_shift     = None
+    ngrid_loc      = 0
     
     for aoR_holder in bra_aoR_holder:
         

@@ -1421,6 +1421,7 @@ def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
     task_info = []
     
     nIP_prim = mydf.nIP_Prim
+    
     if use_mpi:
         nIP_bunchsize = (nIP_prim + comm_size) // comm_size
         bunch_begin   = rank * nIP_bunchsize
@@ -1431,6 +1432,7 @@ def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
         bunch_end   = nIP_prim
     
     iIP = 0
+    
     for group_id, atm_ids in enumerate(group):
         
         naux_tmp = 0
@@ -1456,8 +1458,8 @@ def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
         
         iIP += naux_tmp
     
-    #if use_mpi:
-    #    print("rank = ", rank, "task_info = ", task_info)
+    if use_mpi:
+        print("rank = ", rank, "task_info = ", task_info)
     
     ###########################################################
     
@@ -1465,9 +1467,6 @@ def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
         
         if task_info[group_id][0] is None:
             continue
-        
-        build_k_buf.ravel()[:]  = 0.0
-        build_VW_buf.ravel()[:] = 0.0
         
         #if use_mpi:
         #    if group_id % comm_size != rank:
@@ -1486,10 +1485,14 @@ def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
         
         t1 = (logger.process_clock(), logger.perf_counter())
         
-        Density_RgAO_tmp        = np.ndarray((nset, naux_tmp, nao), buffer=Density_RgAO_buf)
-        offset_density_RgAO_buf = Density_RgAO_tmp.size * Density_RgAO_buf.dtype.itemsize
-        Density_RgAO_tmp.ravel()[:] = 0.0
+        Density_RgAO_tmp            = np.ndarray((nset, naux_tmp, nao), buffer=Density_RgAO_buf)
+        offset_density_RgAO_buf     = Density_RgAO_tmp.size * Density_RgAO_buf.dtype.itemsize
+        Density_RgAO_buf.ravel()[:] = 0.0
+        # Density_RgAO_tmp.ravel()[:] = 0.0
         Density_RgAO_tmp            = __get_DensityMatrixonRgAO_qradratic(mydf, dm, aoRg_holders, "all", Density_RgAO_tmp, verbose=mydf.verbose)
+        
+        #build_k_buf.ravel()[:]  = 0.0
+        #build_VW_buf.ravel()[:] = 0.0
         
         t2 = (logger.process_clock(), logger.perf_counter())
         
@@ -1504,6 +1507,9 @@ def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
             
             calculate_W_tmp = (iset == 0) 
             
+            build_k_buf.ravel()[:]  = 0.0
+            build_VW_buf.ravel()[:] = 0.0
+        
             _W_tmp = _isdf_get_K_direct_kernel_1(
                 mydf, coulG_real,
                 group_id, Density_RgAO_tmp[iset],
@@ -1530,7 +1536,10 @@ def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
                 K1_or_2=K1[iset])
             
             if calculate_W_tmp:
-                W_tmp = _W_tmp
+                W_tmp = _W_tmp.copy()
+            
+            build_k_buf.ravel()[:]  = 0.0
+            build_VW_buf.ravel()[:] = 0.0
         
             _isdf_get_K_direct_kernel_1(
                 mydf, coulG_real,
@@ -1874,7 +1883,12 @@ def _get_k_kSym_direct_mimic_MPI(mydf, _dm, use_mpi=False):
     
     ######## distribution task among different process ########
     
-    COMM_SIZE = 2
+    if hasattr(mydf, "fake_comm_size"):
+        COMM_SIZE = mydf.fake_comm_size
+    else:
+        COMM_SIZE = 2
+    
+    print("COMM_SIZE = ", COMM_SIZE)
     
     for rank in range(COMM_SIZE):
         
@@ -1914,8 +1928,8 @@ def _get_k_kSym_direct_mimic_MPI(mydf, _dm, use_mpi=False):
         
             iIP += naux_tmp
     
-        #if use_mpi:
-        #    print("rank = ", rank, "task_info = ", task_info)
+        if use_mpi:
+            print("rank = ", rank, "task_info = ", task_info)
     
         ###########################################################
     
@@ -1923,9 +1937,6 @@ def _get_k_kSym_direct_mimic_MPI(mydf, _dm, use_mpi=False):
         
             if task_info[group_id][0] is None:
                 continue
-        
-            build_k_buf.ravel()[:]  = 0.0
-            build_VW_buf.ravel()[:] = 0.0
         
             #if use_mpi:
             #    if group_id % comm_size != rank:
@@ -1946,8 +1957,12 @@ def _get_k_kSym_direct_mimic_MPI(mydf, _dm, use_mpi=False):
         
             Density_RgAO_tmp        = np.ndarray((nset, naux_tmp, nao), buffer=Density_RgAO_buf)
             offset_density_RgAO_buf = Density_RgAO_tmp.size * Density_RgAO_buf.dtype.itemsize
-            Density_RgAO_tmp.ravel()[:] = 0.0
+            Density_RgAO_buf.ravel()[:] = 0.0
+            # Density_RgAO_tmp.ravel()[:] = 0.0
             Density_RgAO_tmp            = __get_DensityMatrixonRgAO_qradratic(mydf, dm, aoRg_holders, "all", Density_RgAO_tmp, verbose=mydf.verbose)
+
+            #build_k_buf.ravel()[:]  = 0.0
+            #build_VW_buf.ravel()[:] = 0.0
         
             t2 = (logger.process_clock(), logger.perf_counter())
         
@@ -1961,6 +1976,9 @@ def _get_k_kSym_direct_mimic_MPI(mydf, _dm, use_mpi=False):
             for iset in range(nset):
             
                 calculate_W_tmp = (iset == 0) 
+                
+                build_k_buf.ravel()[:]  = 0.0
+                build_VW_buf.ravel()[:] = 0.0
             
                 _W_tmp = _isdf_get_K_direct_kernel_1(
                     mydf, coulG_real,
@@ -1988,7 +2006,10 @@ def _get_k_kSym_direct_mimic_MPI(mydf, _dm, use_mpi=False):
                     K1_or_2=K1_tmp[iset])
             
                 if calculate_W_tmp:
-                    W_tmp = _W_tmp
+                    W_tmp = _W_tmp.copy()
+                
+                build_k_buf.ravel()[:]  = 0.0
+                build_VW_buf.ravel()[:] = 0.0
         
                 _isdf_get_K_direct_kernel_1(
                     mydf, coulG_real,
