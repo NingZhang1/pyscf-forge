@@ -1982,6 +1982,9 @@ def get_jk_dm_quadratic(mydf, dm, hermi=1, kpt=np.zeros(3),
     #     if mydf.direct == True:
     #         raise ValueError("ISDF does not support direct=True for occ-RI-K")
     
+    if dm.ndim == 2:
+        dm = dm.reshape(1, *dm.shape)
+    
     assert dm.ndim == 3
     
     ############ end deal with occ-RI-K ############
