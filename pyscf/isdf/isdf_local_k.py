@@ -1293,6 +1293,7 @@ if __name__ == "__main__":
                                          rela_cutoff_QRCP=3e-3,
                                          limited_memory=True, 
                                          build_K_bunchsize=32)
+    pbc_isdf_info.build_IP_local(c=C, m=5, group=prim_partition, Ls=[Ls[0]*10, Ls[1]*10, Ls[2]*10])
     pbc_isdf_info.verbose = 10
     
     weight = np.sqrt(cell.vol / pbc_isdf_info.coords.shape[0])
