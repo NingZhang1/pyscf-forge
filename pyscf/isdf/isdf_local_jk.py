@@ -735,9 +735,9 @@ def _contract_j_dm_wo_robust_fitting(mydf, dm, use_mpi=False):
 
 def __get_DensityMatrixonRgAO_qradratic(mydf, dm, 
                                         bra_aoR_holder, 
-                                        bra_type       = None,
+                                        bra_type        = None,
                                         _res:np.ndarray = None, 
-                                        verbose        = 1):
+                                        verbose         = 1):
     
     assert bra_type in [None, "all", "compact", "diffuse"]
         

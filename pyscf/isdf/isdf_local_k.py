@@ -849,8 +849,7 @@ class PBC_ISDF_Info_Quad_K(ISDF_Local.PBC_ISDF_Info_Quad):
         t1 = t2 
         
         ISDF_Local.build_aux_basis_ls(
-            self, group, self.IP_group, debug=debug, use_mpi=self.use_mpi
-        )
+            self, group, self.IP_group, debug=debug, use_mpi=self.use_mpi)
         
         t2 = (lib.logger.process_clock(), lib.logger.perf_counter())
         
@@ -1292,8 +1291,8 @@ if __name__ == "__main__":
                                          direct=True, 
                                          # direct=False, 
                                          rela_cutoff_QRCP=3e-3,
-                                         limited_memory=True, build_K_bunchsize=32)
-    pbc_isdf_info.build_IP_local(c=C, m=5, group=prim_partition, Ls=[Ls[0]*10, Ls[1]*10, Ls[2]*10])
+                                         limited_memory=True, 
+                                         build_K_bunchsize=32)
     pbc_isdf_info.verbose = 10
     
     weight = np.sqrt(cell.vol / pbc_isdf_info.coords.shape[0])
