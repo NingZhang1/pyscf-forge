@@ -900,7 +900,12 @@ class PBC_ISDF_Info(df.fft.FFTDF):
                 if self._use_super_pp:
                     use_super_pp = True
                     t0 = (lib.logger.process_clock(), lib.logger.perf_counter())
-                    self.PP = super().get_pp(kpts=np.zeros(3))
+                    if hasattr(self, "prim_cell"):
+                        from pyscf.pbc.df.fft import FFTDF
+                        df_tmp = FFTDF(self.prim_cell, kpts)
+                        self.PP = df_tmp.get_pp(kpts=kpts)
+                    else:
+                        self.PP = super().get_pp(kpts=np.zeros(3))
                     t1 = (lib.logger.process_clock(), lib.logger.perf_counter()) 
             if not use_super_pp:
                 t0 = (lib.logger.process_clock(), lib.logger.perf_counter())
@@ -946,6 +951,13 @@ class PBC_ISDF_Info(df.fft.FFTDF):
                     return self.PP
                 
                 #### the following is used to test KRHF #### 
+                
+                if hasattr(self, "_use_super_pp"):
+                    if self._use_super_pp:
+                        if self.use_mpi:
+                            from pyscf.isdf.isdf_tools_mpi import bcast
+                            self.PP = bcast(self.PP, root = 0)
+                        return self.PP
                 
                 ### info used in super().get_pp() ###
                 

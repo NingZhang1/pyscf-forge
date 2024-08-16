@@ -130,6 +130,7 @@ def select_IP_atm_ls(mydf,
         dtypesize = aoR_atm.dtype.itemsize
         nao_atm   = nao_per_atm[atm_id]
         naux_now  = int(np.sqrt(c*nao_atm)) + m
+        naux_now  = min(naux_now, nao_tmp)
         naux2_now = naux_now * naux_now
 
         R = np.ndarray((naux2_now, grid_ID.shape[0]), dtype=np.float64)
@@ -146,7 +147,7 @@ def select_IP_atm_ls(mydf,
         G2 = np.random.rand(nao_tmp, naux_now)
         G2, _ = numpy.linalg.qr(G2)
         G2    = G2.T
-
+        
         lib.dot(G1, aoR_atm, c=aoR_atm1)
         lib.dot(G2, aoR_atm, c=aoR_atm2)
 

@@ -851,20 +851,20 @@ def _contract_k_dm_quadratic(mydf, dm, with_robust_fitting=True, use_mpi=False):
         assert dm.shape[0] == 1
         dm = dm[0]
         
-    nao  = dm.shape[0]
-    cell = mydf.cell
+    nao   = dm.shape[0]
+    cell  = mydf.cell
     assert cell.nao == nao
-    vol = cell.vol
-    mesh = np.array(cell.mesh, dtype=np.int32)
+    vol   = cell.vol
+    mesh  = np.array(cell.mesh, dtype=np.int32)
     ngrid = np.prod(mesh)
     
-    aoRg = mydf.aoRg
+    aoRg  = mydf.aoRg
     assert isinstance(aoRg, list)
-    aoR = mydf.aoR
+    aoR   = mydf.aoR
     assert isinstance(aoR, list)
     
-    naux = mydf.naux
-    nao = cell.nao
+    naux  = mydf.naux
+    nao   = cell.nao
     
     #### step 0. allocate buffer
     
@@ -904,11 +904,11 @@ def _contract_k_dm_quadratic(mydf, dm, with_robust_fitting=True, use_mpi=False):
     
     ####### buf for the first loop #######
     
-    offset = 0
+    offset    = 0
     ddot_buf1 = np.ndarray((naux, max_nIP_involved), buffer=ddot_res_buf, offset=offset, dtype=np.float64)
-    offset = ddot_buf1.size * ddot_res_buf.dtype.itemsize
-    pack_buf = np.ndarray((naux, max_nao_involved), buffer=ddot_res_buf, offset=offset, dtype=np.float64)
-    offset+= pack_buf.size * pack_buf.dtype.itemsize
+    offset    = ddot_buf1.size * ddot_res_buf.dtype.itemsize
+    pack_buf  = np.ndarray((naux, max_nao_involved), buffer=ddot_res_buf, offset=offset, dtype=np.float64)
+    offset   += pack_buf.size * pack_buf.dtype.itemsize
     ddot_buf2 = np.ndarray((naux, max(max_nIP_involved, max_nao_involved)), buffer=ddot_res_buf, offset=offset, dtype=np.float64)
     
     ordered_ao_ind = np.arange(nao)

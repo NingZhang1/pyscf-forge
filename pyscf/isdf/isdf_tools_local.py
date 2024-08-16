@@ -146,6 +146,9 @@ class aoR_Holder:
         aoR[self.ao_involved] = self.aoR
         return aoR
 
+    #def memory(self):
+    #    return self.aoR.nbytes + self.ao_involved.nbytes
+
 def _get_aoR_holders_memory(aoR_holders:list[aoR_Holder]):
     
     return sum([_aoR_holder.size() for _aoR_holder in aoR_holders if _aoR_holder is not None])

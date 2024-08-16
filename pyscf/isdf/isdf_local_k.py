@@ -1267,7 +1267,7 @@ if __name__ == "__main__":
         ['C', (0.8917 , 2.6751 , 2.6751)],
     ] 
     
-    KE_CUTOFF = 70
+    KE_CUTOFF = 16
     
     prim_cell = build_supercell(atm, prim_a, Ls = [1,1,1], ke_cutoff=KE_CUTOFF)
     prim_mesh = prim_cell.mesh
@@ -1275,7 +1275,7 @@ if __name__ == "__main__":
     # prim_partition = [[0,1,2,3,4,5,6,7]]
     prim_partition = [[0,1],[2,3],[4,5],[6,7]]
     
-    Ls = [1, 1, 8]
+    Ls = [1, 1, 4]
     kpts = prim_cell.make_kpts(Ls)
     Ls = np.array(Ls, dtype=np.int32)
     mesh = [Ls[0] * prim_mesh[0], Ls[1] * prim_mesh[1], Ls[2] * prim_mesh[2]]
@@ -1338,6 +1338,7 @@ if __name__ == "__main__":
         
     from pyscf.pbc import scf
 
+    pbc_isdf_info._use_super_pp = True
     mf = scf.KRHF(prim_cell, kpts)
     # mf = scf.KUHF(prim_cell, kpts)
     # pbc_isdf_info.kpts = np.array([[0,0,0]])  
