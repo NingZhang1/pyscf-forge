@@ -1037,6 +1037,7 @@ class PBC_ISDF_Info(df.fft.FFTDF):
                     else:
                         self.PP = super().get_pp(kpts=np.zeros(3))
                     t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
+
             if not use_super_pp:
                 t0 = (lib.logger.process_clock(), lib.logger.perf_counter())
                 cell = self.cell.copy()
@@ -1051,7 +1052,6 @@ class PBC_ISDF_Info(df.fft.FFTDF):
                 self.PP = (v_pp_loc1 + v_pp_loc2_nl)[0]
                 t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
 
-            # if self.verbose:
             if self.use_mpi:
                 from pyscf.isdf.isdf_tools_mpi import rank
 
@@ -1092,7 +1092,6 @@ class PBC_ISDF_Info(df.fft.FFTDF):
                     if self._use_super_pp:
                         if self.use_mpi:
                             from pyscf.isdf.isdf_tools_mpi import bcast
-
                             self.PP = bcast(self.PP, root=0)
                         return self.PP
 
@@ -1102,36 +1101,23 @@ class PBC_ISDF_Info(df.fft.FFTDF):
 
                 nao_prim = self.cell.nao_nr() // nkpts
                 assert self.cell.nao_nr() % nkpts == 0
-                self.PP = self.PP[:nao_prim, :].copy()
 
-                n_complex = self.kmesh[0] * self.kmesh[1] * (self.kmesh[2] // 2 + 1)
-                n_cell = np.prod(self.kmesh)
-
-                PP_complex = np.zeros(
-                    (nao_prim, n_complex * nao_prim), dtype=np.complex128
-                )
-                PP_real = np.ndarray(
-                    (nao_prim, n_cell * nao_prim), dtype=np.double, buffer=PP_complex
-                )
-                PP_real.ravel()[:] = self.PP.ravel()
-                buf_fft = np.zeros((nao_prim, n_complex, nao_prim), dtype=np.complex128)
-
-                fn1 = getattr(libisdf, "_FFT_Matrix_Col_InPlace", None)
-                assert fn1 is not None
-
-                fn1(
-                    PP_real.ctypes.data_as(ctypes.c_void_p),
-                    ctypes.c_int(nao_prim),
-                    ctypes.c_int(nao_prim),
-                    kmesh.ctypes.data_as(ctypes.c_void_p),
-                    buf_fft.ctypes.data_as(ctypes.c_void_p),
-                )
-                del buf_fft
-
+                from pyscf.isdf.isdf_tools_kSampling import _RowCol_FFT_bench
                 from pyscf.isdf.isdf_tools_densitymatrix import pack_JK_in_FFT_space
 
+                PP_complex = _RowCol_FFT_bench(
+                    self.PP[:nao_prim, :],
+                    kmesh,
+                    inv=False,
+                    TransBra=False,
+                    TransKet=True,
+                )
                 PP_complex = PP_complex.conj().copy()
-                self.PP = pack_JK_in_FFT_space(PP_complex, kmesh, nao_prim)
+                self.PP = []
+                for i in range(nkpts):
+                    self.PP.append(
+                        PP_complex[:, i * nao_prim : (i + 1) * nao_prim].copy()
+                    )
 
             if self.use_mpi:
                 from pyscf.isdf.isdf_tools_mpi import bcast
@@ -1174,7 +1160,6 @@ class PBC_ISDF_Info(df.fft.FFTDF):
                 if is_single_kpt:
                     if self.use_mpi:
                         from pyscf.isdf.isdf_tools_mpi import bcast
-
                         self.nuc = bcast(self.nuc, root=0)
                     return self.nuc
 
@@ -1186,40 +1171,48 @@ class PBC_ISDF_Info(df.fft.FFTDF):
 
                 nao_prim = self.cell.nao_nr() // nkpts
                 assert self.cell.nao_nr() % nkpts == 0
+                
                 self.nuc = self.nuc[:nao_prim, :].copy()
 
-                n_complex = self.kmesh[0] * self.kmesh[1] * (self.kmesh[2] // 2 + 1)
-                n_cell = np.prod(self.kmesh)
+                # n_complex = self.kmesh[0] * self.kmesh[1] * (self.kmesh[2] // 2 + 1)
+                # n_cell = np.prod(self.kmesh)
+                # nuc_complex = np.zeros(
+                #     (nao_prim, n_complex * nao_prim), dtype=np.complex128
+                # )
+                # nuc_real = np.ndarray(
+                #     (nao_prim, n_cell * nao_prim), dtype=np.double, buffer=nuc_complex
+                # )
+                # nuc_real.ravel()[:] = self.nuc.ravel()
+                # buf_fft = np.zeros((nao_prim, n_complex, nao_prim), dtype=np.complex128)
+                # fn1 = getattr(libisdf, "_FFT_Matrix_Col_InPlace", None)
+                # assert fn1 is not None
+                # fn1(
+                #     nuc_real.ctypes.data_as(ctypes.c_void_p),
+                #     ctypes.c_int(nao_prim),
+                #     ctypes.c_int(nao_prim),
+                #     kmesh.ctypes.data_as(ctypes.c_void_p),
+                #     buf_fft.ctypes.data_as(ctypes.c_void_p),
+                # )
+                # del buf_fft
 
-                nuc_complex = np.zeros(
-                    (nao_prim, n_complex * nao_prim), dtype=np.complex128
-                )
-                nuc_real = np.ndarray(
-                    (nao_prim, n_cell * nao_prim), dtype=np.double, buffer=nuc_complex
-                )
-                nuc_real.ravel()[:] = self.nuc.ravel()
-                buf_fft = np.zeros((nao_prim, n_complex, nao_prim), dtype=np.complex128)
-
-                fn1 = getattr(libisdf, "_FFT_Matrix_Col_InPlace", None)
-                assert fn1 is not None
-
-                fn1(
-                    nuc_real.ctypes.data_as(ctypes.c_void_p),
-                    ctypes.c_int(nao_prim),
-                    ctypes.c_int(nao_prim),
-                    kmesh.ctypes.data_as(ctypes.c_void_p),
-                    buf_fft.ctypes.data_as(ctypes.c_void_p),
-                )
-                del buf_fft
-
+                from pyscf.isdf.isdf_tools_kSampling import _RowCol_FFT_bench
                 from pyscf.isdf.isdf_tools_densitymatrix import pack_JK_in_FFT_space
 
+                #nuc_complex = nuc_complex.conj().copy()
+                #self.nuc = pack_JK_in_FFT_space(nuc_complex, kmesh, nao_prim)
+
+                nuc_complex = _RowCol_FFT_bench(
+                    self.nuc, kmesh, inv=False, TransBra=False, TransKet=True
+                )
                 nuc_complex = nuc_complex.conj().copy()
-                self.nuc = pack_JK_in_FFT_space(nuc_complex, kmesh, nao_prim)
+                self.nuc = []
+                for i in range(nkpts):
+                    self.nuc.append(
+                        nuc_complex[:, i * nao_prim : (i + 1) * nao_prim].copy()
+                    )
 
             if self.use_mpi:
                 from pyscf.isdf.isdf_tools_mpi import bcast
-
                 self.nuc = bcast(self.nuc, root=0)
 
             return self.nuc
