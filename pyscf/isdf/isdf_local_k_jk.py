@@ -25,9 +25,10 @@ import ctypes
 ############ pyscf module ############
 
 from pyscf import lib
+from pyscf.lib import logger
 from pyscf.pbc import tools
 from pyscf.pbc.lib.kpts_helper import is_zero, gamma_point
-from pyscf.gto.mole import *
+# from pyscf.gto.mole import *
 from pyscf.pbc.df.df_jk import (
     _ewald_exxdiv_for_G0,
     _format_dms,
@@ -182,11 +183,9 @@ def _contract_j_dm_k_ls(mydf, _dm, use_mpi=False):
     dm, in_real_space = _preprocess_dm(mydf, _dm)
 
     if use_mpi:
-        assert mydf.direct == True
+        if not mydf.direct:
+            raise RuntimeError("MPI is only supported for direct method.")
         from pyscf.isdf.isdf_tools_mpi import rank, comm, comm_size, bcast, reduce
-
-        size = comm_size
-        # raise NotImplementedError("MPI is not supported yet.")
         dm = bcast(dm, root=0)
 
     t1 = (logger.process_clock(), logger.perf_counter())
@@ -205,7 +204,7 @@ def _contract_j_dm_k_ls(mydf, _dm, use_mpi=False):
 
     aoR = mydf.aoR
     assert isinstance(aoR, list)
-    naux = mydf.naux
+    # naux = mydf.naux
     aoR1 = mydf.aoR1
     assert isinstance(aoR1, list)
 
@@ -233,7 +232,7 @@ def _contract_j_dm_k_ls(mydf, _dm, use_mpi=False):
     density_R_prim = np.zeros((ngrid_prim,), dtype=np.float64)
 
     dm_buf = np.zeros((max_nao_involved, max_nao_involved), dtype=np.float64)
-    max_dim_buf = max_nao_involved
+    # max_dim_buf = max_nao_involved
     max_col_buf = min(max_ngrid_involved, J_MAX_GRID_BUNCHSIZE)
     aoR_buf1 = np.zeros((max_nao_involved, max_ngrid_involved), dtype=np.float64)
 
@@ -315,7 +314,7 @@ def _contract_j_dm_k_ls(mydf, _dm, use_mpi=False):
 
     grid_ID_ordered = mydf.grid_ID_ordered_prim
 
-    if (use_mpi and rank == 0) or (use_mpi == False):
+    if (use_mpi and rank == 0) or (not use_mpi):
 
         density_R_original = np.zeros_like(density_R_prim)
 
@@ -335,12 +334,12 @@ def _contract_j_dm_k_ls(mydf, _dm, use_mpi=False):
 
     ddot_buf = np.zeros((max_nao_involved, max_nao_involved), dtype=np.float64)
 
-    if (use_mpi and rank == 0) or (use_mpi == False):
+    if (use_mpi and rank == 0) or (not use_mpi):
 
         fn_J = getattr(libisdf, "_construct_J", None)
         assert fn_J is not None
 
-        if hasattr(mydf, "coulG_prim") == False:
+        if not hasattr(mydf, "coulG_prim"):
             assert mydf.omega is None or mydf.omega == 0.0
             mydf.coulG_prim = tools.get_coulG(mydf.primCell, mesh=mydf.primCell.mesh)
 
@@ -507,12 +506,12 @@ def _get_k_kSym_robust_fitting_fast(mydf, _dm):
     ngrid = np.prod(cell.mesh)
     vol = cell.vol
 
-    W = mydf.W
-    naux = mydf.naux
+    # W = mydf.W
+    # naux = mydf.naux
 
     kmesh = np.array(mydf.kmesh, dtype=np.int32)
-    mesh = mydf.mesh
-    meshPrim = np.array(mesh) // np.array(kmesh)
+    # mesh = mydf.mesh
+    # meshPrim = np.array(mesh) // np.array(kmesh)
     nGridPrim = mydf.nGridPrim
     ncell = np.prod(kmesh)
     ncell_complex = kmesh[0] * kmesh[1] * (kmesh[2] // 2 + 1)
@@ -1226,11 +1225,7 @@ def _get_k_kSym_robust_fitting_fast(mydf, _dm):
 
     K += K2 + K2.T
 
-    if in_real_space == False:
-        #    K += K2 + K2.T
-        # else:
-        #    K2 = K2 + K2.T
-        #    K2 = K2[:nao_prim,:]
+    if not in_real_space:
 
         K = K[:nao_prim, :].copy()
 
@@ -1282,13 +1277,13 @@ def _get_k_kSym(mydf, _dm):
     ngrid = np.prod(cell.mesh)
     vol = cell.vol
 
-    W = mydf.W
-    naux = mydf.naux
+    # W = mydf.W
+    # naux = mydf.naux
 
     kmesh = np.array(mydf.kmesh, dtype=np.int32)
-    mesh = mydf.mesh
-    meshPrim = np.array(mesh) // np.array(kmesh)
-    nGridPrim = mydf.nGridPrim
+    # mesh = mydf.mesh
+    # meshPrim = np.array(mesh) // np.array(kmesh)
+    # nGridPrim = mydf.nGridPrim
     ncell = np.prod(kmesh)
     ncell_complex = kmesh[0] * kmesh[1] * (kmesh[2] // 2 + 1)
     nIP_prim = mydf.nIP_Prim
@@ -1554,10 +1549,11 @@ def _get_k_kSym(mydf, _dm):
 def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
 
     if use_mpi:
-        assert mydf.direct == True
+        #assert mydf.direct == True
+        if not mydf.direct:
+            raise RuntimeError("MPI must work with direct mode.")
         from pyscf.isdf.isdf_tools_mpi import rank, comm, comm_size, bcast, reduce
-
-        size = comm.Get_size()
+        #size = comm.Get_size()
 
     t1 = (logger.process_clock(), logger.perf_counter())
     t0 = (logger.process_clock(), logger.perf_counter())
@@ -1592,9 +1588,9 @@ def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
     aoR = mydf.aoR
     aoRg = mydf.aoRg
 
-    max_nao_involved = mydf.max_nao_involved
+    # max_nao_involved = mydf.max_nao_involved
     max_ngrid_involved = mydf.max_ngrid_involved
-    max_nIP_involved = mydf.max_nIP_involved
+    # max_nIP_involved = mydf.max_nIP_involved
     maxsize_group_naux = mydf.maxsize_group_naux
 
     ####### preparing the data #######
@@ -1604,7 +1600,7 @@ def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
     assert cell.nao == nao
     vol = cell.vol
     mesh = np.array(cell.mesh, dtype=np.int32)
-    mesh_int32 = mesh
+    # mesh_int32 = mesh
     ngrid = np.prod(mesh)
 
     aoRg = mydf.aoRg
@@ -1612,16 +1608,16 @@ def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
     aoR = mydf.aoR
     assert isinstance(aoR, list)
 
-    naux = mydf.naux
+    # naux = mydf.naux
     nao = cell.nao
     nao_prim = mydf.nao_prim
     aux_basis = mydf.aux_basis
     kmesh = np.array(mydf.kmesh, dtype=np.int32)
     nkpts = np.prod(kmesh)
 
-    grid_ordering = mydf.grid_ID_ordered
+    # grid_ordering = mydf.grid_ID_ordered
 
-    if hasattr(mydf, "coulG") == False:
+    if not hasattr(mydf, "coulG"):
         if mydf.omega is not None:
             assert mydf.omega >= 0.0
         # mydf.coulG = tools.get_coulG(cell, mesh=mesh, omega=mydf.omega)
@@ -1652,7 +1648,7 @@ def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
     build_K_bunchsize = min(maxsize_group_naux, mydf._build_K_bunchsize)
 
     offset_build_now = 0
-    offset_Density_RgR_buf = 0
+    # offset_Density_RgR_buf = 0
     Density_RgR_buf = np.ndarray(
         (build_K_bunchsize, ngrid), buffer=build_k_buf, offset=offset_build_now
     )
@@ -1697,7 +1693,7 @@ def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
     fn_packadd_row = getattr(libisdf, "_buildK_packaddrow", None)
     assert fn_packadd_row is not None
 
-    ordered_ao_ind = np.arange(nao)
+    # ordered_ao_ind = np.arange(nao)
 
     ######### begin work #########
 
@@ -1776,7 +1772,7 @@ def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
             aoRg_holders.append(aoRg[atm_id])
         assert naux_tmp == aux_basis[group_id].shape[0]
 
-        aux_basis_tmp = aux_basis[group_id]
+        # aux_basis_tmp = aux_basis[group_id]
 
         #### 1. build the involved DM_RgR ####
 
@@ -1973,7 +1969,7 @@ def get_jk_dm_translation_symmetry(
 ):
     """JK for given k-point"""
 
-    direct = mydf.direct
+    # direct = mydf.direct
     use_mpi = mydf.use_mpi
 
     if use_mpi:
@@ -1997,6 +1993,7 @@ def get_jk_dm_translation_symmetry(
             dm = symmetrize_dm(dm, mydf.kmesh)
 
     if use_mpi:
+        from pyscf.isdf.isdf_tools_MPI import bcast
         dm = bcast(dm, root=0)
 
     nset = dm.shape[0]
@@ -2054,7 +2051,7 @@ def get_jk_dm_translation_symmetry(
             dms = _format_dms(dm_kpts, kpts)
             nset, nkpts, nao = dms.shape[:3]
             assert nset <= 4
-            kpts_band, input_band = _format_kpts_band(kpts_band, kpts), kpts_band
+            kpts_band, _ = _format_kpts_band(kpts_band, kpts), kpts_band
             nband = len(kpts_band)
             assert nband == 1
             if is_zero(kpts_band) and is_zero(kpts):
@@ -2078,10 +2075,8 @@ def _get_k_kSym_direct_mimic_MPI(mydf, _dm, use_mpi=False):
 
     if use_mpi:
         raise NotImplementedError
-        assert mydf.direct == True
+        # assert mydf.direct == True
         from pyscf.isdf.isdf_tools_mpi import rank, comm, comm_size, bcast, reduce
-
-        size = comm.Get_size()
 
     t1 = (logger.process_clock(), logger.perf_counter())
     t0 = (logger.process_clock(), logger.perf_counter())
@@ -2107,9 +2102,9 @@ def _get_k_kSym_direct_mimic_MPI(mydf, _dm, use_mpi=False):
     aoR = mydf.aoR
     aoRg = mydf.aoRg
 
-    max_nao_involved = mydf.max_nao_involved
+    # max_nao_involved = mydf.max_nao_involved
     max_ngrid_involved = mydf.max_ngrid_involved
-    max_nIP_involved = mydf.max_nIP_involved
+    # max_nIP_involved = mydf.max_nIP_involved
     maxsize_group_naux = mydf.maxsize_group_naux
 
     ####### preparing the data #######
@@ -2119,7 +2114,7 @@ def _get_k_kSym_direct_mimic_MPI(mydf, _dm, use_mpi=False):
     assert cell.nao == nao
     vol = cell.vol
     mesh = np.array(cell.mesh, dtype=np.int32)
-    mesh_int32 = mesh
+    # mesh_int32 = mesh
     ngrid = np.prod(mesh)
 
     aoRg = mydf.aoRg
@@ -2127,16 +2122,16 @@ def _get_k_kSym_direct_mimic_MPI(mydf, _dm, use_mpi=False):
     aoR = mydf.aoR
     assert isinstance(aoR, list)
 
-    naux = mydf.naux
+    # naux = mydf.naux
     nao = cell.nao
     nao_prim = mydf.nao_prim
     aux_basis = mydf.aux_basis
     kmesh = np.array(mydf.kmesh, dtype=np.int32)
     nkpts = np.prod(kmesh)
 
-    grid_ordering = mydf.grid_ID_ordered
+    # grid_ordering = mydf.grid_ID_ordered
 
-    if hasattr(mydf, "coulG") == False:
+    if not hasattr(mydf, "coulG"):
         if mydf.omega is not None:
             assert mydf.omega >= 0.0
         raise NotImplementedError("coulG is not implemented yet.")
@@ -2165,7 +2160,7 @@ def _get_k_kSym_direct_mimic_MPI(mydf, _dm, use_mpi=False):
     build_K_bunchsize = min(maxsize_group_naux, mydf._build_K_bunchsize)
 
     offset_build_now = 0
-    offset_Density_RgR_buf = 0
+    # offset_Density_RgR_buf = 0
     Density_RgR_buf = np.ndarray(
         (build_K_bunchsize, ngrid), buffer=build_k_buf, offset=offset_build_now
     )
@@ -2210,7 +2205,7 @@ def _get_k_kSym_direct_mimic_MPI(mydf, _dm, use_mpi=False):
     fn_packadd_row = getattr(libisdf, "_buildK_packaddrow", None)
     assert fn_packadd_row is not None
 
-    ordered_ao_ind = np.arange(nao)
+    # ordered_ao_ind = np.arange(nao)
 
     ######### begin work #########
 
@@ -2235,7 +2230,7 @@ def _get_k_kSym_direct_mimic_MPI(mydf, _dm, use_mpi=False):
 
     print("COMM_SIZE = ", COMM_SIZE)
 
-    for rank in range(COMM_SIZE):
+    for _rank_ in range(COMM_SIZE):
 
         K1_tmp = np.zeros((nset, nao_prim, nao), dtype=np.float64)
         K2_tmp = np.zeros((nset, nao_prim, nao), dtype=np.float64)
@@ -2244,8 +2239,8 @@ def _get_k_kSym_direct_mimic_MPI(mydf, _dm, use_mpi=False):
 
         nIP_prim = mydf.nIP_Prim
         nIP_bunchsize = (nIP_prim + COMM_SIZE) // COMM_SIZE
-        bunch_begin = rank * nIP_bunchsize
-        bunch_end = min(nIP_prim, (rank + 1) * nIP_bunchsize)
+        bunch_begin = _rank_ * nIP_bunchsize
+        bunch_end = min(nIP_prim, (_rank_ + 1) * nIP_bunchsize)
 
         iIP = 0
         for group_id, atm_ids in enumerate(group):
@@ -2273,8 +2268,8 @@ def _get_k_kSym_direct_mimic_MPI(mydf, _dm, use_mpi=False):
 
             iIP += naux_tmp
 
-        if use_mpi:
-            print("rank = ", rank, "task_info = ", task_info)
+        #if use_mpi:
+        #    print("rank = ", rank, "task_info = ", task_info)
 
         ###########################################################
 
@@ -2294,7 +2289,7 @@ def _get_k_kSym_direct_mimic_MPI(mydf, _dm, use_mpi=False):
                 aoRg_holders.append(aoRg[atm_id])
             assert naux_tmp == aux_basis[group_id].shape[0]
 
-            aux_basis_tmp = aux_basis[group_id]
+            # aux_basis_tmp = aux_basis[group_id]
 
             #### 1. build the involved DM_RgR ####
 

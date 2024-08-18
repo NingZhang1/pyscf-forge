@@ -19,7 +19,7 @@
 import numpy as np
 from pyscf import lib
 from pyscf.pbc.lib.kpts import KPoints
-from pyscf.gto.mole import *
+# from pyscf.gto.mole import *
 
 
 def _extract_grid_primitive_cell(cell_a, mesh, Ls, coords):
@@ -72,8 +72,7 @@ def _extract_grid_primitive_cell(cell_a, mesh, Ls, coords):
     # print("nx_prim = ", nx_prim)
     # print("ny_prim = ", ny_prim)
     # print("nz_prim = ", nz_prim)
-
-    ngrids_prim = nx_prim * ny_prim * nz_prim
+    # ngrids_prim = nx_prim * ny_prim * nz_prim
 
     res_dict = {}
 
@@ -106,7 +105,7 @@ def _extract_grid_primitive_cell(cell_a, mesh, Ls, coords):
                 for ID in range(shifts.shape[0]):
                     shift = shifts[ID]
                     # print("shift = ", shift)
-                    if np.allclose(shift, shift_bench) == False:
+                    if not np.allclose(shift, shift_bench):
                         tmp = shift - shift_bench
                         nx = round(tmp[0] / cell_a[0, 0])
                         ny = round(tmp[1] / cell_a[1, 1])
@@ -125,8 +124,6 @@ def _extract_grid_primitive_cell(cell_a, mesh, Ls, coords):
 
 
 def _split_partition(Voroini_partition, mesh, Ls):
-    ngrids = np.prod(mesh)
-    assert ngrids == coords.shape[0]
 
     Lx = Ls[0]
     Ly = Ls[1]
@@ -144,10 +141,7 @@ def _split_partition(Voroini_partition, mesh, Ls):
     ny_prim = ny // Ly
     nz_prim = nz // Lz
 
-    ngrids_prim = nx_prim * ny_prim * nz_prim
-
     res_dict = {}
-    prim_grid = Voroini_partition_reshaped[:nx_prim, :ny_prim, :nz_prim].reshape(-1, 3)
 
     for ix in range(Lx):
         for iy in range(Ly):
@@ -248,7 +242,7 @@ def _RowCol_FFT_ColFull_bench(input, Ls, mesh):
 
 def _kmesh_to_Kpoints(cell, mesh):
 
-    from pyscf.pbc.lib.kpts import KPoints
+    # from pyscf.pbc.lib.kpts import KPoints
 
     kpts = []
 

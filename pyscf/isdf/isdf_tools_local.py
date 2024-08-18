@@ -19,8 +19,8 @@
 ########## pyscf module ##########
 
 import copy
-from functools import reduce
 import numpy as np
+import numpy
 import pyscf
 from pyscf import lib
 import pyscf.pbc.gto as pbcgto
@@ -28,7 +28,7 @@ from pyscf.pbc.gto import Cell
 from pyscf.pbc import tools
 from pyscf.pbc.lib.kpts import KPoints
 from pyscf.pbc.lib.kpts_helper import is_zero, gamma_point, member
-from pyscf.gto.mole import *
+# from pyscf.gto.mole import *
 import pyscf.pbc.df.ft_ao as ft_ao
 from pyscf.pbc.df import aft, rsdf_builder, aft_jk
 
@@ -395,7 +395,7 @@ def get_partition(
 
     log = lib.logger.Logger(cell.stdout, cell.verbose)
 
-    if use_mpi == False or (use_mpi and rank == 0):
+    if not use_mpi or (use_mpi and rank == 0):
         # print("************* get_partition *************")
         log.debug4("************* get_partition *************")
 
@@ -576,7 +576,7 @@ def get_partition(
     if use_mpi:
         comm.Barrier()
 
-    if use_mpi == False or (use_mpi == True and rank == 0):
+    if not use_mpi or (use_mpi and rank == 0):
         len_grid_involved = 0
         for atm_id, x in enumerate(partition_rough):
             # print("atm %d involved %d grids" % (atm_id, len(x)))
@@ -661,7 +661,7 @@ def get_partition(
         for grid_id, _atm_id_ in zip(grid_ID, argmin_distance):
             partition[atm_involved[_atm_id_] % natm_tmp].append(grid_id)
 
-    if use_mpi == False or (use_mpi == True and rank == 0):
+    if not use_mpi or (use_mpi and rank == 0):
         len_grid_involved = 0
         for atm_id, x in enumerate(partition):
             len_grid_involved += len(x)
@@ -679,7 +679,7 @@ def get_partition(
             partition.append(bcast(x))
         del partition_sendbuf
 
-    if (use_mpi and rank == 0) or use_mpi == False:
+    if (use_mpi and rank == 0) or not use_mpi:
         # print("************* end get_partition *************")
         log.debug4("************* end get_partition *************")
 
@@ -689,7 +689,7 @@ def get_partition(
 def _range_partition(ngroup, rank, comm_size, use_mpi=False):
     """given ngroup tasks, split them into comm_size parts, and return the range of tasks for the rank-th process"""
 
-    if use_mpi == False:
+    if not use_mpi:
         return 0, ngroup
     else:
         from pyscf.isdf.isdf_tools_mpi import comm_size
@@ -716,7 +716,7 @@ def _range_partition(ngroup, rank, comm_size, use_mpi=False):
 
 def _range_partition_array(ngroup, comm_size, use_mpi=False):
 
-    if use_mpi == False:
+    if not use_mpi:
         return np.array([0, ngroup], dtype=np.int32)
     else:
         from pyscf.isdf.isdf_tools_mpi import comm_size
@@ -811,7 +811,7 @@ def _get_grid_partition(atmid_to_gridID, group, use_mpi=False):
 
     ngrid = np.sum([len(x) for x in atmid_to_gridID])
 
-    if use_mpi == False:
+    if not use_mpi:
         return np.array([0, ngrid], dtype=np.int32)
     else:
         group_partition_array = _range_partition_array(len(group), comm_size, use_mpi)
@@ -937,7 +937,7 @@ def _sync_aoR(aoR_holders, natm):
 
 def _build_submol(cell: Cell, atm_invovled):
 
-    import pyscf.pbc.gto as pbcgto
+    # import pyscf.pbc.gto as pbcgto
 
     subcell = pbcgto.Cell()
     subcell.a = cell.a
@@ -1017,7 +1017,7 @@ def get_aoR(
 
     aoR_holder = []
 
-    if group == None:
+    if group is None:
         group = []
         for i in range(cell.natm):
             group.append([i])
@@ -1069,10 +1069,6 @@ def get_aoR(
 
         bas_id = []
 
-        ao_loc_now = 0
-
-        shell_slice = []
-        shl_end_test = 0
         for atm_id_other in atm_involved:
             shl_begin = AtmConnectionInfoList[atm_id_other].bas_range[0]
             shl_end = AtmConnectionInfoList[atm_id_other].bas_range[-1] + 1
@@ -1139,7 +1135,7 @@ def get_aoR_analytic(
 ):
     """AO values on grid points using FFT, evaluating analytic AO integrals"""
 
-    assert use_mpi == False
+    assert not use_mpi
     assert first_natm is None or first_natm == cell.natm
 
     if group is None:
@@ -1150,8 +1146,8 @@ def get_aoR_analytic(
     precision = AtmConnectionInfoList[0].precision
     mesh = cell.mesh
     ngrids = np.prod(mesh)
-    weight = cell.vol / ngrids
-    weight2 = np.sqrt(cell.vol / ngrids)
+    #weight = cell.vol / ngrids
+    #weight2 = np.sqrt(cell.vol / ngrids)
 
     blksize = 2e9 // 16
     nao_max_bunch = int(blksize // ngrids)
@@ -1222,8 +1218,12 @@ def get_aoR_analytic(
 
         t2 = (lib.logger.process_clock(), lib.logger.perf_counter())
 
-        if rank == 0:
-            _benchmark_time(t1, t2, "get_aoR_analytic: task %d" % task_id)
+        if use_mpi:
+            from pyscf.isdf.isdf_tools_mpi import rank
+            if rank == 0:
+                _benchmark_time(t1, t2, "get_aoR_analytic: task %d" % task_id, cell)
+        else:
+            _benchmark_time(t1, t2, "get_aoR_analytic: task %d" % task_id, cell)
 
     t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
 
@@ -1254,8 +1254,12 @@ def get_aoR_analytic(
     del aoR
     del aoG
 
-    if rank == 0:
-        _benchmark_time(t1, t2, "get_aoR_analytic: merge")
+    if use_mpi:
+        from pyscf.isdf.isdf_tools_mpi import rank
+        if rank == 0:
+            _benchmark_time(t1, t2, "get_aoR_analytic: merge", cell)
+    else:
+        _benchmark_time(t1, t2, "get_aoR_analytic: merge", cell)
 
     return aoR_holder
 

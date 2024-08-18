@@ -94,6 +94,7 @@ def log_profile_buildK_time(mydf, use_mpi=False):
         log.info("Wall time for ddot          : %12.8f", walltime_ddot)
         log.info("Wall time for build_VW      : %12.8f", walltime_buildVW)
     else:
+        from pyscf.isdf.isdf_tools_mpi import rank, comm
         if rank == 0:
             log.info("CPU time for restoring ERI  : %12.8f", cputime_restore)
             log.info("CPU time for emb_R          : %12.8f", cputime_embR)
@@ -693,6 +694,8 @@ def get_emb_eri_isdf_fast(
     get eri for embedding system with cutoff
     """
 
+    global cputime_embR, walltime_embR
+
     #### preprocess ####
 
     assert isinstance(mydf, PBC_ISDF_Info_Quad_K)
@@ -806,8 +809,8 @@ def get_emb_eri_isdf_fast(
                     )
 
     t2 = (lib.logger.process_clock(), lib.logger.perf_counter())
-    cputime_embR = t2[0] - t1[0]
-    walltime_embR = t2[1] - t1[1]
+    cputime_embR += t2[0] - t1[0]
+    walltime_embR += t2[1] - t1[1]
 
     ###############################
 

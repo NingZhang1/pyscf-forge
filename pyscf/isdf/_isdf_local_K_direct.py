@@ -344,7 +344,8 @@ def _isdf_get_K_direct_kernel_1(
     assert isinstance(aoR, list)
 
     if hasattr(mydf, "aoR1"):
-        aoR1 = mydf.aoR1
+        #aoR1 = mydf.aoR1
+        pass
     else:
         aoR = aoR
 

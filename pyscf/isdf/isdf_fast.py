@@ -20,6 +20,7 @@
 
 import copy
 import numpy as np
+import numpy
 import ctypes
 
 ############ pyscf module ############
@@ -31,7 +32,7 @@ from pyscf.pbc.gto import Cell
 from pyscf.pbc import tools
 from pyscf.pbc.lib.kpts import KPoints
 from pyscf.pbc.lib.kpts_helper import is_zero, gamma_point, member
-from pyscf.gto.mole import *
+from pyscf.gto.mole import ATOM_OF, NCTR_OF, ANG_OF
 from pyscf.pbc.dft import multigrid
 
 ############ isdf utils ############
@@ -178,8 +179,6 @@ def _select_IP_direct(
     weight = np.sqrt(mydf.cell.vol / coords.shape[0])
 
     for p0, p1 in lib.prange(0, 1, 1):
-
-        taskinfo = []
 
         # clear buffer
 
@@ -462,6 +461,7 @@ def _select_IP_direct(
 
 def build_aux_basis(mydf, debug=True, use_mpi=False):
     """build the auxiliary basis for ISDF given IP_ID and aoR."""
+    import scipy
 
     if use_mpi:
         from isdf_tools_mpi import rank, bcast, comm
@@ -477,7 +477,7 @@ def build_aux_basis(mydf, debug=True, use_mpi=False):
         (mydf.naux, mydf.naux), dtype=np.double, buffer=mydf.jk_buffer, offset=0
     )
 
-    nao = mydf.nao
+    # nao = mydf.nao
     IP_ID = mydf.IP_ID
     aoR = mydf.aoR
 
@@ -521,9 +521,9 @@ def build_aux_basis(mydf, debug=True, use_mpi=False):
     # fn_build_aux = getattr(libisdf, "Solve_LLTEqualB_Parallel", None)
     # assert(fn_build_aux is not None)
 
-    nThread = lib.num_threads()
-    nGrids = aoR.shape[1]
-    Bunchsize = nGrids // nThread
+    # nThread = lib.num_threads()
+    # nGrids = aoR.shape[1]
+    # Bunchsize = nGrids // nThread
 
     buffer2 = np.ndarray(
         (e.shape[0], mydf.aux_basis.shape[1]),
@@ -579,13 +579,13 @@ class PBC_ISDF_Info(df.fft.FFTDF):
         verbose=None,
     ):
 
-        if kmesh == None:
+        if kmesh is None:
             kmesh = numpy.asarray([1, 1, 1], dtype=numpy.int32)
-        KPoints = _kmesh_to_Kpoints(
+        kpoints = _kmesh_to_Kpoints(
             mol, kmesh
         )  ### WARNING: this subroutine is not correct !
 
-        super().__init__(cell=mol, kpts=KPoints)
+        super().__init__(cell=mol, kpts=kpoints)
 
         if verbose is not None:
             self.verbose = verbose
@@ -880,19 +880,6 @@ class PBC_ISDF_Info(df.fft.FFTDF):
         Ref:
         (1) Sandeep2022 https://pubs.acs.org/doi/10.1021/acs.jctc.2c00720
         """
-
-        # build partition
-
-        ao2atomID = self.ao2atomID
-        partition = self.partition
-        aoR = self.aoR
-        natm = self.natm
-        nao = self.nao
-        ao2atomID = self.ao2atomID
-        partition = self.partition
-        aoR = self.aoR
-        natm = self.natm
-        nao = self.nao
 
         # for each atm
 

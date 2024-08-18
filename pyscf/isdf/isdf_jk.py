@@ -204,7 +204,8 @@ def _contract_j_dm(mydf, dm, with_robust_fitting=True, use_mpi=False):
 
 def _contract_j_dm_fast(mydf, dm, with_robust_fitting=True, use_mpi=False):
 
-    assert use_mpi == False
+    if use_mpi:
+        raise ValueError("MPI is not supported in this function")
 
     t1 = (logger.process_clock(), logger.perf_counter())
 
@@ -219,16 +220,8 @@ def _contract_j_dm_fast(mydf, dm, with_robust_fitting=True, use_mpi=False):
     assert ngrid == mydf.ngrids
     vol = cell.vol
 
-    W = mydf.W
-    aoRg = mydf.aoRg
     aoR = mydf.aoR
     ngrid = aoR.shape[1]
-    if hasattr(mydf, "V_R"):
-        V_R = mydf.V_R
-    else:
-        V_R = None
-    naux = mydf.naux
-    IP_ID = mydf.IP_ID
 
     mesh = np.array(cell.mesh, dtype=np.int32)
 
@@ -236,9 +229,6 @@ def _contract_j_dm_fast(mydf, dm, with_robust_fitting=True, use_mpi=False):
 
     buffer = mydf.jk_buffer
     buffer1 = np.ndarray((nao, ngrid), dtype=dm.dtype, buffer=buffer, offset=0)
-    buffer2 = np.ndarray(
-        (ngrid), dtype=dm.dtype, buffer=buffer, offset=nao * ngrid * dm.dtype.itemsize
-    )
 
     #### step 1. get density value on real space grid and IPs
 
@@ -247,32 +237,26 @@ def _contract_j_dm_fast(mydf, dm, with_robust_fitting=True, use_mpi=False):
     density_R = np.einsum("ij,ij->j", aoR, tmp1)
 
     if hasattr(mydf, "grid_ID_ordered"):
-        if (use_mpi and rank == 0) or (use_mpi == False):
+        density_R_original = np.zeros_like(density_R)
+        density_R_original[mydf.grid_ID_ordered] = density_R
+        density_R = density_R_original.copy()
 
-            density_R_original = np.zeros_like(density_R)
-            density_R_original[mydf.grid_ID_ordered] = density_R
-            density_R = density_R_original.copy()
+    fn_J = getattr(libisdf, "_construct_J", None)
+    assert fn_J is not None
 
-    J = None
+    J = np.zeros_like(density_R)
 
-    if (use_mpi and rank == 0) or (use_mpi == False):
+    fn_J(
+        mesh.ctypes.data_as(ctypes.c_void_p),
+        density_R.ctypes.data_as(ctypes.c_void_p),
+        mydf.coulG.ctypes.data_as(ctypes.c_void_p),
+        J.ctypes.data_as(ctypes.c_void_p),
+    )
 
-        fn_J = getattr(libisdf, "_construct_J", None)
-        assert fn_J is not None
-
-        J = np.zeros_like(density_R)
-
-        fn_J(
-            mesh.ctypes.data_as(ctypes.c_void_p),
-            density_R.ctypes.data_as(ctypes.c_void_p),
-            mydf.coulG.ctypes.data_as(ctypes.c_void_p),
-            J.ctypes.data_as(ctypes.c_void_p),
-        )
-
-        if hasattr(mydf, "grid_ID_ordered"):
-            J_ordered = np.zeros_like(J)
-            J_ordered = J[mydf.grid_ID_ordered]
-            J = J_ordered.copy()
+    if hasattr(mydf, "grid_ID_ordered"):
+        J_ordered = np.zeros_like(J)
+        J_ordered = J[mydf.grid_ID_ordered]
+        J = J_ordered.copy()
 
     #### step 3. get J
 
@@ -296,7 +280,9 @@ def _contract_k_dm(mydf, dm, with_robust_fitting=True, use_mpi=False):
 
     """
 
-    assert use_mpi == False
+    #assert use_mpi == False
+    if use_mpi:
+        raise NotImplementedError("MPI is not supported in this function")
 
     t1 = (logger.process_clock(), logger.perf_counter())
 
@@ -322,7 +308,7 @@ def _contract_k_dm(mydf, dm, with_robust_fitting=True, use_mpi=False):
         V_R = None
     # naux = aoRg.shape[1]
     naux = mydf.naux
-    IP_ID = mydf.IP_ID
+    # IP_ID = mydf.IP_ID
 
     buffer = mydf.jk_buffer
     buffer1 = np.ndarray((nao, ngrid), dtype=dm.dtype, buffer=buffer, offset=0)
@@ -332,12 +318,12 @@ def _contract_k_dm(mydf, dm, with_robust_fitting=True, use_mpi=False):
         buffer=buffer,
         offset=nao * ngrid * dm.dtype.itemsize,
     )
-    buffer3 = np.ndarray(
-        (naux, naux),
-        dtype=dm.dtype,
-        buffer=buffer,
-        offset=(nao * ngrid + naux * ngrid) * dm.dtype.itemsize,
-    )
+    # buffer3 = np.ndarray(
+    #     (naux, naux),
+    #     dtype=dm.dtype,
+    #     buffer=buffer,
+    #     offset=(nao * ngrid + naux * ngrid) * dm.dtype.itemsize,
+    # )
     buffer4 = np.ndarray(
         (nao, nao),
         dtype=dm.dtype,
@@ -432,7 +418,9 @@ def _contract_k_dm_wo_robust_fitting(
     mydf, dm, with_robust_fitting=False, use_mpi=False
 ):
 
-    assert with_robust_fitting == False
+    #assert with_robust_fitting == False
+    if with_robust_fitting:
+        raise NotImplementedError("with_robust_fitting is not supported in this function")
 
     if use_mpi:
         raise NotImplementedError("MPI is not supported in this function")
@@ -448,13 +436,13 @@ def _contract_k_dm_wo_robust_fitting(
     cell = mydf.cell
     assert cell.nao == nao
     vol = cell.vol
-    mesh = np.array(cell.mesh, dtype=np.int32)
+    #mesh = np.array(cell.mesh, dtype=np.int32)
     ngrid = np.prod(cell.mesh)
 
     W = mydf.W
     aoRg = mydf.aoRg
 
-    naux = aoRg.shape[1]
+    #naux = aoRg.shape[1]
 
     density_RgRg = lib.ddot(dm, aoRg)
     density_RgRg = lib.ddot(aoRg.T, density_RgRg)
@@ -470,9 +458,9 @@ def _contract_k_dm_wo_robust_fitting(
     _benchmark_time(t1, t2, "_contract_k_dm_wo_robust_fitting", mydf)
 
     del tmp
-    tmp = None
+    #tmp = None
     del density_RgRg
-    density_RgRg = None
+    #density_RgRg = None
 
     return K * ngrid / vol  # take care this factor
 
@@ -581,7 +569,7 @@ def get_jk_dm(
         )
     assert nkpts == 1
 
-    kpts_band, input_band = _format_kpts_band(kpts_band, kpts), kpts_band
+    kpts_band, _ = _format_kpts_band(kpts_band, kpts), kpts_band
     nband = len(kpts_band)
     assert nband == 1
 

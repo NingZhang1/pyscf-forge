@@ -18,7 +18,7 @@
 
 ############ sys module ############
 
-import copy
+import copy, sys
 from copy import deepcopy
 import numpy as np
 import ctypes
@@ -28,7 +28,7 @@ import ctypes
 from pyscf import lib
 from pyscf.pbc.gto import Cell
 from pyscf.pbc import tools
-from pyscf.gto.mole import *
+# from pyscf.gto.mole import *
 
 libisdf = lib.load_library("libisdf")
 
@@ -99,7 +99,7 @@ def select_IP_local_ls_k_drive(
     mydf, c, m, IP_possible_atm, group, build_aoR_FFT=True, use_mpi=False
 ):
 
-    # assert use_mpi == False
+    # assert not use_mpi
 
     IP_group = []
     aoRg_possible = mydf.aoRg_possible
@@ -114,7 +114,7 @@ def select_IP_local_ls_k_drive(
         IP_group.append(None)
 
     if len(group) < first_natm:
-        if use_mpi == False:
+        if not use_mpi:
             for i in range(len(group)):
                 IP_group[i] = ISDF_Local.select_IP_group_ls(
                     mydf,
@@ -125,6 +125,7 @@ def select_IP_local_ls_k_drive(
                     atm_2_IP_possible=IP_possible_atm,
                 )
         else:
+            from pyscf.isdf.isdf_tools_mpi import rank, comm_size
             group_begin, group_end = ISDF_Local_Utils._range_partition(
                 len(group), rank, comm_size, use_mpi
             )
@@ -186,7 +187,7 @@ def select_IP_local_ls_k_drive(
     del mydf.aoRg_possible
     mydf.aoRg_possible = None
 
-    t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
+    # t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
 
     weight = np.sqrt(mydf.cell.vol / coords.shape[0])
 
@@ -229,7 +230,7 @@ def select_IP_local_ls_k_drive(
     aoRg_activated = np.array(aoRg_activated, dtype=bool)
     mydf.aoRg_activated = aoRg_activated
 
-    t2 = (lib.logger.process_clock(), lib.logger.perf_counter())
+    # t2 = (lib.logger.process_clock(), lib.logger.perf_counter())
 
     #################### build aoRg_FFT ####################
 
@@ -266,7 +267,7 @@ def select_IP_local_ls_k_drive(
 
         del aoRg_Tmp
 
-        nthread = lib.num_threads()
+        # nthread = lib.num_threads()
         buffer = np.zeros(
             (nao_prim, ncell_complex * mydf.nIP_Prim), dtype=np.complex128
         )
@@ -275,7 +276,7 @@ def select_IP_local_ls_k_drive(
         assert fn is not None
 
         """
-        fn = _FFT_Matrix_Col_InPlace transform 
+        fn = _FFT_Matrix_Col_InPlace transform
 
         (A0 | A1 | A2) --> (A0+A1+A2 | A0+wA1 + w^2 A2 | A0 + w^2 A1+ w A2)
 
@@ -361,14 +362,13 @@ def build_auxiliary_Coulomb_local_bas_k(mydf, debug=True, use_mpi=False):
     if use_mpi:
         raise NotImplementedError
 
-    t0 = (lib.logger.process_clock(), lib.logger.perf_counter())
+    # t0 = (lib.logger.process_clock(), lib.logger.perf_counter())
 
     cell = mydf.cell
     mesh = mydf.mesh
-
     naux = mydf.naux
 
-    ncomplex = mesh[0] * mesh[1] * (mesh[2] // 2 + 1) * 2
+    # ncomplex = mesh[0] * mesh[1] * (mesh[2] // 2 + 1) * 2
 
     grid_ordering = mydf.grid_ID_ordered
 
@@ -390,7 +390,7 @@ def build_auxiliary_Coulomb_local_bas_k(mydf, debug=True, use_mpi=False):
         shift_row=None,
     ):
 
-        nThread = buf.shape[0]
+        # nThread = buf.shape[0]
         bufsize_per_thread = buf.shape[1]
 
         nAux = 0
@@ -503,7 +503,7 @@ def build_auxiliary_Coulomb_local_bas_k(mydf, debug=True, use_mpi=False):
     assert mydf.W.shape[0] == mydf.naux // np.prod(mydf.kmesh)
     assert mydf.W.shape[1] == mydf.naux
 
-    if mydf.with_robust_fitting == False:
+    if not mydf.with_robust_fitting:
         del V
 
 
@@ -630,7 +630,7 @@ class PBC_ISDF_Info_Quad_K(ISDF_Local.PBC_ISDF_Info_Quad):
         ##### build cutoff info #####
 
         self.distance_matrix = ISDF_Local_Utils.get_cell_distance_matrix(self.cell)
-        weight = np.sqrt(self.cell.vol / self.coords.shape[0])
+        # weight = np.sqrt(self.cell.vol / self.coords.shape[0])
         precision = self.aoR_cutoff
         rcut = ISDF_Local_Utils._estimate_rcut(
             self.cell, self.coords.shape[0], precision
@@ -709,7 +709,7 @@ class PBC_ISDF_Info_Quad_K(ISDF_Local.PBC_ISDF_Info_Quad):
 
         # this type of aoR is used in get J and select IP
 
-        weight = np.sqrt(self.cell.vol / self.coords.shape[0])
+        # weight = np.sqrt(self.cell.vol / self.coords.shape[0])
 
         self.aoR = ISDF_Local_Utils.get_aoR(
             self.cell,
@@ -731,7 +731,7 @@ class PBC_ISDF_Info_Quad_K(ISDF_Local.PBC_ISDF_Info_Quad):
         if rank == 0:
             log.info("In ISDF-K build_partition_aoR aoR memory: %d " % (memory))
 
-        weight = np.sqrt(self.cell.vol / self.coords.shape[0])
+        # weight = np.sqrt(self.cell.vol / self.coords.shape[0])
         self.aoR1 = ISDF_Local_Utils.get_aoR(
             self.cell,
             self.coords,
@@ -825,7 +825,9 @@ class PBC_ISDF_Info_Quad_K(ISDF_Local.PBC_ISDF_Info_Quad):
 
     def build_IP_local(self, c=5, m=5, group=None, Ls=None, debug=True):
 
-        assert self.use_aft_ao == False
+        # assert self.use_aft_ao == False
+        if self.use_aft_ao:
+            raise NotImplementedError
 
         self.set_group(group)
         first_natm = self.first_natm
@@ -842,11 +844,11 @@ class PBC_ISDF_Info_Quad_K(ISDF_Local.PBC_ISDF_Info_Quad):
             self.grid_segment.append(loc_now)
         self.grid_segment = np.array(self.grid_segment, dtype=np.int32)
 
-        ao2atomID = self.ao2atomID
+        # ao2atomID = self.ao2atomID
         partition = self.partition
-        aoR = self.aoR
+        # aoR = self.aoR
         natm = self.natm
-        nao = self.nao
+        # nao = self.nao
 
         self.partition_atmID_to_gridID = partition
 
@@ -930,7 +932,7 @@ class PBC_ISDF_Info_Quad_K(ISDF_Local.PBC_ISDF_Info_Quad):
 
         t3 = (lib.logger.process_clock(), lib.logger.perf_counter())
 
-        weight = np.sqrt(self.cell.vol / self.coords.shape[0])
+        # weight = np.sqrt(self.cell.vol / self.coords.shape[0])
 
         self.aoRg_possible = ISDF_Local_Utils.get_aoR(
             self.cell,
@@ -954,7 +956,7 @@ class PBC_ISDF_Info_Quad_K(ISDF_Local.PBC_ISDF_Info_Quad):
         if rank == 0:
             _benchmark_time(t3, t4, "build_aoRg_possible", self)
 
-        build_aoR_FFT = self.direct == False
+        build_aoR_FFT = (not self.direct)
 
         select_IP_local_ls_k_drive(
             self,
@@ -989,7 +991,7 @@ class PBC_ISDF_Info_Quad_K(ISDF_Local.PBC_ISDF_Info_Quad):
 
     def build_auxiliary_Coulomb(self, debug=True):
 
-        if self.direct == False:
+        if not self.direct:
             build_auxiliary_Coulomb_local_bas_k(self, debug=debug, use_mpi=self.use_mpi)
 
     ################ testing code    ################
@@ -1023,11 +1025,10 @@ class PBC_ISDF_Info_Quad_K(ISDF_Local.PBC_ISDF_Info_Quad):
 
     def _get_bufsize_get_k(self):
 
-        # if self.with_robust_fitting == False:
-        if self.with_robust_fitting == False:
+        if not self.with_robust_fitting:
 
-            naux = self.naux
-            nao = self.nao
+            # naux = self.naux
+            # nao = self.nao
             nIP_Prim = self.nIP_Prim
             nao_prim = self.nao // np.prod(self.kmesh)
             ncell_complex = self.kmesh[0] * self.kmesh[1] * (self.kmesh[2] // 2 + 1)
@@ -1055,8 +1056,8 @@ class PBC_ISDF_Info_Quad_K(ISDF_Local.PBC_ISDF_Info_Quad):
 
         else:
 
-            naux = self.naux
-            nao = self.nao
+            # naux = self.naux
+            # nao = self.nao
             nIP_Prim = self.nIP_Prim
             nGrid_Prim = self.nGridPrim
             nao_prim = self.nao // np.prod(self.kmesh)
@@ -1096,11 +1097,11 @@ class PBC_ISDF_Info_Quad_K(ISDF_Local.PBC_ISDF_Info_Quad):
         nIP_Prim = self.nIP_Prim
         nGridPrim = self.nGridPrim
         ncell_complex = self.kmesh[0] * self.kmesh[1] * (self.kmesh[2] // 2 + 1)
-        nao_prim = self.nao // np.prod(self.kmesh)
-        naux = self.naux
-        nao = self.nao
-        ngrids = nGridPrim * self.kmesh[0] * self.kmesh[1] * self.kmesh[2]
-        ncell = np.prod(self.kmesh)
+        # nao_prim = self.nao // np.prod(self.kmesh)
+        # naux = self.naux
+        # nao = self.nao
+        # ngrids = nGridPrim * self.kmesh[0] * self.kmesh[1] * self.kmesh[2]
+        # ncell = np.prod(self.kmesh)
 
         self.outcore = False
 

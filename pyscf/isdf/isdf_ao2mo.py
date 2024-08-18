@@ -119,7 +119,7 @@ def isdf_eri(mydf, mo_coeff=None, verbose=None):
     with_robust_fitting = mydf.with_robust_fitting
 
     nao = mydf.cell.nao
-    naux = mydf.naux
+    # naux = mydf.naux
     vol = mydf.cell.vol
     ngrid = np.prod(mydf.cell.mesh)
     natm = mydf.cell.natm
@@ -494,9 +494,9 @@ def isdf_eri_2(mydf, mo_coeff=None, verbose=None):
         moR = aoR
         moRg = aoRg
 
-    max_nao_involved = np.max(
-        [aoR_holder.aoR.shape[0] for aoR_holder in moR if aoR_holder is not None]
-    )
+    # max_nao_involved = np.max(
+    #     [aoR_holder.aoR.shape[0] for aoR_holder in moR if aoR_holder is not None]
+    # )
     max_ngrid_involved = np.max(
         [aoR_holder.aoR.shape[1] for aoR_holder in moR if aoR_holder is not None]
     )
@@ -633,8 +633,8 @@ def isdf_eri_ovov(
         raise NotImplementedError("direct is not supported in isdf_eri_robust")
     with_robust_fitting = mydf.with_robust_fitting
 
-    nao = mydf.cell.nao
-    naux = mydf.naux
+    #nao = mydf.cell.nao
+    #naux = mydf.naux
     vol = mydf.cell.vol
     ngrid = np.prod(mydf.cell.mesh)
     natm = mydf.cell.natm
@@ -725,7 +725,7 @@ def isdf_eri_ovov(
 
     ########################################################
 
-    max_nao_involved = max(nao_o, nao_v)
+    # max_nao_involved = max(nao_o, nao_v)
     max_ngrid_involved = np.max(
         [aoR_holder.aoR.shape[1] for aoR_holder in moR_o if aoR_holder is not None]
     )
@@ -1028,13 +1028,13 @@ def general(
         return numpy.zeros([mo.shape[1] for mo in mo_coeffs])
 
     allreal = not any(numpy.iscomplexobj(mo) for mo in mo_coeffs)
-    q = kptj - kpti
-    # coulG = tools.get_coulG(cell, q, mesh=mydf.mesh)
-    # coords = cell.gen_uniform_grids(mydf.mesh)
-    max_memory = mydf.max_memory - lib.current_memory()[0]
+    # q = kptj - kpti
+    ## coulG = tools.get_coulG(cell, q, mesh=mydf.mesh)
+    ## coords = cell.gen_uniform_grids(mydf.mesh)
+    # max_memory = mydf.max_memory - lib.current_memory()[0]
 
     if hasattr(mydf, "W2") or (
-        hasattr(mydf, "force_LS_THC") and mydf.force_LS_THC == True
+        hasattr(mydf, "force_LS_THC") and mydf.force_LS_THC
     ):  # NOTE: this means that LS_THC_recompression is called, we do not perform ao2mo with robust fitting, as it is very expensive!
         # print("use_LS_THC_anyway")
         use_LS_THC_anyway = True
@@ -1047,17 +1047,18 @@ def general(
         and iden_coeffs(mo_coeffs[0], mo_coeffs[2])
         and iden_coeffs(mo_coeffs[0], mo_coeffs[3])
     )
-    if not IsMOERI:
-        IsOVOV = False
-        IsGeneral = False
-    else:
-        IsOVOV = iden_coeffs(mo_coeffs[0], mo_coeffs[2]) and iden_coeffs(
-            mo_coeffs[1], mo_coeffs[3]
-        )
-        if IsOVOV:
-            IsGeneral = False
-        else:
-            IsGeneral = True
+
+    # if not IsMOERI:
+    #     IsOVOV = False
+    #     IsGeneral = False
+    # else:
+    #     IsOVOV = iden_coeffs(mo_coeffs[0], mo_coeffs[2]) and iden_coeffs(
+    #         mo_coeffs[1], mo_coeffs[3]
+    #     )
+    #     if IsOVOV:
+    #         IsGeneral = False
+    #     else:
+    #         IsGeneral = True
 
     if gamma_point(kptijkl) and allreal:
 
@@ -1167,7 +1168,7 @@ def LS_THC(mydf, R: np.ndarray):
 
     ngrid = np.prod(mydf.cell.mesh)
     nIP = mydf.naux
-    naux = mydf.naux
+    # naux = mydf.naux
     vol = mydf.cell.vol
     natm = mydf.cell.natm
 
@@ -1210,7 +1211,7 @@ def LS_THC(mydf, R: np.ndarray):
 
             aoRg_i = aoRg[partition_i]
             ao_involved_i = aoRg_i.ao_involved
-            nao_i = aoRg_i.aoR.shape[0]
+            # nao_i = aoRg_i.aoR.shape[0]
             global_IP_begin_i = aoRg_i.global_gridID_begin
             nIP_i = aoRg_i.aoR.shape[1]
 
@@ -1239,7 +1240,7 @@ def LS_THC(mydf, R: np.ndarray):
 
                 aoR_i = aoR[partition_i]
                 ao_involved_i = aoR_i.ao_involved
-                nao_i = aoR_i.aoR.shape[0]
+                # nao_i = aoR_i.aoR.shape[0]
                 global_gridID_i = aoR_i.global_gridID_begin
                 ngrid_i = aoR_i.aoR.shape[1]
 
@@ -1282,7 +1283,7 @@ def LS_THC(mydf, R: np.ndarray):
     lib.ddot(U_RR, Z, c=Z1)
     lib.ddot(Z1, U_RR.T, c=Z)
 
-    t2 = (lib.logger.process_clock(), lib.logger.perf_counter())
+    # t2 = (lib.logger.process_clock(), lib.logger.perf_counter())
 
     log.timer("LS_THC fitting", *t1)
 

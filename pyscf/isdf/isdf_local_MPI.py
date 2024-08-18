@@ -21,7 +21,7 @@ import numpy as np
 from pyscf import lib
 import pyscf.pbc.gto as pbcgto
 from pyscf.pbc.gto import Cell
-from pyscf.gto.mole import *
+# from pyscf.gto.mole import *
 
 from pyscf.isdf.isdf_tools_mpi import rank, comm, comm_size, allgather, bcast
 import pyscf.isdf.isdf_local as isdf_local
@@ -115,7 +115,7 @@ class PBC_ISDF_Info_Quad_MPI(isdf_local.PBC_ISDF_Info_Quad):
             build_K_bunchsize=build_K_bunchsize,
         )
         self.use_mpi = True
-        assert self.use_aft_ao == False
+        assert not self.use_aft_ao
 
     dump_attributes = dump_attributes
     dump_aoR = dump_aoR
@@ -161,7 +161,7 @@ class PBC_ISDF_Info_Quad_K_MPI(isdf_local_k.PBC_ISDF_Info_Quad_K):
             build_K_bunchsize=build_K_bunchsize,
         )
         self.use_mpi = True
-        assert self.use_aft_ao == False
+        assert not self.use_aft_ao
 
     dump_attributes = dump_attributes
     dump_aoR = dump_aoR
