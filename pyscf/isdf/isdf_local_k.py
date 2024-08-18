@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright 2014-2020 The PySCF Developers. All Rights Reserved.
+# Copyright 2014-2024 The PySCF Developers. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -1267,7 +1267,7 @@ if __name__ == "__main__":
         ['C', (0.8917 , 2.6751 , 2.6751)],
     ] 
     
-    KE_CUTOFF = 16
+    KE_CUTOFF = 70
     
     prim_cell = build_supercell(atm, prim_a, Ls = [1,1,1], ke_cutoff=KE_CUTOFF)
     prim_mesh = prim_cell.mesh
@@ -1275,7 +1275,7 @@ if __name__ == "__main__":
     # prim_partition = [[0,1,2,3,4,5,6,7]]
     prim_partition = [[0,1],[2,3],[4,5],[6,7]]
     
-    Ls = [1, 1, 4]
+    Ls = [1, 1, 2]
     kpts = prim_cell.make_kpts(Ls)
     Ls = np.array(Ls, dtype=np.int32)
     mesh = [Ls[0] * prim_mesh[0], Ls[1] * prim_mesh[1], Ls[2] * prim_mesh[2]]
