@@ -24,81 +24,91 @@ import numpy
 import scipy
 import ctypes, sys
 from pyscf import lib
-libisdf = lib.load_library('libisdf')
+
+libisdf = lib.load_library("libisdf")
+
 
 def square_inPlace(a):
-    
-    assert(a.dtype == numpy.double)
-    fn = getattr(libisdf, "NPdsquare_inPlace", None)
-    assert(fn is not None)
 
-    fn(a.ctypes.data_as(ctypes.c_void_p),
-       ctypes.c_size_t(a.size))
+    assert a.dtype == numpy.double
+    fn = getattr(libisdf, "NPdsquare_inPlace", None)
+    assert fn is not None
+
+    fn(a.ctypes.data_as(ctypes.c_void_p), ctypes.c_size_t(a.size))
 
     return a
 
+
 def d_i_ij_ij(a, b, out=None):
-    assert(a.dtype == b.dtype)
-    assert(a.shape[0] == b.shape[0])
-    assert(a.ndim == 1)
-    assert(b.ndim == 2)
+    assert a.dtype == b.dtype
+    assert a.shape[0] == b.shape[0]
+    assert a.ndim == 1
+    assert b.ndim == 2
 
     if a.dtype != numpy.double:
         raise NotImplementedError
     else:
         fn = getattr(libisdf, "NPd_i_ij_ij", None)
-        assert(fn is not None)
+        assert fn is not None
 
     if out is None:
         out = numpy.empty_like(a)
 
-    fn(out.ctypes.data_as(ctypes.c_void_p),
-       a.ctypes.data_as(ctypes.c_void_p),
-       b.ctypes.data_as(ctypes.c_void_p),
-       ctypes.c_size_t(b.shape[0]),
-       ctypes.c_size_t(b.shape[1]))
+    fn(
+        out.ctypes.data_as(ctypes.c_void_p),
+        a.ctypes.data_as(ctypes.c_void_p),
+        b.ctypes.data_as(ctypes.c_void_p),
+        ctypes.c_size_t(b.shape[0]),
+        ctypes.c_size_t(b.shape[1]),
+    )
 
     return out
 
+
 def d_ij_j_ij(a, b, out=None):
-    assert(a.dtype == b.dtype)
-    assert(a.shape[1] == b.shape[0])
-    assert(a.ndim == 2)
-    assert(b.ndim == 1)
+    assert a.dtype == b.dtype
+    assert a.shape[1] == b.shape[0]
+    assert a.ndim == 2
+    assert b.ndim == 1
 
     if a.dtype != numpy.double:
         raise NotImplementedError
     else:
         fn = getattr(libisdf, "NPd_ij_j_ij", None)
-        assert(fn is not None)
+        assert fn is not None
 
     if out is None:
         out = numpy.empty_like(a)
 
-    fn(out.ctypes.data_as(ctypes.c_void_p),
-       a.ctypes.data_as(ctypes.c_void_p),
-       b.ctypes.data_as(ctypes.c_void_p),
-       ctypes.c_size_t(a.shape[0]),
-       ctypes.c_size_t(a.shape[1]))
+    fn(
+        out.ctypes.data_as(ctypes.c_void_p),
+        a.ctypes.data_as(ctypes.c_void_p),
+        b.ctypes.data_as(ctypes.c_void_p),
+        ctypes.c_size_t(a.shape[0]),
+        ctypes.c_size_t(a.shape[1]),
+    )
 
     return out
 
+
 def cwise_mul(a, b, out=None):
-    assert(a.size == b.size)
-    assert(a.dtype == b.dtype)
+    assert a.size == b.size
+    assert a.dtype == b.dtype
 
     if a.dtype != numpy.double:
         raise NotImplementedError
     else:
         fn = getattr(libisdf, "NPdcwisemul", None)
-        assert(fn is not None)
+        assert fn is not None
 
     if out is None:
         out = numpy.empty_like(a)
 
-    fn(out.ctypes.data_as(ctypes.c_void_p),
-       a.ctypes.data_as(ctypes.c_void_p),
-       b.ctypes.data_as(ctypes.c_void_p),
-       ctypes.c_size_t(a.size))
+    fn(
+        out.ctypes.data_as(ctypes.c_void_p),
+        a.ctypes.data_as(ctypes.c_void_p),
+        b.ctypes.data_as(ctypes.c_void_p),
+        ctypes.c_size_t(a.size),
+    )
 
     return out
