@@ -28,6 +28,7 @@ from pyscf import lib
 from pyscf.lib import logger
 from pyscf.pbc import tools
 from pyscf.pbc.lib.kpts_helper import is_zero, gamma_point
+
 # from pyscf.gto.mole import *
 from pyscf.pbc.df.df_jk import (
     _ewald_exxdiv_for_G0,
@@ -58,7 +59,7 @@ def _preprocess_dm(mydf, dm):
     in_real_space = True
 
     kmesh = np.asarray(mydf.kmesh, dtype=np.int32)
-    ncell_complex = kmesh[0] * kmesh[1] * (kmesh[2] // 2 + 1)
+    # ncell_complex = kmesh[0] * kmesh[1] * (kmesh[2] // 2 + 1)
 
     if len(dm.shape) == 3:
         if dm.shape[0] == 1:
@@ -86,10 +87,7 @@ def _preprocess_dm(mydf, dm):
             assert dm.shape[0] == np.prod(kmesh)
 
             nao_prim = dm.shape[1]
-            nkpts = dm.shape[0]
-
-            # dm_complex = np.transpose(dm, axes=(1, 0, 2)).copy()
-            # dm_complex = dm_complex.reshape(nao_prim, -1)
+            # nkpts = dm.shape[0]
 
             ### check the symmetry ###
 
@@ -102,14 +100,10 @@ def _preprocess_dm(mydf, dm):
                             + (kmesh[1] - iy) % kmesh[1] * kmesh[2]
                             + (kmesh[2] - iz) % kmesh[2]
                         )
-                        # print("loc1     = ", loc1, "loc2 = ", loc2)
-                        # print("dm[loc1] = ", dm[loc1])
-                        # print("dm[loc2] = ", dm[loc2])
                         diff = np.linalg.norm(dm[loc1] - dm[loc2].conj()) / np.sqrt(
                             dm.size
                         )
                         # print("diff = ", diff) ## NOTE: should be very small
-                        # assert diff < 1e-7
                         if diff > 1e-7:
                             log.debug4(
                                 "warning, the input density matrix is not symmetric."
@@ -123,11 +117,12 @@ def _preprocess_dm(mydf, dm):
                                     (kmesh[2] - iz) % kmesh[2],
                                 )
                             )
-                            # log.debug4("kmesh = ", kmesh)
                             log.debug4("diff  = %15.6f" % (diff))
-            dm_complex = np.zeros(
-                (ncell_complex, nao_prim, nao_prim), dtype=np.complex128
-            )
+
+            from pyscf.isdf.isdf_tools_kSampling import _RowCol_FFT_bench
+
+            dm_complex = dm.copy()
+
             loc = 0
             for ix in range(kmesh[0]):
                 for iy in range(kmesh[1]):
@@ -138,42 +133,29 @@ def _preprocess_dm(mydf, dm):
                             + (kmesh[1] - iy) % kmesh[1] * kmesh[2]
                             + (kmesh[2] - iz) % kmesh[2]
                         )
-                        # dm_complex[loc].ravel()[:] = dm[loc1].ravel()[:]
                         dm_input = ((dm[loc1] + dm[loc2].conj()) / 2.0).copy()
-                        dm_complex[loc].ravel()[:] = dm_input.ravel()[:]
+                        dm_complex[loc1] = dm_input
+                        dm_complex[loc2] = dm_input.conj()
                         loc += 1
 
-            dm_complex = np.transpose(dm_complex, axes=(1, 0, 2)).copy()
+            dm_complex = dm_complex.transpose((1, 0, 2)).reshape(nao_prim, -1)
             dm_complex = dm_complex.conj().copy()
 
-            # print("dm_complex.shape = ", dm_complex.shape)
-            # print("dm_complex = ", dm_complex[:, 0, :])
-            # print("dm_complex = ", dm_complex[:, 1, :])
-
-            ### do the FFT ###
-
-            dm_real = np.ndarray(
-                (nao_prim, nkpts * nao_prim), dtype=np.float64, buffer=dm_complex
+            dm_real = _RowCol_FFT_bench(
+                dm_complex,
+                kmesh,
+                inv=True,
+                TransBra=False,
+                TransKet=True,
             )
-            buf_fft = np.zeros((nao_prim, ncell_complex, nao_prim), dtype=np.complex128)
+            imag_part = dm_real.imag
+            dm_real = dm_real.real
 
-            fn2 = getattr(libisdf, "_iFFT_Matrix_Col_InPlace", None)
-            assert fn2 is not None
-
-            fn2(
-                dm_complex.ctypes.data_as(ctypes.c_void_p),
-                ctypes.c_int(nao_prim),
-                ctypes.c_int(nao_prim),
-                kmesh.ctypes.data_as(ctypes.c_void_p),
-                buf_fft.ctypes.data_as(ctypes.c_void_p),
-            )
-
-            # print("dm_real    = ", dm_real)
-            # print("dm_complex = ", dm_complex)
+            imag_norm = np.linalg.norm(imag_part)
+            if imag_norm > 1e-7:
+                log.info("dm in real space has large imaginary part %f" % (imag_norm))
 
             dm = pack_JK(dm_real, kmesh, nao_prim)
-
-            # print("dm.shape = ", dm.shape)
 
     return dm, in_real_space
 
@@ -186,6 +168,7 @@ def _contract_j_dm_k_ls(mydf, _dm, use_mpi=False):
         if not mydf.direct:
             raise RuntimeError("MPI is only supported for direct method.")
         from pyscf.isdf.isdf_tools_mpi import rank, comm, comm_size, bcast, reduce
+
         dm = bcast(dm, root=0)
 
     t1 = (logger.process_clock(), logger.perf_counter())
@@ -1549,11 +1532,12 @@ def _get_k_kSym(mydf, _dm):
 def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
 
     if use_mpi:
-        #assert mydf.direct == True
+        # assert mydf.direct == True
         if not mydf.direct:
             raise RuntimeError("MPI must work with direct mode.")
         from pyscf.isdf.isdf_tools_mpi import rank, comm, comm_size, bcast, reduce
-        #size = comm.Get_size()
+
+        # size = comm.Get_size()
 
     t1 = (logger.process_clock(), logger.perf_counter())
     t0 = (logger.process_clock(), logger.perf_counter())
@@ -1994,6 +1978,7 @@ def get_jk_dm_translation_symmetry(
 
     if use_mpi:
         from pyscf.isdf.isdf_tools_MPI import bcast
+
         dm = bcast(dm, root=0)
 
     nset = dm.shape[0]
@@ -2268,7 +2253,7 @@ def _get_k_kSym_direct_mimic_MPI(mydf, _dm, use_mpi=False):
 
             iIP += naux_tmp
 
-        #if use_mpi:
+        # if use_mpi:
         #    print("rank = ", rank, "task_info = ", task_info)
 
         ###########################################################
