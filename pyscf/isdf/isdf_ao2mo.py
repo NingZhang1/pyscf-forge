@@ -36,9 +36,9 @@ libisdf = lib.load_library('libisdf')
 
 ############ isdf utils ############
 
-from pyscf.isdf.isdf_tools_local         import aoR_Holder
-from pyscf.isdf.isdf_jk                  import _benchmark_time
-import pyscf.isdf.isdf_tools_linearop    as     lib_isdf
+from pyscf.isdf.isdf_tools_local import aoR_Holder
+from pyscf.isdf.isdf_jk import _benchmark_time
+import pyscf.isdf.isdf_tools_linearop as lib_isdf
 
 ############ subroutines ---- AO2MO ############
 
@@ -497,10 +497,8 @@ def isdf_eri_2(mydf, mo_coeff = None, verbose=None):
     
     ### construct aoPairRg, aoPairR ###
     
-    for partition_i in range(natm):
-            
+    for partition_i in range(natm):            
         aoRg_i            = moRg[partition_i]
-        ao_involved_i     = aoRg_i.ao_involved
         nao_i             = aoRg_i.aoR.shape[0]
         global_IP_begin_i = aoRg_i.global_gridID_begin
         nIP_i             = aoRg_i.aoR.shape[1]
@@ -518,9 +516,7 @@ def isdf_eri_2(mydf, mo_coeff = None, verbose=None):
         aoPairRg[:, global_IP_begin_i:global_IP_begin_i+nIP_i] = aoPair_i
         
         if with_robust_fitting:
-            
             aoR_i             = moR[partition_i]
-            ao_involved_i     = aoR_i.ao_involved
             nao_i             = aoR_i.aoR.shape[0]
             global_IP_begin_i = aoR_i.global_gridID_begin
             ngrid_i           = aoR_i.aoR.shape[1]

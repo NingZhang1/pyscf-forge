@@ -32,7 +32,6 @@ libisdf = lib.load_library('libisdf')
 def z2d_InPlace(z):
     '''Convert complex array to double array in-place'''
     assert(z.dtype == numpy.complex128)
-    
     fn = getattr(libisdf, "NPz2d_InPlace")
     assert(fn is not None)
     fn(z.ctypes.data_as(ctypes.c_void_p),
@@ -98,10 +97,9 @@ def ISDF_eval_gto(cell, eval_name=None, coords=None, comp=None, kpts=numpy.zeros
             If provided, results are written into this array.
 
     Returns:
-        A list of 2D (or 3D) arrays to hold the AO values on grids. 
+        A list of 2D (or 3D) arrays to hold the AO values on grids.
 
     WARNING : only support gamma point calculation !!!!
-
     '''
 
     if eval_name is None:
@@ -185,7 +183,6 @@ def ISDF_eval_gto(cell, eval_name=None, coords=None, comp=None, kpts=numpy.zeros
             atm.ctypes.data_as(ctypes.c_void_p), ctypes.c_int(natm),
             bas.ctypes.data_as(ctypes.c_void_p), ctypes.c_int(nbas),
             env.ctypes.data_as(ctypes.c_void_p))
-  
     out = out[0]
     out = z2d_InPlace(out)
     return out[0]

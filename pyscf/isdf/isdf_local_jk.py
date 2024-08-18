@@ -281,16 +281,16 @@ def _half_J(mydf, dm, use_mpi=False,
     if (use_mpi and rank == 0) or (use_mpi == False):
         density_R_original = np.zeros_like(density_R)
             
-        fn_order = getattr(libisdf, "_Reorder_Grid_to_Original_Grid", None)
-        assert fn_order is not None
-            
-        fn_order(
-            ctypes.c_int(density_R.size),
-            mydf.grid_ID_ordered.ctypes.data_as(ctypes.c_void_p),
-            density_R.ctypes.data_as(ctypes.c_void_p),
-            density_R_original.ctypes.data_as(ctypes.c_void_p),
-        )
+        # fn_order = getattr(libisdf, "_Reorder_Grid_to_Original_Grid", None)
+        # assert fn_order is not None
+        # fn_order(
+        #     ctypes.c_int(density_R.size),
+        #     mydf.grid_ID_ordered.ctypes.data_as(ctypes.c_void_p),
+        #     density_R.ctypes.data_as(ctypes.c_void_p),
+        #     density_R_original.ctypes.data_as(ctypes.c_void_p),
+        # )
 
+        density_R_original[grid_ID_ordered] = density_R
         density_R = density_R_original.copy()
     
     J = None
@@ -316,16 +316,16 @@ def _half_J(mydf, dm, use_mpi=False,
                     
         J_ordered = np.zeros_like(J)
 
-        fn_order = getattr(libisdf, "_Original_Grid_to_Reorder_Grid", None)
-        assert fn_order is not None 
-            
-        fn_order(
-            ctypes.c_int(J.size),
-            mydf.grid_ID_ordered.ctypes.data_as(ctypes.c_void_p),
-            J.ctypes.data_as(ctypes.c_void_p),
-            J_ordered.ctypes.data_as(ctypes.c_void_p),
-        )
-            
+        # fn_order = getattr(libisdf, "_Original_Grid_to_Reorder_Grid", None)
+        # assert fn_order is not None 
+        # fn_order(
+        #     ctypes.c_int(J.size),
+        #     mydf.grid_ID_ordered.ctypes.data_as(ctypes.c_void_p),
+        #     J.ctypes.data_as(ctypes.c_void_p),
+        #     J_ordered.ctypes.data_as(ctypes.c_void_p),
+        # )
+        
+        J_ordered = J[grid_ID_ordered]
         J = J_ordered.copy()
             
     if use_mpi:        
@@ -377,12 +377,11 @@ def _contract_j_dm_ls(mydf, dm,
         if hasattr(mydf, "aoR") and mydf.aoR is not None:
             assert isinstance(mydf.aoR, np.ndarray)
             has_aoR = True
-        ### call the original get_j ###
-        from isdf_jk import _contract_j_dm_fast, _contract_j_dm_wo_robust_fitting
-        if has_aoR:
-            return _contract_j_dm_fast(mydf, dm, use_mpi=use_mpi)
         else:
-            return _contract_j_dm_wo_robust_fitting(mydf, dm, use_mpi=use_mpi)
+            raise NotImplementedError
+        ### call the original get_j ###
+        from isdf_jk import _contract_j_dm_fast
+        return _contract_j_dm_fast(mydf, dm, use_mpi=use_mpi)
     
     ####### Start the calculation ########
     
@@ -567,166 +566,6 @@ def _contract_j_dm_ls(mydf, dm,
     ######### delete the buffer #########
 
     del ddot_buf 
-    del aoR_buf1
-    
-    return J * ngrid / vol
-
-def _contract_j_dm_wo_robust_fitting(mydf, dm, use_mpi=False):
-    
-    if use_mpi:
-        from mpi4py import MPI
-        comm = MPI.COMM_WORLD
-        rank = comm.Get_rank()
-        size = comm.Get_size()
-        assert mydf.direct == True
-    
-    ####### judge whether to call the original one #######
-    
-    if isinstance(mydf.aoRg, np.ndarray):
-        from isdf_jk import _contract_j_dm_wo_robust_fitting
-        _contract_j_dm_wo_robust_fitting(mydf, dm, use_mpi=use_mpi)
-    
-    ######## start the calculation ########
-    
-    t1 = (logger.process_clock(), logger.perf_counter())
-
-    if len(dm.shape) == 3:
-        assert dm.shape[0] == 1
-        dm = dm[0]
-        
-    nao  = dm.shape[0]
-    cell = mydf.cell
-    assert cell.nao == nao
-    vol = cell.vol
-    mesh = np.array(cell.mesh, dtype=np.int32)
-    ngrid = np.prod(mesh)
-
-    aoRg  = mydf.aoRg
-    assert isinstance(aoRg, list)
-    naux = mydf.naux
-    W = mydf.W
-    
-    #### step 0. allocate buffer 
-    
-    max_nao_involved = np.max([aoR_holder.aoR.shape[0] for aoR_holder in aoRg if aoR_holder is not None])
-    max_ngrid_involved = np.max([aoR_holder.aoR.shape[1] for aoR_holder in aoRg if aoR_holder is not None])
-    ngrids_local = np.sum([aoR_holder.aoR.shape[1] for aoR_holder in aoRg if aoR_holder is not None])
-    
-    density_Rg = np.zeros((naux,), dtype=np.float64)
-    
-    dm_buf = np.zeros((max_nao_involved, max_nao_involved), dtype=np.float64)
-    max_dim_buf = max(max_ngrid_involved, max_nao_involved)
-    ddot_buf = np.zeros((max_dim_buf, max_dim_buf), dtype=np.float64)
-    aoR_buf1 = np.zeros((max_nao_involved, max_ngrid_involved), dtype=np.float64)
-    
-    ##### get the involved C function ##### 
-    
-    fn_extract_dm = getattr(libisdf, "_extract_dm_involved_ao", None) 
-    assert fn_extract_dm is not None
-    
-    fn_packadd_dm = getattr(libisdf, "_packadd_local_dm", None)
-    assert fn_packadd_dm is not None
-    
-    #### step 1. get density value on real space grid and IPs
-
-    group = mydf.group
-    ngroup = len(group)
-    
-    density_R_tmp = None
-    ordered_ao_ind = np.arange(nao)
-    
-    for atm_id, aoR_holder in enumerate(aoRg):
-        
-        if aoR_holder is None:
-            continue
-        
-        if use_mpi:
-            if atm_id % comm_size != rank:
-                continue
-            
-        ngrids_now = aoR_holder.aoR.shape[1]
-        nao_involved = aoR_holder.aoR.shape[0]
-        
-        if nao_involved < nao or (nao_involved == nao and not np.allclose(aoR_holder.ao_involved, ordered_ao_ind)):
-            fn_extract_dm(
-                dm.ctypes.data_as(ctypes.c_void_p),
-                ctypes.c_int(nao),
-                dm_buf.ctypes.data_as(ctypes.c_void_p),
-                aoR_holder.ao_involved.ctypes.data_as(ctypes.c_void_p),
-                ctypes.c_int(nao_involved),
-            )
-        else:
-            dm_buf.ravel()[:] = dm.ravel()
-        
-        dm_now = np.ndarray((nao_involved, nao_involved), buffer=dm_buf)
-    
-        ddot_res = np.ndarray((nao_involved, ngrids_now), buffer=ddot_buf)
-        
-        lib.ddot(dm_now, aoR_holder.aoR, c=ddot_res)
-        density_R_tmp = lib.multiply_sum_isdf(aoR_holder.aoR, ddot_res)
-        
-        global_gridID_begin = aoR_holder.global_gridID_begin
-        
-        density_Rg[global_gridID_begin:global_gridID_begin+ngrids_now] = density_R_tmp
-        
-    if use_mpi == False:
-        assert ngrids_local == naux
-    
-    if use_mpi:
-        density_Rg = reduce(density_Rg, root=0)
-        J = bcast(J, root=0)
-    
-    #### step 3. get J 
-    
-    J = np.asarray(lib.dot(W, density_Rg.reshape(-1,1)), order='C').reshape(-1)
-    
-    J_Res = np.zeros((nao, nao), dtype=np.float64)
-
-    for aoR_holder in aoRg:
-        
-        if aoR_holder is None:
-            continue
-        
-        if use_mpi:
-            if atm_id % comm_size != rank:
-                continue
-        
-        ngrids_now = aoR_holder.aoR.shape[1]
-        nao_involved = aoR_holder.aoR.shape[0]
-        
-        global_gridID_begin = aoR_holder.global_gridID_begin
-        
-        J_tmp = J[global_gridID_begin:global_gridID_begin+ngrids_now] 
-        
-        aoR_J_res = np.ndarray(aoR_holder.aoR.shape, buffer=aoR_buf1)
-        lib_isdf.d_ij_j_ij(aoR_holder.aoR, J_tmp, out=aoR_J_res)
-        ddot_res = np.ndarray((nao_involved, nao_involved), buffer=ddot_buf)
-        lib.ddot(aoR_holder.aoR, aoR_J_res.T, c=ddot_res)
-        
-        if nao_involved == nao and np.allclose(aoR_holder.ao_involved, ordered_ao_ind):
-            J_Res += ddot_res
-        else:
-            fn_packadd_dm(
-                ddot_res.ctypes.data_as(ctypes.c_void_p),
-                ctypes.c_int(nao_involved),
-                aoR_holder.ao_involved.ctypes.data_as(ctypes.c_void_p),
-                J_Res.ctypes.data_as(ctypes.c_void_p),
-                ctypes.c_int(nao)
-            )        
-
-    J = J_Res
-
-    if use_mpi:
-        J = reduce(J, root=0)
-    
-    t2 = (logger.process_clock(), logger.perf_counter())
-    
-    _benchmark_time(t1, t2, "_contract_j_dm_fast", mydf)
-    
-    ######### delete the buffer #########
-    
-    del dm_buf, ddot_buf, density_Rg
-    del density_R_tmp
     del aoR_buf1
     
     return J * ngrid / vol
@@ -1629,15 +1468,16 @@ def get_jk_occRI(mydf, dm, use_mpi=False, with_j=True, with_k=True):
         
         rhoR_original = np.zeros_like(rhoR)
         
-        fn_order = getattr(libisdf, "_Reorder_Grid_to_Original_Grid", None)
-        assert fn_order is not None
+        #fn_order = getattr(libisdf, "_Reorder_Grid_to_Original_Grid", None)
+        #assert fn_order is not None
         
-        fn_order(
-            ctypes.c_int(ngrid),
-            mydf.grid_ID_ordered.ctypes.data_as(ctypes.c_void_p),
-            rhoR.ctypes.data_as(ctypes.c_void_p),
-            rhoR_original.ctypes.data_as(ctypes.c_void_p)
-        )        
+        rhoR_original[mydf.grid_ID_ordered] = rhoR
+        #fn_order(
+        #    ctypes.c_int(ngrid),
+        #    mydf.grid_ID_ordered.ctypes.data_as(ctypes.c_void_p),
+        #    rhoR.ctypes.data_as(ctypes.c_void_p),
+        #    rhoR_original.ctypes.data_as(ctypes.c_void_p)
+        #)        
         
         rhoR = rhoR_original
                 
@@ -1662,16 +1502,16 @@ def get_jk_occRI(mydf, dm, use_mpi=False, with_j=True, with_k=True):
         
         J_ordered = np.zeros_like(J)
         
-        fn_order = getattr(libisdf, "_Original_Grid_to_Reorder_Grid", None)
-        assert fn_order is not None
+        # fn_order = getattr(libisdf, "_Original_Grid_to_Reorder_Grid", None)
+        # assert fn_order is not None
+        # fn_order(
+        #     ctypes.c_int(ngrid),
+        #     mydf.grid_ID_ordered.ctypes.data_as(ctypes.c_void_p),
+        #     J.ctypes.data_as(ctypes.c_void_p),
+        #     J_ordered.ctypes.data_as(ctypes.c_void_p)
+        # )
         
-        fn_order(
-            ctypes.c_int(ngrid),
-            mydf.grid_ID_ordered.ctypes.data_as(ctypes.c_void_p),
-            J.ctypes.data_as(ctypes.c_void_p),
-            J_ordered.ctypes.data_as(ctypes.c_void_p)
-        )
-        
+        J_ordered = J[mydf.grid_ID_ordered]
         rhoR = J_ordered.copy() 
         
     else:
@@ -2060,7 +1900,6 @@ def get_jk_dm_quadratic(mydf, dm, hermi=1, kpt=np.zeros(3),
     vk = np.zeros_like(dm)
     for iset in range(nset):
         if with_j and iset<=1:
-            from pyscf.isdf.isdf_jk import _contract_j_dm
             vj[iset] = _contract_j_dm_ls(mydf, dm[iset], use_mpi)  
         if with_k:
             if mydf.direct:

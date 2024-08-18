@@ -38,9 +38,10 @@ from pyscf.pbc.dft import multigrid
 
 from   pyscf.isdf.isdf_jk import _benchmark_time
 import pyscf.isdf.isdf_ao2mo as isdf_ao2mo
-import pyscf.isdf.isdf_jk    as isdf_jk
+import pyscf.isdf.isdf_jk as isdf_jk
 from   pyscf.isdf.isdf_eval_gto import ISDF_eval_gto
 from   pyscf.isdf.isdf_tools_kSampling import _kmesh_to_Kpoints
+from   pyscf.isdf.isdf_tools_linearop import square_inPlace, d_i_ij_ij
 libisdf = lib.load_library('libisdf')
 
 ############ global variables ############
@@ -404,7 +405,8 @@ def build_aux_basis(mydf, debug=True, use_mpi=False):
 
     if not hasattr(mydf, "aoRg") or mydf.aoRg is None:
         aoRg = numpy.empty((mydf.nao, mydf.IP_ID.shape[0]))
-        lib.dslice(aoR, IP_ID, out=aoRg)
+        # lib.dslice(aoR, IP_ID, out=aoRg)
+        aoRg = aoR[:, IP_ID]
     else:
         aoRg = mydf.aoRg
         
@@ -413,7 +415,7 @@ def build_aux_basis(mydf, debug=True, use_mpi=False):
     
     if not use_mpi or (use_mpi and rank == 0):
         A = np.asarray(lib.ddot(aoRg.T, aoRg, c=buffer1), order='C')  # buffer 1 size = naux * naux
-        lib.square_inPlace(A)
+        square_inPlace(A)
         
         t11 = (lib.logger.process_clock(), lib.logger.perf_counter())
         e, h = scipy.linalg.eigh(A)
@@ -432,7 +434,7 @@ def build_aux_basis(mydf, debug=True, use_mpi=False):
         h = bcast(h)
     
     mydf.aux_basis = np.asarray(lib.ddot(aoRg.T, aoR), order='C')   # buffer 2 size = naux * ngrids
-    lib.square_inPlace(mydf.aux_basis)
+    square_inPlace(mydf.aux_basis)
     
     #fn_build_aux = getattr(libisdf, "Solve_LLTEqualB_Parallel", None)
     #assert(fn_build_aux is not None)
@@ -444,7 +446,7 @@ def build_aux_basis(mydf, debug=True, use_mpi=False):
     buffer2 = np.ndarray((e.shape[0] , mydf.aux_basis.shape[1]), dtype=np.double, buffer=mydf.jk_buffer,
              offset=mydf.naux * mydf.naux * mydf.jk_buffer.dtype.itemsize)
     B = np.asarray(lib.ddot(h.T, mydf.aux_basis, c=buffer2), order='C')
-    lib.d_i_ij_ij(1.0/e, B, out=B)
+    d_i_ij_ij(1.0/e, B, out=B)
     np.asarray(lib.ddot(h, B, c=mydf.aux_basis), order='C')
 
     if use_mpi:
@@ -1187,14 +1189,11 @@ if __name__ == '__main__':
     for i in range(cell.natm):
         print("i = ", i, "partition = ", mf.with_df.partition[mf.with_df.partition == i].shape[0])
 
-    #exit(1)
-
     # without robust fitting 
     
     pbc_isdf_info.with_robust_fitting = False
 
     mf = scf.RHF(cell)
-    pbc_isdf_info.direct_scf = mf.direct_scf
     mf.with_df = pbc_isdf_info
     mf.max_cycle = 100
     mf.conv_tol = 1e-7
@@ -1203,10 +1202,11 @@ if __name__ == '__main__':
     mf = scf.RHF(cell)
     mf.max_cycle = 100
     mf.conv_tol = 1e-8
-    #mf.kernel()
-    pbc_isdf_info.with_robust_fitting = True
+    # mf.kernel()
 
     ##### test the LS_THC_recompression ##### 
+    
+    pbc_isdf_info.with_robust_fitting = True
     
     _pbc_isdf_info = PBC_ISDF_Info(cell, aoR)
     _pbc_isdf_info.build_IP_Sandeep(build_global_basis=True, c=12, global_IP_selection=False)

@@ -273,16 +273,16 @@ def _contract_j_dm_k_ls(mydf, _dm, use_mpi=False):
         
         density_R_original = np.zeros_like(density_R_prim)
             
-        fn_order = getattr(libisdf, "_Reorder_Grid_to_Original_Grid", None)
-        assert fn_order is not None
-            
-        fn_order(
-            ctypes.c_int(density_R_prim.size),
-            mydf.grid_ID_ordered_prim.ctypes.data_as(ctypes.c_void_p),
-            density_R_prim.ctypes.data_as(ctypes.c_void_p),
-            density_R_original.ctypes.data_as(ctypes.c_void_p),
-        )
+        # fn_order = getattr(libisdf, "_Reorder_Grid_to_Original_Grid", None)
+        # assert fn_order is not None
+        # fn_order(
+        #     ctypes.c_int(density_R_prim.size),
+        #     mydf.grid_ID_ordered_prim.ctypes.data_as(ctypes.c_void_p),
+        #     density_R_prim.ctypes.data_as(ctypes.c_void_p),
+        #     density_R_original.ctypes.data_as(ctypes.c_void_p),
+        # )
 
+        density_R_original[mydf.grid_ID_ordered_prim] = density_R_prim
         density_R_prim = density_R_original.copy()
     
     J = None
@@ -311,16 +311,16 @@ def _contract_j_dm_k_ls(mydf, _dm, use_mpi=False):
                     
         J_ordered = np.zeros_like(J)
 
-        fn_order = getattr(libisdf, "_Original_Grid_to_Reorder_Grid", None)
-        assert fn_order is not None 
-            
-        fn_order(
-            ctypes.c_int(J.size),
-            grid_ID_ordered.ctypes.data_as(ctypes.c_void_p),
-            J.ctypes.data_as(ctypes.c_void_p),
-            J_ordered.ctypes.data_as(ctypes.c_void_p),
-        )
-            
+        # fn_order = getattr(libisdf, "_Original_Grid_to_Reorder_Grid", None)
+        # assert fn_order is not None 
+        # fn_order(
+        #     ctypes.c_int(J.size),
+        #     grid_ID_ordered.ctypes.data_as(ctypes.c_void_p),
+        #     J.ctypes.data_as(ctypes.c_void_p),
+        #     J_ordered.ctypes.data_as(ctypes.c_void_p),
+        # ) 
+        
+        J_ordered = J[grid_ID_ordered]
         J = J_ordered.copy()
             
     if use_mpi:

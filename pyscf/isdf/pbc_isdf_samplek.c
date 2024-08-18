@@ -4,7 +4,8 @@
 #include <string.h>
 #include <math.h>
 #include <omp.h>
-#include "fft.h"
+// #include "fft.h"
+#include "fftw3.h"
 #include <stdlib.h>
 
 int get_omp_threads();

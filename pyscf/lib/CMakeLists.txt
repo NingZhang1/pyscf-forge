@@ -128,8 +128,7 @@ add_library(isdf SHARED
 ../isdf/pbc_isdf_V.c 
 ../isdf/pbc_isdf_auxbasis.c 
 ../isdf/pbc_isdf_sparse.c 
-../isdf/pbc_isdf_eri.c
-../isdf/fft.c)
+../isdf/pbc_isdf_eri.c)
 
 target_link_libraries(isdf cgto cint cvhf np_helper fftw3_threads fftw3 ${BLAS_LIBRARIES} ${OPENMP_C_PROPERTIES})
 set_target_properties(isdf PROPERTIES

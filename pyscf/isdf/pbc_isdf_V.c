@@ -1,4 +1,5 @@
-#include "fft.h"
+// #include "fft.h"
+#include "fftw3.h"
 #include <omp.h>
 #include <string.h>
 #include <complex.h>
@@ -148,15 +149,15 @@ void _Pack_Matrix_SparseRow_DenseCol(
     }
 }
 
-void _Reorder_Grid_to_Original_Grid(int ngrid, int *gridID, double *Density_or_J,
-                                    double *out)
-{
-    int i;
-    for (i = 0; i < ngrid; i++)
-    {
-        out[gridID[i]] = Density_or_J[i];
-    }
-}
+// void _Reorder_Grid_to_Original_Grid(int ngrid, int *gridID, double *Density_or_J,
+//                                     double *out)
+// {
+//     int i;
+//     for (i = 0; i < ngrid; i++)
+//     {
+//         out[gridID[i]] = Density_or_J[i];
+//     }
+// }
 
 void _Original_Grid_to_Reorder_Grid(
     int ngrid, int *gridID, double *Density_or_J, double *out)

@@ -25,7 +25,8 @@ from pyscf import lib
 from pyscf.lib import logger
 from pyscf.pbc import tools
 from pyscf.pbc.lib.kpts_helper import is_zero, gamma_point
-libpbc = lib.load_library('libpbc')
+libisdf = lib.load_library('libisdf')
+from pyscf.isdf.isdf_tools_linearop import d_ij_j_ij, cwise_mul
 
 ##################################################
 #
@@ -46,9 +47,8 @@ def _contract_j_dm(mydf, dm, with_robust_fitting=True, use_mpi=False):
         dm    : the density matrix
 
     '''
-    
-    assert use_mpi == False
-    
+    if use_mpi:
+        raise NotImplementedError("MPI is not supported in this function")
     t1 = (logger.process_clock(), logger.perf_counter())
 
     if len(dm.shape) == 3:
@@ -71,10 +71,9 @@ def _contract_j_dm(mydf, dm, with_robust_fitting=True, use_mpi=False):
     else:
         V_R = None
     naux = aoRg.shape[1]
-    IP_ID = mydf.IP_ID
-    
+
     #### step 2. get J term1 and term2
-    
+
     buffer = mydf.jk_buffer
     buffer1 = np.ndarray((nao,ngrid), dtype=dm.dtype, buffer=buffer, offset=0)
     buffer2 = np.ndarray((ngrid), dtype=dm.dtype, buffer=buffer, offset=nao * ngrid * dm.dtype.itemsize)
@@ -93,7 +92,7 @@ def _contract_j_dm(mydf, dm, with_robust_fitting=True, use_mpi=False):
 
     # need allocate memory, size = nao  * ngrid, (buffer 1)
 
-    lib.ddot(dm, aoR, c=buffer1)  
+    lib.ddot(dm, aoR, c=buffer1)
     tmp1 = buffer1
 
     # need allocate memory, size = ngrid, (buffer 2)
@@ -104,7 +103,7 @@ def _contract_j_dm(mydf, dm, with_robust_fitting=True, use_mpi=False):
 
     # lib.dslice(tmp1, IP_ID, buffer3)
     # tmp1 = buffer3
-    tmp1 = lib.ddot(dm, aoRg)  
+    tmp1 = lib.ddot(dm, aoRg)
 
     density_Rg = np.asarray(lib.multiply_sum_isdf(aoRg, tmp1, out=buffer4),
                             order='C')  # need allocate memory, size = naux, (buffer 4)
@@ -116,16 +115,16 @@ def _contract_j_dm(mydf, dm, with_robust_fitting=True, use_mpi=False):
     J = None
 
     if with_robust_fitting:
-        J = np.asarray(lib.ddot_withbuffer(V_R, density_R.reshape(-1,1), c=buffer5.reshape(-1,1), buf=mydf.ddot_buf), order='C').reshape(-1)   # with buffer, size 
-        
+        J = np.asarray(lib.ddot(V_R, density_R.reshape(-1,1), c=buffer5.reshape(-1,1)), order='C').reshape(-1)   # with buffer, size
+
         # do not need allocate memory, use buffer 3
 
-        J = np.asarray(lib.d_ij_j_ij(aoRg, J, out=buffer3), order='C')
+        J = np.asarray(d_ij_j_ij(aoRg, J, out=buffer3), order='C')
 
         # need allocate memory, size = nao  * nao, (buffer 6)
 
-        J = np.asarray(lib.ddot_withbuffer(aoRg, J.T, c=buffer6, buf=mydf.ddot_buf), order='C')
-            
+        J = np.asarray(lib.ddot(aoRg, J.T, c=buffer6), order='C')
+
         # do not need allocate memory, use buffer 2
 
         J2 = np.asarray(lib.dot(V_R.T, density_Rg.reshape(-1,1), c=buffer2.reshape(-1,1)), order='C').reshape(-1)
@@ -133,30 +132,30 @@ def _contract_j_dm(mydf, dm, with_robust_fitting=True, use_mpi=False):
         # do not need allocate memory, use buffer 1
 
         # J2 = np.einsum('ij,j->ij', aoR, J2)
-        J2 = np.asarray(lib.d_ij_j_ij(aoR, J2, out=buffer1), order='C')
+        J2 = np.asarray(d_ij_j_ij(aoR, J2, out=buffer1), order='C')
 
         # do not need allocate memory, use buffer 6
 
         # J += np.asarray(lib.dot(aoR, J2.T), order='C')
-        lib.ddot_withbuffer(aoR, J2.T, c=J, beta=1, buf=mydf.ddot_buf)
+        lib.ddot(aoR, J2.T, c=J, beta=1)
 
     #### step 3. get J term3
 
     # do not need allocate memory, use buffer 2
 
     tmp = np.asarray(lib.dot(W, density_Rg.reshape(-1,1), c=buffer8.reshape(-1,1)), order='C').reshape(-1)
-    
+
     # do not need allocate memory, use buffer 1 but viewed as buffer 7
-    
-    tmp = np.asarray(lib.d_ij_j_ij(aoRg, tmp, out=buffer7), order='C')
-    
+
+    tmp = np.asarray(d_ij_j_ij(aoRg, tmp, out=buffer7), order='C')
+
     # do not need allocate memory, use buffer 6
-    
+
     if with_robust_fitting:
-        lib.ddot_withbuffer(aoRg, -tmp.T, c=J, beta=1, buf=mydf.ddot_buf)
+        lib.ddot(aoRg, -tmp.T, c=J, beta=1)
     else:
         J = buffer6
-        lib.ddot_withbuffer(aoRg, tmp.T, c=J, beta=0, buf=mydf.ddot_buf)
+        lib.ddot(aoRg, tmp.T, c=J, beta=0)
 
     t2 = (logger.process_clock(), logger.perf_counter())
     
@@ -168,13 +167,13 @@ def _contract_j_dm(mydf, dm, with_robust_fitting=True, use_mpi=False):
 def _contract_j_dm_fast(mydf, dm, with_robust_fitting=True, use_mpi=False):
 
     assert use_mpi == False
-    
+
     t1 = (logger.process_clock(), logger.perf_counter())
 
     if len(dm.shape) == 3:
         assert dm.shape[0] == 1
         dm = dm[0]
-        
+
     nao  = dm.shape[0]
     cell = mydf.cell
     assert cell.nao == nao
@@ -192,52 +191,33 @@ def _contract_j_dm_fast(mydf, dm, with_robust_fitting=True, use_mpi=False):
         V_R = None
     naux = mydf.naux
     IP_ID = mydf.IP_ID
-    
+
     mesh = np.array(cell.mesh, dtype=np.int32)
-    
+
     #### step 0. allocate buffer 
-    
+
     buffer = mydf.jk_buffer
     buffer1 = np.ndarray((nao,ngrid), dtype=dm.dtype, buffer=buffer, offset=0)
     buffer2 = np.ndarray((ngrid), dtype=dm.dtype, buffer=buffer, offset=nao * ngrid * dm.dtype.itemsize)
-    buffer3 = np.ndarray((nao,naux), dtype=dm.dtype, buffer=buffer,
-                         offset=(nao * ngrid + ngrid) * dm.dtype.itemsize)
-    buffer4 = np.ndarray((naux), dtype=dm.dtype, buffer=buffer, offset=(nao *
-                         ngrid + ngrid + nao * naux) * dm.dtype.itemsize)
-    buffer5 = np.ndarray((naux), dtype=dm.dtype, buffer=buffer, offset=(nao *
-                            ngrid + ngrid + nao * naux + naux) * dm.dtype.itemsize)
-    buffer6 = np.ndarray((nao,nao), dtype=dm.dtype, buffer=buffer, offset=(nao *
-                            ngrid + ngrid + nao * naux + naux + naux) * dm.dtype.itemsize)
-    buffer7 = np.ndarray((nao,naux), dtype=dm.dtype, buffer=buffer, offset=0)
-    buffer8 = np.ndarray((naux), dtype=dm.dtype, buffer=buffer, offset=nao * ngrid * dm.dtype.itemsize)
 
     #### step 1. get density value on real space grid and IPs
-    
+
     lib.ddot(dm, aoR, c=buffer1) 
     tmp1 = buffer1
-    density_R = np.asarray(lib.multiply_sum_isdf(aoR, tmp1, out=buffer2), order='C')
+    density_R = np.einsum('ij,ij->j', aoR, tmp1)
     
     if hasattr(mydf, "grid_ID_ordered"):
         if (use_mpi and rank == 0) or (use_mpi == False):
+            
             density_R_original = np.zeros_like(density_R)
-            
-            fn_order = getattr(libpbc, "_Reorder_Grid_to_Original_Grid", None)
-            assert fn_order is not None
-            
-            fn_order(
-                ctypes.c_int(density_R.size),
-                mydf.grid_ID_ordered.ctypes.data_as(ctypes.c_void_p),
-                density_R.ctypes.data_as(ctypes.c_void_p),
-                density_R_original.ctypes.data_as(ctypes.c_void_p),
-            )
-
+            density_R_original[mydf.grid_ID_ordered] = density_R
             density_R = density_R_original.copy()
-        
+
     J = None
-    
+
     if (use_mpi and rank == 0) or (use_mpi == False):
-    
-        fn_J = getattr(libpbc, "_construct_J", None)
+
+        fn_J = getattr(libisdf, "_construct_J", None)
         assert(fn_J is not None)
 
         J = np.zeros_like(density_R)
@@ -248,81 +228,22 @@ def _contract_j_dm_fast(mydf, dm, with_robust_fitting=True, use_mpi=False):
             mydf.coulG.ctypes.data_as(ctypes.c_void_p),
             J.ctypes.data_as(ctypes.c_void_p),
         )
-        
-        if hasattr(mydf, "grid_ID_ordered"):
-            
-            J_ordered = np.zeros_like(J)
 
-            fn_order = getattr(libpbc, "_Original_Grid_to_Reorder_Grid", None)
-            assert fn_order is not None 
-            
-            fn_order(
-                ctypes.c_int(J.size),
-                mydf.grid_ID_ordered.ctypes.data_as(ctypes.c_void_p),
-                J.ctypes.data_as(ctypes.c_void_p),
-                J_ordered.ctypes.data_as(ctypes.c_void_p),
-            )
-            
+        if hasattr(mydf, "grid_ID_ordered"):
+            J_ordered = np.zeros_like(J)            
+            J_ordered = J[mydf.grid_ID_ordered]
             J = J_ordered.copy()
-             
+
     #### step 3. get J 
-    
-    J = np.asarray(lib.d_ij_j_ij(aoR, J, out=buffer1), order='C') 
-    J = lib.ddot_withbuffer(aoR, J.T, buf=mydf.ddot_buf)
+
+    J = np.asarray(d_ij_j_ij(aoR, J, out=buffer1), order='C') 
+    J = lib.ddot(aoR, J.T)
 
     t2 = (logger.process_clock(), logger.perf_counter())
-    
+
     if mydf.verbose:
         _benchmark_time(t1, t2, "_contract_j_dm_fast", mydf)
-    
-    return J * ngrid / vol
 
-def _contract_j_dm_wo_robust_fitting(mydf, dm, with_robust_fitting=False, use_mpi=False):
-    
-    assert with_robust_fitting == False
-    assert use_mpi == False
-    
-    if use_mpi:
-        raise NotImplementedError("MPI is not supported in this function")
-
-    t1 = (logger.process_clock(), logger.perf_counter())
-    
-    if len(dm.shape) == 3:
-        assert dm.shape[0] == 1
-        dm = dm[0]
-
-    nao  = dm.shape[0]
-    
-    cell = mydf.cell
-    assert cell.nao == nao
-    vol = cell.vol
-    mesh = np.array(cell.mesh, dtype=np.int32)
-    ngrid = np.prod(cell.mesh)
-
-    W    = mydf.W
-    aoRg = mydf.aoRg
-    
-    naux = aoRg.shape[1]
-    
-    tmp1 = lib.ddot(dm, aoRg)  
-    density_Rg = np.asarray(lib.multiply_sum_isdf(aoRg, tmp1),
-                            order='C') 
-    tmp = np.asarray(lib.dot(W, density_Rg.reshape(-1,1)), order='C').reshape(-1)
-    tmp = np.asarray(lib.d_ij_j_ij(aoRg, tmp), order='C')
-
-    J = lib.ddot(aoRg, tmp.T)
-
-    del tmp1 
-    tmp1 = None
-    del tmp 
-    tmp = None
-    del density_Rg
-    density_Rg = None
-
-    t2 = (logger.process_clock(), logger.perf_counter())
-
-    _benchmark_time(t1, t2, "_contract_j_dm_wo_robust_fitting", mydf)
-    
     return J * ngrid / vol
 
 def _contract_k_dm(mydf, dm, with_robust_fitting=True, use_mpi=False):
@@ -396,23 +317,23 @@ def _contract_k_dm(mydf, dm, with_robust_fitting=True, use_mpi=False):
     # tmp = V_R * density_RgR  # pointwise multiplication, TODO: this term should be parallized
     # do not need allocate memory, size = naux * ngrid, (buffer 2)
 
-    # tmp = np.asarray(lib.cwise_mul(V_R, density_RgR, out=buffer2), order='C')
+    # tmp = np.asarray(cwise_mul(V_R, density_RgR, out=buffer2), order='C')
 
-    # lib.cwise_mul(V_R, density_RgR, out=buffer2)
+    # cwise_mul(V_R, density_RgR, out=buffer2)
 
     K = None
 
     if with_robust_fitting:
-        lib.cwise_mul(V_R, density_RgR, out=buffer2)
+        cwise_mul(V_R, density_RgR, out=buffer2)
         tmp = buffer2
 
         # do not need allocate memory, size = naux * nao,   (buffer 1, but viewed as buffer5)
     
-        K = np.asarray(lib.ddot_withbuffer(tmp, aoR.T, c=buffer5, buf=mydf.ddot_buf), order='C')
+        K = np.asarray(lib.ddot(tmp, aoR.T, c=buffer5), order='C')
 
         ### the order due to the fact that naux << ngrid  # need allocate memory, size = nao * nao,           (buffer 4)
 
-        K  = np.asarray(lib.ddot_withbuffer(aoRg, K, c=buffer4, buf=mydf.ddot_buf), order='C')
+        K  = np.asarray(lib.ddot(aoRg, K, c=buffer4), order='C')
 
         K += K.T
 
@@ -422,7 +343,7 @@ def _contract_k_dm(mydf, dm, with_robust_fitting=True, use_mpi=False):
     # pointwise multiplication, do not need allocate memory, size = naux * naux, use buffer for (buffer 3)
     # tmp = W * density_RgRg
 
-    lib.cwise_mul(W, density_RgRg, out=density_RgRg)
+    cwise_mul(W, density_RgRg, out=density_RgRg)
     tmp = density_RgRg
 
     # do not need allocate memory, size = naux * nao, use buffer 2 but viewed as buffer 6
@@ -432,10 +353,10 @@ def _contract_k_dm(mydf, dm, with_robust_fitting=True, use_mpi=False):
     # K  -= np.asarray(lib.dot(aoRg, tmp, c=K, beta=1), order='C')     # do not need allocate memory, size = nao * nao, (buffer 4)
     
     if with_robust_fitting:
-        lib.ddot_withbuffer(aoRg, -tmp, c=K, beta=1, buf=mydf.ddot_buf)
+        lib.ddot(aoRg, -tmp, c=K, beta=1)
     else:
         K = buffer4
-        lib.ddot_withbuffer(aoRg, tmp, c=K, beta=0, buf=mydf.ddot_buf)
+        lib.ddot(aoRg, tmp, c=K, beta=0)
 
     t2 = (logger.process_clock(), logger.perf_counter())
     
@@ -476,13 +397,10 @@ def _contract_k_dm_wo_robust_fitting(mydf, dm, with_robust_fitting=False, use_mp
     density_RgRg = lib.ddot(dm, aoRg)
     density_RgRg = lib.ddot(aoRg.T, density_RgRg)
     
-    lib.cwise_mul(W, density_RgRg, out=density_RgRg)
+    cwise_mul(W, density_RgRg, out=density_RgRg)
     tmp = density_RgRg
     tmp = np.asarray(lib.dot(tmp, aoRg.T), order='C')
-    if hasattr(mydf, "ddot_buf") and mydf.ddot_buf is not None:
-        K = lib.ddot_withbuffer(aoRg, tmp, buf=mydf.ddot_buf)
-    else:
-        K = lib.ddot(aoRg, tmp)
+    K   = lib.ddot(aoRg, tmp)
     
     t2 = (logger.process_clock(), logger.perf_counter())
     
@@ -516,7 +434,7 @@ def get_jk_dm(mydf, dm, hermi=1, kpt=np.zeros(3),
         dm = symmetrize_dm(dm, mydf.Ls)
     else:
         if hasattr(mydf, 'kmesh'):
-            from pyscf.pbc.df.isdf.isdf_tools_densitymatrix import symmetrize_dm
+            from pyscf.isdf.isdf_tools_densitymatrix import symmetrize_dm
             dm = symmetrize_dm(dm, mydf.kmesh)
 
     #### perform the calculation ####
@@ -553,10 +471,7 @@ def get_jk_dm(mydf, dm, hermi=1, kpt=np.zeros(3),
     for iset in range(nset):
 
         if with_j:
-            if mydf.with_robust_fitting:
-                vj[iset] = _contract_j_dm_fast(mydf, dm[iset], mydf.with_robust_fitting, use_mpi)
-            else:
-                vj[iset] = _contract_j_dm_wo_robust_fitting(mydf, dm[iset], mydf.with_robust_fitting, use_mpi)   
+            vj[iset] = _contract_j_dm_fast(mydf, dm[iset], mydf.with_robust_fitting, use_mpi)
         if with_k:
             if mydf.with_robust_fitting:
                 vk[iset] = _contract_k_dm(mydf, dm[iset], mydf.with_robust_fitting, use_mpi)

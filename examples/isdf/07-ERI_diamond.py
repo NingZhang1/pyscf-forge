@@ -8,6 +8,7 @@ from pyscf.isdf import isdf_jk
 from pyscf.isdf import isdf_local
 
 from pyscf.lib.parameters import BOHR
+from pyscf.pbc import df
 
 MOL_STRUCTURE = '''
                    C     0.      0.      0.
@@ -22,24 +23,11 @@ MOL_STRUCTURE = '''
 
 #### NOTE: a full tests on combinations of parameters ####
                 
-C_ARRAY = [15, 15, 20, 25, 30, 30]
-RELA_CUTOFF = [3e-2, 1e-2, 3e-3, 1e-3, 3e-4, 1e-4]
+C_ARRAY = [30]
+RELA_CUTOFF = [1e-3]
 SuperCell_ARRAY = [
     [1, 1, 1],
-    # [1, 1, 2],
-    # [1, 2, 2],
-    # [2, 2, 2],
-    # [3, 3, 3],
-    # [2, 4, 4],
-    # [3, 4, 4],
-    # [5, 5, 5],
-    # [6, 6, 6],
-    # [1, 1, 4],
-    # [1, 1, 8],
-    # [1, 1, 16],
-    # [1, 1, 32],
 ]
-
 
 Ke_CUTOFF = [70]
 boxlen = 3.5668
@@ -47,9 +35,6 @@ Basis = ['gth-dzvp']
 
 PARTITION = [
     [[0,1],[2,3],[4,5],[6,7]],
-    [[0,1,2,3],[4,5,6,7]],
-    [[0,1,2,3,4,5,6,7]],
-    [[0],[1],[2],[3],[4],[5],[6],[7]],
 ]
 
 if __name__ == '__main__':
@@ -84,10 +69,10 @@ if __name__ == '__main__':
                     mesh = [supercell[0] * prim_mesh[0], supercell[1] * prim_mesh[1], supercell[2] * prim_mesh[2]]
                     mesh = np.array(mesh, dtype=np.int32)
             
-                    cell, supercell_group = isdf_tools_cell.build_supercell_with_partition(atm, prim_a, partition=partition, Ls = supercell, ke_cutoff=ke_cutoff, mesh=mesh, basis=basis, pseudo="gth-pade", verbose=4)
+                    cell, supercell_group = isdf_tools_cell.build_supercell_with_partition(atm, prim_a, partition=partition, Ls = supercell, ke_cutoff=ke_cutoff, mesh=mesh, basis=basis, pseudo="gth-pade", verbose=15)
 
-                    cell.incore_anyway = False
-                    cell.max_memory    = 200   # force to call with_df.get_jk
+                    #cell.incore_anyway = False
+                    #cell.max_memory    = 200   # force to call with_df.get_jk
 
                     t1 = (lib.logger.process_clock(),lib.logger.perf_counter())
                         
@@ -99,22 +84,12 @@ if __name__ == '__main__':
                                                 
                     t2 = (lib.logger.process_clock(), lib.logger.perf_counter())
 
-                    print(isdf_jk._benchmark_time(t1, t2, 'build_isdf', pbc_isdf_info))
+                    eri2 = pbc_isdf_info.get_eri(compact=False).reshape(cell.nao, cell.nao, cell.nao, cell.nao)
 
-                    # for bunch_size in BUNCHSIZE_IO:
-                    ### perform scf ###
-
-                    from pyscf.pbc import scf
-
-                    t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
-                    mf = scf.RHF(cell)
-                    mf.with_df = pbc_isdf_info
-                    mf.max_cycle = 32
-                    mf.conv_tol = 1e-7
-                    pbc_isdf_info.direct_scf = mf.direct_scf
-                    mf.kernel()
-                    t2 = (lib.logger.process_clock(), lib.logger.perf_counter())
-                    print(isdf_jk._benchmark_time(t1, t2, 'scf_isdf', pbc_isdf_info))
-                        
-                    del mf
-                    del pbc_isdf_info
+                    ### get eri ###
+                    
+                    mydf_eri = df.FFTDF(cell)
+                    eri      = mydf_eri.get_eri(compact=False).reshape(cell.nao, cell.nao, cell.nao, cell.nao)
+                    
+                    diff_max = np.max(np.abs(eri - eri2))
+                    print("diff_max = ", diff_max)
