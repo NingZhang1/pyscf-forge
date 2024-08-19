@@ -28,6 +28,7 @@ import ctypes
 from pyscf import lib
 from pyscf.pbc.gto import Cell
 from pyscf.pbc import tools
+
 # from pyscf.gto.mole import *
 
 libisdf = lib.load_library("libisdf")
@@ -126,6 +127,7 @@ def select_IP_local_ls_k_drive(
                 )
         else:
             from pyscf.isdf.isdf_tools_mpi import rank, comm_size
+
             group_begin, group_end = ISDF_Local_Utils._range_partition(
                 len(group), rank, comm_size, use_mpi
             )
@@ -956,7 +958,7 @@ class PBC_ISDF_Info_Quad_K(ISDF_Local.PBC_ISDF_Info_Quad):
         if rank == 0:
             _benchmark_time(t3, t4, "build_aoRg_possible", self)
 
-        build_aoR_FFT = (not self.direct)
+        build_aoR_FFT = not self.direct
 
         select_IP_local_ls_k_drive(
             self,
@@ -1441,7 +1443,7 @@ if __name__ == "__main__":
         ["C", (0.8917, 2.6751, 2.6751)],
     ]
 
-    KE_CUTOFF = 16
+    KE_CUTOFF = 70
 
     prim_cell = build_supercell(atm, prim_a, Ls=[1, 1, 1], ke_cutoff=KE_CUTOFF)
     prim_mesh = prim_cell.mesh
