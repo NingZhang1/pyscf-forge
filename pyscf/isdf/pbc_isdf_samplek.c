@@ -29,6 +29,7 @@ void _FFT_Matrix_Col_InPlace(double *matrix, // the size of matrix should be (nR
     int64_t nComplex = mesh_complex[0] * mesh_complex[1] * mesh_complex[2];
     int64_t nReal = mesh[0] * mesh[1] * mesh[2];
     const int nThread = get_omp_threads();
+    // const int nThread = 1;   NOTE: on caltech HPC, multithread version does not work.
 
     const int64_t m = nRow;
     const int64_t n = nCol * mesh[0] * mesh[1] * mesh[2];
@@ -140,6 +141,7 @@ void _iFFT_Matrix_Col_InPlace(double __complex__ *matrix, // the size of matrix 
     int64_t nComplex = mesh_complex[0] * mesh_complex[1] * mesh_complex[2];
     int64_t nReal = mesh[0] * mesh[1] * mesh[2];
     const int64_t nThread = get_omp_threads();
+    // const int nThread = 1;   NOTE: on caltech HPC, multithread version does not work.
 
     const int64_t m = nRow;
     const int64_t n = nCol * mesh[0] * mesh[1] * mesh[2];
