@@ -379,11 +379,12 @@ def build_auxiliary_Coulomb_local_bas_k(mydf, debug=True, use_mpi=False):
     mydf.coulG = coulG.copy()
     coulG_real = coulG.reshape(*mesh)[:, :, : mesh[2] // 2 + 1].reshape(-1).copy()
 
+    from pyscf.isdf.isdf_fast import EXTRA_ALLOC
     nThread = lib.num_threads()
     bufsize_per_thread = int(
         (coulG_real.shape[0] * 2 + mesh[0] * mesh[1] * mesh[2]) * 1.1
     )
-    buf = np.empty((nThread, bufsize_per_thread), dtype=np.double)
+    buf = np.empty((nThread, bufsize_per_thread + EXTRA_ALLOC), dtype=np.double)
 
     def construct_V_CCode(
         aux_basis: list[np.ndarray],

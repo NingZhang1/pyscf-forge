@@ -715,9 +715,11 @@ def build_auxiliary_Coulomb_local_bas_wo_robust_fitting(
 
     ####### allocate buf for V ########
 
+    from pyscf.isdf.isdf_fast import EXTRA_ALLOC
+
     nThread = lib.num_threads()
-    bufsize_per_thread = coulG_real.shape[0] * 2 + mesh[0] * mesh[1] * mesh[2]
-    buf = np.zeros((nThread, bufsize_per_thread), dtype=np.double)
+    bufsize_per_thread = coulG_real.shape[0] * 2 + mesh[0] * mesh[1] * (mesh[2]+1)
+    buf = np.zeros((nThread, bufsize_per_thread + EXTRA_ALLOC), dtype=np.double)
 
     assert len(mydf.aux_basis) == ngroup
 

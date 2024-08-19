@@ -38,6 +38,7 @@ libisdf = lib.load_library("libisdf")
 from pyscf.isdf.isdf_jk import _benchmark_time
 from pyscf.isdf._isdf_local_K_direct import _isdf_get_K_direct_kernel_1
 import pyscf.isdf.isdf_tools_linearop as lib_isdf
+from pyscf.isdf.isdf_fast import EXTRA_ALLOC
 
 ############ GLOBAL PARAMETER ############
 
@@ -1077,9 +1078,9 @@ def _contract_k_dm_quadratic_direct(mydf, dm, use_mpi=False):
     aoR = mydf.aoR
     aoRg = mydf.aoRg
 
-    #max_nao_involved = mydf.max_nao_involved
+    # max_nao_involved = mydf.max_nao_involved
     max_ngrid_involved = mydf.max_ngrid_involved
-    #max_nIP_involved = mydf.max_nIP_involved
+    # max_nIP_involved = mydf.max_nIP_involved
     maxsize_group_naux = mydf.maxsize_group_naux
 
     ####### preparing the data #######
@@ -1089,7 +1090,7 @@ def _contract_k_dm_quadratic_direct(mydf, dm, use_mpi=False):
     assert cell.nao == nao
     vol = cell.vol
     mesh = np.array(cell.mesh, dtype=np.int32)
-    #mesh_int32 = mesh
+    # mesh_int32 = mesh
     ngrid = np.prod(mesh)
 
     aoRg = mydf.aoRg
@@ -1097,11 +1098,11 @@ def _contract_k_dm_quadratic_direct(mydf, dm, use_mpi=False):
     aoR = mydf.aoR
     assert isinstance(aoR, list)
 
-    #naux = mydf.naux
+    # naux = mydf.naux
     nao = cell.nao
     aux_basis = mydf.aux_basis
 
-    #grid_ordering = mydf.grid_ID_ordered
+    # grid_ordering = mydf.grid_ID_ordered
 
     if not hasattr(mydf, "coulG"):
         if mydf.omega is not None:
@@ -1124,17 +1125,22 @@ def _contract_k_dm_quadratic_direct(mydf, dm, use_mpi=False):
     Density_RgAO_buf = mydf.Density_RgAO_buf
 
     nThread = lib.num_threads()
-    bufsize_per_thread = coulG_real.shape[0] * 2 + np.prod(mesh)
-    buf_build_V = np.ndarray(
-        (nThread, bufsize_per_thread), dtype=np.float64, buffer=build_VW_buf
-    )
+    # bufsize_per_thread = coulG_real.shape[0] * 2 + np.prod(mesh)
+    # buf_build_V = np.ndarray(
+    #     (nThread, bufsize_per_thread), dtype=np.float64, buffer=build_VW_buf
+    # )
+    # offset_now = buf_build_V.size * buf_build_V.dtype.itemsize
 
-    offset_now = buf_build_V.size * buf_build_V.dtype.itemsize
+    bufsize_per_thread = coulG_real.shape[0] * 2 + mesh[0] * mesh[1] * (mesh[2] + 1)
+    buf_build_V = np.ndarray(
+        (nThread, bufsize_per_thread + EXTRA_ALLOC), dtype=np.float64
+    )
+    offset_now = 0
 
     build_K_bunchsize = min(maxsize_group_naux, mydf._build_K_bunchsize)
 
     offset_build_now = 0
-    #offset_Density_RgR_buf = 0
+    # offset_Density_RgR_buf = 0
     Density_RgR_buf = np.ndarray(
         (build_K_bunchsize, ngrid), buffer=build_k_buf, offset=offset_build_now
     )
@@ -1179,7 +1185,7 @@ def _contract_k_dm_quadratic_direct(mydf, dm, use_mpi=False):
     fn_packadd_row = getattr(libisdf, "_buildK_packaddrow", None)
     assert fn_packadd_row is not None
 
-    #ordered_ao_ind = np.arange(nao)
+    # ordered_ao_ind = np.arange(nao)
 
     ######### begin work #########
 
@@ -1199,7 +1205,7 @@ def _contract_k_dm_quadratic_direct(mydf, dm, use_mpi=False):
             aoRg_holders.append(aoRg[atm_id])
         assert naux_tmp == aux_basis[group_id].shape[0]
 
-        #aux_basis_tmp = aux_basis[group_id]
+        # aux_basis_tmp = aux_basis[group_id]
 
         #### 1. build the involved DM_RgR ####
 
@@ -1305,6 +1311,7 @@ def _contract_k_dm_quadratic_direct(mydf, dm, use_mpi=False):
     _benchmark_time(t1, t2, "_contract_k_dm_quadratic_direct", mydf)
 
     return K * ngrid / vol
+
 
 def get_jk_dm_quadratic(
     mydf,

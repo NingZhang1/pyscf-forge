@@ -45,6 +45,7 @@ from pyscf.isdf.isdf_local_jk import (
 )
 from pyscf.isdf.isdf_tools_kSampling import _RowCol_FFT_bench
 from pyscf.isdf._isdf_local_K_direct import _isdf_get_K_direct_kernel_1
+from pyscf.isdf.isdf_fast import EXTRA_ALLOC
 
 libisdf = lib.load_library("libisdf")
 import pyscf.isdf.isdf_tools_linearop as lib_isdf
@@ -1619,12 +1620,17 @@ def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
     Density_RgAO_buf = mydf.Density_RgAO_buf
 
     nThread = lib.num_threads()
-    bufsize_per_thread = coulG_real.shape[0] * 2 + np.prod(mesh)
-    buf_build_V = np.ndarray(
-        (nThread, bufsize_per_thread), dtype=np.float64, buffer=build_VW_buf
-    )
+    # bufsize_per_thread = coulG_real.shape[0] * 2 + np.prod(mesh)
+    # buf_build_V = np.ndarray(
+    #     (nThread, bufsize_per_thread), dtype=np.float64, buffer=build_VW_buf
+    # )
+    # offset_now = buf_build_V.size * buf_build_V.dtype.itemsize
 
-    offset_now = buf_build_V.size * buf_build_V.dtype.itemsize
+    bufsize_per_thread = coulG_real.shape[0] * 2 + mesh[0] * mesh[1] * (mesh[2] + 1)
+    buf_build_V = np.ndarray(
+        (nThread, bufsize_per_thread + EXTRA_ALLOC), dtype=np.float64
+    )
+    offset_now = 0
 
     build_K_bunchsize = min(maxsize_group_naux, mydf._build_K_bunchsize)
 
@@ -2134,10 +2140,10 @@ def _get_k_kSym_direct_mimic_MPI(mydf, _dm, use_mpi=False):
 
     nThread = lib.num_threads()
     bufsize_per_thread = coulG_real.shape[0] * 2 + np.prod(mesh)
-    # buf_build_V        = np.ndarray((nThread, bufsize_per_thread), dtype=np.float64, buffer=build_VW_buf)
-    buf_build_V = np.ndarray((nThread, bufsize_per_thread), dtype=np.float64)
-
-    offset_now = buf_build_V.size * buf_build_V.dtype.itemsize
+    buf_build_V = np.ndarray(
+        (nThread, bufsize_per_thread + EXTRA_ALLOC), dtype=np.float64
+    )
+    offset_now = 0
 
     build_K_bunchsize = min(maxsize_group_naux, mydf._build_K_bunchsize)
 

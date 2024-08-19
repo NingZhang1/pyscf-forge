@@ -5,9 +5,17 @@
 #include <complex.h>
 #include "vhf/fblas.h"
 #include <math.h>
+#include <stdint.h>
+#include <stdlib.h>
 
 int get_omp_threads();
 int omp_get_thread_num();
+
+void *align_to_512bit(void *ptr)
+{
+    uintptr_t addr = (uintptr_t)ptr;
+    return (void *)((addr + 63) & ~63);
+}
 
 void _construct_J(
     int *mesh,
@@ -149,26 +157,6 @@ void _Pack_Matrix_SparseRow_DenseCol(
     }
 }
 
-// void _Reorder_Grid_to_Original_Grid(int ngrid, int *gridID, double *Density_or_J,
-//                                     double *out)
-// {
-//     int i;
-//     for (i = 0; i < ngrid; i++)
-//     {
-//         out[gridID[i]] = Density_or_J[i];
-//     }
-// }
-
-// void _Original_Grid_to_Reorder_Grid(
-//     int ngrid, int *gridID, double *Density_or_J, double *out)
-// {
-//     int i;
-//     for (i = 0; i < ngrid; i++)
-//     {
-//         out[i] = Density_or_J[gridID[i]];
-//     }
-// }
-
 void _construct_V_local_bas(
     int *mesh,
     int nrow,
@@ -183,8 +171,6 @@ void _construct_V_local_bas(
     const int buffersize // must be a multiple of 16 to ensure memory alignment
 )
 {
-    // printf("nrow: %d, ncol: %d\n", nrow, ncol);
-    // printf("row_shift: %d\n", row_shift);
 
     const int nThread = get_omp_threads();
     size_t mesh_complex[3] = {mesh[0], mesh[1], mesh[2] / 2 + 1};
@@ -201,7 +187,9 @@ void _construct_V_local_bas(
     {
         int thread_id = omp_get_thread_num();
         double *buf_thread = buf + thread_id * buffersize;
+        buf_thread = (double *)align_to_512bit(buf_thread);
         fftw_complex *buf_fft = (fftw_complex *)(buf_thread + n_real);
+        buf_fft = (fftw_complex *)align_to_512bit(buf_fft);
 
 #pragma omp for schedule(static)
         for (size_t i = 0; i < nrow; i++)
@@ -241,8 +229,6 @@ void _construct_V_local_bas(
 
             for (size_t j = 0; j < n_real; j++)
             {
-                // *ptr++ *= fac; /// TODO: use ISPC to accelerate
-                // ptr[grid_ordering[j]] = buf_thread[j] * fac;
                 ptr[j] = buf_thread[grid_ordering[j]] * fac;
             }
         }
@@ -264,8 +250,6 @@ void _construct_V_kernel(int *mesh_bra,
                          const int buffersize // must be a multiple of 16 to ensure memory alignment
 )
 {
-    // printf("naux      = %d\n", naux);
-    // printf("BunchSize = %d\n", BunchSize);
 
     // print all the input info
 
@@ -275,9 +259,6 @@ void _construct_V_kernel(int *mesh_bra,
     const int nThread = get_omp_threads();
     const int nBunch = ((naux / BunchSize) / nThread) * nThread; // dispatch evenly
     const int nLeft = naux - nBunch * BunchSize;
-
-    // printf("nBunch = %d\n", nBunch);
-    // printf("nLeft  = %d\n", nLeft);
 
     // print the dispatch info
 
@@ -311,19 +292,24 @@ void _construct_V_kernel(int *mesh_bra,
     {
         int thread_id = omp_get_thread_num();
         double *buf_thread = buf + thread_id * (size_t)buffersize;
+        buf_thread = (double *)align_to_512bit(buf_thread);
         size_t bunch_i, bunch_start, bunch_end, j, k;
         double *ptr;
 
+        double *aux_basis_aligned = fftw_alloc_real(sizeof(double) * n_real_bra * BunchSize);
+
 #pragma omp for schedule(static)
         for (bunch_i = 0; bunch_i < nBunch; ++bunch_i)
-        // for (bunch_i = 0; bunch_i < 0; ++bunch_i)
         {
             bunch_start = bunch_i * BunchSize;
             bunch_end = bunch_start + BunchSize;
 
             // forward transform
 
-            fftw_execute_dft_r2c(p_forward, auxBasis + (size_t)bunch_start * (size_t)n_real_bra, (fftw_complex *)buf_thread);
+            memcpy(aux_basis_aligned, auxBasis + (size_t)bunch_start * (size_t)n_real_bra, sizeof(double) * n_real_bra * BunchSize);
+            fftw_execute_dft_r2c(p_forward, aux_basis_aligned, (fftw_complex *)buf_thread);
+
+            // fftw_execute_dft_r2c(p_forward, auxBasis + (size_t)bunch_start * (size_t)n_real_bra, (fftw_complex *)buf_thread);
 
             // multiply CoulG
 
@@ -341,7 +327,8 @@ void _construct_V_kernel(int *mesh_bra,
             if (map_bra_2_ket != NULL)
             {
                 ptr = buf_thread + n_complex_bra * 2 * BunchSize;
-                memset(ptr, 0, sizeof(double) * n_complex_ket * 2 * BunchSize);
+                ptr = (double *)align_to_512bit(ptr);
+                // memset(ptr, 0, sizeof(double) * n_complex_ket * 2 * BunchSize);
                 for (j = bunch_start; j < bunch_end; ++j)
                 {
                     size_t shift = (j - bunch_start) * n_complex_bra * 2;
@@ -353,6 +340,7 @@ void _construct_V_kernel(int *mesh_bra,
                     ptr += n_complex_ket * 2;
                 }
                 ptr = buf_thread + n_complex_bra * 2 * BunchSize;
+                ptr = (double *)align_to_512bit(ptr);
             }
             else
             {
@@ -361,23 +349,18 @@ void _construct_V_kernel(int *mesh_bra,
 
             // backward transform
 
-            // fftw_execute_dft_c2r(p_backward, (fftw_complex *)buf_thread, V + (size_t)bunch_start * (size_t)n_real);
-            fftw_execute_dft_c2r(p_backward, (fftw_complex *)ptr, V + (size_t)bunch_start * (size_t)n_real_ket);
+            // fftw_execute_dft_c2r(p_backward, (fftw_complex *)ptr, V + (size_t)bunch_start * (size_t)n_real_ket);
+            fftw_execute_dft_c2r(p_backward, (fftw_complex *)ptr, aux_basis_aligned);
+            memcpy(V + (size_t)bunch_start * (size_t)n_real_ket, aux_basis_aligned, sizeof(double) * n_real_ket * BunchSize);
 
             // scale
 
             ptr = V + (size_t)bunch_start * (size_t)n_real_ket;
             int _size_ = n_real_ket * BunchSize;
             dscal_(&_size_, &fac, ptr, &INC1);
-
-            // for (j = bunch_start; j < bunch_end; ++j)
-            // {
-            //     for (k = 0; k < n_real_ket; ++k)
-            //     {
-            //         *ptr++ *= fac; /// TODO: use ISPC to accelerate
-            //     }
-            // }
         }
+
+        fftw_free(aux_basis_aligned);
     }
 
     // destroy plan
@@ -385,15 +368,10 @@ void _construct_V_kernel(int *mesh_bra,
     fftw_destroy_plan(p_forward);
     fftw_destroy_plan(p_backward);
 
-    // printf("finish bulk nLeft = %d\n", nLeft);
-    // fflush(stdout);
-
     if (nLeft > 0)
     {
         if ((nLeft <= SMALL_SIZE) && (nLeft <= BunchSize))
         {
-            // printf("nLeft <= SMALL_SIZE or nLeft <= BunchSize\n");
-            // fflush(stdout);
 
             // use single thread to handle the left
 
@@ -403,21 +381,26 @@ void _construct_V_kernel(int *mesh_bra,
             // create plan
 
             fftw_plan p_forward = fftw_plan_many_dft_r2c(
-                // 3, mesh, nLeft, auxBasis + bunch_start * n_real, mesh, 1, n_real, (fftw_complex *)buf, mesh_complex, 1, n_complex, FFTW_ESTIMATE);
                 3, mesh_bra, nLeft, auxBasis + bunch_start * n_real_bra, mesh_bra, 1, n_real_bra, (fftw_complex *)buf, mesh_bra_complex, 1, n_complex_bra, FFTW_ESTIMATE);
 
             fftw_plan p_backward = fftw_plan_many_dft_c2r(
-                // 3, mesh, nLeft, (fftw_complex *)buf, mesh_complex, 1, n_complex, V + bunch_start * n_real, mesh, 1, n_real, FFTW_ESTIMATE);
                 3, mesh_ket, nLeft, (fftw_complex *)buf, mesh_ket_complex, 1, n_complex_ket, V + bunch_start * n_real_ket, mesh_ket, 1, n_real_ket, FFTW_ESTIMATE);
 
             // forward transform
 
-            // fftw_execute_dft_r2c(p_forward, auxBasis + (size_t)bunch_start * (size_t)n_real, (fftw_complex *)buf);
-            fftw_execute_dft_r2c(p_forward, auxBasis + (size_t)bunch_start * (size_t)n_real_bra, (fftw_complex *)buf);
+            // fftw_execute_dft_r2c(p_forward, auxBasis + (size_t)bunch_start * (size_t)n_real_bra, (fftw_complex *)buf);
+
+            int nelmt = (n_real_bra > n_real_ket) ? n_real_bra : n_real_ket;
+
+            double *auxBasis_aligned = fftw_alloc_real(sizeof(double) * nelmt * nLeft);
+            memcpy(auxBasis_aligned, auxBasis + (size_t)bunch_start * (size_t)n_real_bra, sizeof(double) * n_real_bra * nLeft);
+            double *buf_aligned = (double *)align_to_512bit(buf);
+            fftw_execute_dft_r2c(p_forward, auxBasis_aligned, (fftw_complex *)buf_aligned);
 
             // multiply CoulG
 
-            double *ptr = buf;
+            // double *ptr = buf;
+            double *ptr = (double *)buf_aligned;
 
             for (int j = bunch_start; j < bunch_end; ++j)
             {
@@ -431,44 +414,40 @@ void _construct_V_kernel(int *mesh_bra,
 
             if (map_bra_2_ket != NULL)
             {
-                ptr = buf + n_complex_bra * 2 * nLeft;
+                ptr = buf_aligned + n_complex_bra * 2 * nLeft;
+                ptr = (double *)align_to_512bit(ptr);
                 memset(ptr, 0, sizeof(double) * n_complex_ket * 2 * nLeft);
                 for (int j = bunch_start; j < bunch_end; ++j)
                 {
                     size_t shift = (j - bunch_start) * n_complex_bra * 2;
                     for (int k = 0; k < n_complex_bra; ++k)
                     {
-                        ptr[2 * map_bra_2_ket[k]] = buf[shift + 2 * k];
-                        ptr[2 * map_bra_2_ket[k] + 1] = buf[shift + 2 * k + 1];
+                        ptr[2 * map_bra_2_ket[k]] = buf_aligned[shift + 2 * k];
+                        ptr[2 * map_bra_2_ket[k] + 1] = buf_aligned[shift + 2 * k + 1];
                     }
                     ptr += n_complex_ket * 2;
                 }
-                ptr = buf + n_complex_bra * 2 * nLeft;
+                ptr = buf_aligned + n_complex_bra * 2 * nLeft;
+                ptr = (double *)align_to_512bit(ptr);
             }
             else
             {
-                ptr = buf;
+                ptr = buf_aligned;
             }
 
             // backward transform
 
-            // fftw_execute_dft_c2r(p_backward, (fftw_complex *)buf, V + (size_t)bunch_start * (size_t)n_real);
-            fftw_execute_dft_c2r(p_backward, (fftw_complex *)ptr, V + (size_t)bunch_start * (size_t)n_real_ket);
+            // fftw_execute_dft_c2r(p_backward, (fftw_complex *)ptr, V + (size_t)bunch_start * (size_t)n_real_ket);
+            fftw_execute_dft_c2r(p_backward, (fftw_complex *)ptr, auxBasis_aligned);
+            memcpy(V + (size_t)bunch_start * (size_t)n_real_ket, auxBasis_aligned, sizeof(double) * n_real_ket * nLeft);
+
+            fftw_free(auxBasis_aligned);
 
             // scale
 
-            // ptr = V + (size_t)bunch_start * (size_t)n_real;
             ptr = V + (size_t)bunch_start * (size_t)n_real_ket;
             int _size_ = n_real_ket * nLeft;
             dscal_(&_size_, &fac, ptr, &INC1);
-
-            // for (int j = bunch_start; j < bunch_end; ++j)
-            // {
-            //     for (int k = 0; k < n_real; ++k)
-            //     {
-            //         *ptr++ *= fac; ///
-            //     }
-            // }
 
             // destroy plan
 
@@ -486,7 +465,6 @@ void _construct_V_kernel(int *mesh_bra,
 
             // create plan
 
-            // fftw_plan p_forward = fftw_plan_dft_r2c(3, mesh, auxBasis + bunch_start * n_real, (fftw_complex *)buf, FFTW_ESTIMATE);
             fftw_plan p_forward = fftw_plan_dft_r2c(3,
                                                     // mesh, auxBasis + bunch_start * n_real, (fftw_complex *)buf, FFTW_ESTIMATE);
                                                     mesh_bra, auxBasis + bunch_start * n_real_bra, (fftw_complex *)buf, FFTW_ESTIMATE);
@@ -495,19 +473,22 @@ void _construct_V_kernel(int *mesh_bra,
                                                      // mesh, (fftw_complex *)buf, V + bunch_start * n_real, FFTW_ESTIMATE);
                                                      mesh_ket, (fftw_complex *)buf, V + bunch_start * n_real_ket, FFTW_ESTIMATE);
 
-            // size_t nbuf_per_thread = ((n_complex * 2 + 15) / 16) * 16; // make sure the memory is aligned
-            size_t nbuf_per_thread = ((n_complex_bra * 2 + 15) / 16) * 16; // make sure the memory is aligned
+            size_t nbuf_per_thread = ((n_complex_bra * 2 + 63) / 64) * 64; // make sure the memory is aligned
             if (map_bra_2_ket != NULL)
             {
-                nbuf_per_thread += ((n_complex_ket * 2 + 15) / 16) * 16;
+                nbuf_per_thread += ((n_complex_ket * 2 + 63) / 64) * 64;
             }
 
 #pragma omp parallel num_threads(nThread)
             {
                 int thread_id = omp_get_thread_num();
                 double *buf_thread = buf + thread_id * (size_t)nbuf_per_thread;
+                buf_thread = (double *)align_to_512bit(buf_thread);
                 size_t k;
                 double *ptr;
+
+                int nelmt = (n_real_bra > n_real_ket) ? n_real_bra : n_real_ket;
+                double *auxBasis_aligned = fftw_alloc_real(sizeof(double) * nelmt);
 
 #pragma omp for schedule(static)
                 for (size_t j = bunch_start; j < bunch_end; ++j)
@@ -515,14 +496,14 @@ void _construct_V_kernel(int *mesh_bra,
 
                     // forward transform
 
-                    // fftw_execute_dft_r2c(p_forward, auxBasis + j * (size_t)n_real, (fftw_complex *)buf_thread);
-                    fftw_execute_dft_r2c(p_forward, auxBasis + j * (size_t)n_real_bra, (fftw_complex *)buf_thread);
+                    // fftw_execute_dft_r2c(p_forward, auxBasis + j * (size_t)n_real_bra, (fftw_complex *)buf_thread);
+                    memcpy(auxBasis_aligned, auxBasis + j * (size_t)n_real_bra, sizeof(double) * n_real_bra);
+                    fftw_execute_dft_r2c(p_forward, auxBasis_aligned, (fftw_complex *)buf_thread);
 
                     // multiply CoulG
 
                     ptr = buf_thread;
 
-                    // for (k = 0; k < n_complex; ++k)
                     for (k = 0; k < n_complex_bra; ++k)
                     {
                         *ptr++ *= CoulG[k];
@@ -532,6 +513,7 @@ void _construct_V_kernel(int *mesh_bra,
                     if (map_bra_2_ket != NULL)
                     {
                         ptr = buf_thread + n_complex_bra * 2;
+                        ptr = (double *)align_to_512bit(ptr);
                         memset(ptr, 0, sizeof(double) * n_complex_ket * 2);
                         for (k = 0; k < n_complex_bra; ++k)
                         {
@@ -539,6 +521,7 @@ void _construct_V_kernel(int *mesh_bra,
                             ptr[2 * map_bra_2_ket[k] + 1] = buf_thread[2 * k + 1];
                         }
                         ptr = buf_thread + n_complex_bra * 2;
+                        ptr = (double *)align_to_512bit(ptr);
                     }
                     else
                     {
@@ -547,21 +530,18 @@ void _construct_V_kernel(int *mesh_bra,
 
                     // backward transform
 
-                    // fftw_execute_dft_c2r(p_backward, (fftw_complex *)buf_thread, V + j * (size_t)n_real);
-                    fftw_execute_dft_c2r(p_backward, (fftw_complex *)ptr, V + j * (size_t)n_real_ket);
+                    // fftw_execute_dft_c2r(p_backward, (fftw_complex *)ptr, V + j * (size_t)n_real_ket);
+                    fftw_execute_dft_c2r(p_backward, (fftw_complex *)ptr, auxBasis_aligned);
+                    memcpy(V + j * (size_t)n_real_ket, auxBasis_aligned, sizeof(double) * n_real_ket);
 
                     // scale
 
-                    // ptr = V + j * (size_t)n_real;
                     ptr = V + j * (size_t)n_real_ket;
                     int _size_ = n_real_ket;
                     dscal_(&_size_, &fac, ptr, &INC1);
-
-                    // for (k = 0; k < n_real; ++k)
-                    // {
-                    //     *ptr++ *= fac;
-                    // }
                 }
+
+                fftw_free(auxBasis_aligned);
             }
 
             // destroy plan

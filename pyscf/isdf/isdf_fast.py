@@ -51,6 +51,7 @@ libisdf = lib.load_library("libisdf")
 BASIS_CUTOFF = 1e-18  # too small may lead to numerical instability
 CRITERION_CALL_PARALLEL_QR = 256
 USE_FFTW = False
+EXTRA_ALLOC = 64 * 2
 
 from packaging import version
 np_version = version.parse(np.__version__)
@@ -549,7 +550,7 @@ def constrcuct_V_CCode(aux_basis: np.ndarray, mesh, coul_G, buf):
     nThread = lib.num_threads()
     bunchsize = naux // (2 * nThread)
     bufsize_per_thread = bunchsize * coulG_real.shape[0] * 2
-    bufsize_per_thread = (bufsize_per_thread + 15) // 16 * 16
+    bufsize_per_thread = (bufsize_per_thread + 63) // 64 * 64
     mesh_int32 = np.array(mesh, dtype=np.int32)
 
     V = np.zeros((naux, ngrids), dtype=np.double)
@@ -793,7 +794,7 @@ class PBC_ISDF_Info(df.fft.FFTDF):
                 ngrids,
                 naux,
             )
-            buffersize_k = nao * ngrids + naux * ngrids + naux * naux + nao * nao
+            buffersize_k = nao * ngrids + naux * (ngrids + EXTRA_ALLOC) + naux * naux + nao * nao
             buffersize_j = nao * ngrids + ngrids + nao * naux + naux + naux + nao * nao
 
             nThreadsOMP = lib.num_threads()
