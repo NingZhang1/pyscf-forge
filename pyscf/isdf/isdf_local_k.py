@@ -1441,7 +1441,7 @@ if __name__ == "__main__":
         ["C", (0.8917, 2.6751, 2.6751)],
     ]
 
-    KE_CUTOFF = 70
+    KE_CUTOFF = 16
 
     prim_cell = build_supercell(atm, prim_a, Ls=[1, 1, 1], ke_cutoff=KE_CUTOFF)
     prim_mesh = prim_cell.mesh

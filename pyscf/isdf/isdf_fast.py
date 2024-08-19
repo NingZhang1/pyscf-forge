@@ -1121,7 +1121,11 @@ class PBC_ISDF_Info(df.fft.FFTDF):
                 assert self.cell.nao_nr() % nkpts == 0
 
                 from pyscf.isdf.isdf_tools_kSampling import _RowCol_FFT_bench
-                from pyscf.isdf.isdf_tools_densitymatrix import pack_JK_in_FFT_space
+                from pyscf.isdf.isdf_tools_densitymatrix import pack_JK_in_FFT_space, symmetrize_dm
+
+                ##### NOTE: first symmetrization ##### 
+                
+                self.PP = symmetrize_dm(self.PP, kmesh)
 
                 PP_complex = _RowCol_FFT_bench(
                     self.PP[:nao_prim, :],
