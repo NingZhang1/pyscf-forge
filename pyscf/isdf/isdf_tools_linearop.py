@@ -90,6 +90,30 @@ def d_ij_j_ij(a, b, out=None):
 
     return out
 
+def zd_ij_j_ij(a, b, out=None):
+    assert a.shape[1] == b.shape[0]
+    assert a.ndim == 2
+    assert b.ndim == 1
+
+    if a.dtype != numpy.complex128 or b.dtype != numpy.double:
+        raise NotImplementedError
+    else:
+        fn = getattr(libisdf, "NPzd_ij_j_ij", None)
+        assert fn is not None
+
+    if out is None:
+        out = numpy.empty_like(a)
+
+    fn(
+        out.ctypes.data_as(ctypes.c_void_p),
+        a.ctypes.data_as(ctypes.c_void_p),
+        b.ctypes.data_as(ctypes.c_void_p),
+        ctypes.c_size_t(a.shape[0]),
+        ctypes.c_size_t(a.shape[1]),
+    )
+
+    return out
+
 
 def cwise_mul(a, b, out=None):
     assert a.size == b.size

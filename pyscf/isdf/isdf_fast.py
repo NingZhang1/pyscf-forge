@@ -42,7 +42,7 @@ import pyscf.isdf.isdf_ao2mo as isdf_ao2mo
 import pyscf.isdf.isdf_jk as isdf_jk
 from pyscf.isdf.isdf_eval_gto import ISDF_eval_gto
 from pyscf.isdf.isdf_tools_kSampling import _kmesh_to_Kpoints
-from pyscf.isdf.isdf_tools_linearop import square_inPlace, d_i_ij_ij
+from pyscf.isdf.isdf_tools_linearop import square_inPlace, d_i_ij_ij, zd_ij_j_ij
 
 libisdf = lib.load_library("libisdf")
 
@@ -50,6 +50,10 @@ libisdf = lib.load_library("libisdf")
 
 BASIS_CUTOFF = 1e-18  # too small may lead to numerical instability
 CRITERION_CALL_PARALLEL_QR = 256
+USE_FFTW = False
+
+from packaging import version
+np_version = version.parse(np.__version__)
 
 ############ subroutines --- select IP and build aux basis ############
 
@@ -483,8 +487,7 @@ def build_aux_basis(mydf, debug=True, use_mpi=False):
 
     if not hasattr(mydf, "aoRg") or mydf.aoRg is None:
         aoRg = numpy.empty((mydf.nao, mydf.IP_ID.shape[0]))
-        # lib.dslice(aoR, IP_ID, out=aoRg)
-        aoRg = aoR[:, IP_ID]
+        aoRg = aoR[:, IP_ID].copy()
     else:
         aoRg = mydf.aoRg
 
@@ -518,13 +521,6 @@ def build_aux_basis(mydf, debug=True, use_mpi=False):
     )  # buffer 2 size = naux * ngrids
     square_inPlace(mydf.aux_basis)
 
-    # fn_build_aux = getattr(libisdf, "Solve_LLTEqualB_Parallel", None)
-    # assert(fn_build_aux is not None)
-
-    # nThread = lib.num_threads()
-    # nGrids = aoR.shape[1]
-    # Bunchsize = nGrids // nThread
-
     buffer2 = np.ndarray(
         (e.shape[0], mydf.aux_basis.shape[1]),
         dtype=np.double,
@@ -545,6 +541,51 @@ def build_aux_basis(mydf, debug=True, use_mpi=False):
     mydf.naux = naux
     mydf.aoRg = aoRg
 
+def constrcuct_V_CCode(aux_basis: np.ndarray, mesh, coul_G, buf):
+
+    naux = aux_basis.shape[0]
+    ngrids = aux_basis.shape[1]
+    coulG_real = coul_G.reshape(*mesh)[:, :, : mesh[2] // 2 + 1].reshape(-1)
+    nThread = lib.num_threads()
+    bunchsize = naux // (2 * nThread)
+    bufsize_per_thread = bunchsize * coulG_real.shape[0] * 2
+    bufsize_per_thread = (bufsize_per_thread + 15) // 16 * 16
+    mesh_int32 = np.array(mesh, dtype=np.int32)
+
+    V = np.zeros((naux, ngrids), dtype=np.double)
+
+    fn = getattr(libisdf, "_construct_V", None)
+    assert fn is not None
+
+    fn(
+        mesh_int32.ctypes.data_as(ctypes.c_void_p),
+        ctypes.c_int(naux),
+        aux_basis.ctypes.data_as(ctypes.c_void_p),
+        coulG_real.ctypes.data_as(ctypes.c_void_p),
+        V.ctypes.data_as(ctypes.c_void_p),
+        ctypes.c_int(bunchsize),
+        buf.ctypes.data_as(ctypes.c_void_p),
+        ctypes.c_int(bufsize_per_thread),
+    )
+
+    return V
+
+def constrcuct_V(aux_basis: np.ndarray, mesh, coul_G, buf):
+    naux = aux_basis.shape[0]
+    coulG_real = coul_G.reshape(*mesh)[:, :, : mesh[2] // 2 + 1].reshape(-1)
+    mesh_complex = np.asarray([mesh[0], mesh[1], mesh[2]//2+1])
+    ngrid_complex = np.prod(mesh_complex)
+    if np_version >= version.parse("2.0"):
+        buffer = np.ndarray((naux, ngrid_complex), dtype=np.complex128, buffer=buf)
+        numpy.fft.rfftn(aux_basis.reshape(-1, *mesh), s=mesh, axes=(1,2,3), out=buffer)
+    else:
+        buffer = np.fft.rfftn(aux_basis.reshape(-1, *mesh), s=mesh, axes=(1,2,3))
+    buffer = buffer.reshape(naux, -1)
+    zd_ij_j_ij(buffer, coulG_real, out=buffer)
+    V = numpy.fft.irfftn(buffer.reshape(naux, *mesh_complex), s=mesh, axes=(1,2,3))
+    if np_version < version.parse("2.0"):
+        del buffer
+    return V.reshape(naux, -1)
 
 from pyscf.pbc import df
 
@@ -741,6 +782,9 @@ class PBC_ISDF_Info(df.fft.FFTDF):
             nao = self.nao
             ngrids = self.ngrids
             naux = self.naux
+            mesh = self.cell.mesh
+            ngrids2 = mesh[0] * mesh[1] * (mesh[2]//2+1) * 2
+            ngrids = max(ngrids, ngrids2)
 
             logger.debug4(
                 self,
@@ -922,41 +966,12 @@ class PBC_ISDF_Info(df.fft.FFTDF):
 
         # build the ddot buffer
 
-        naux = self.naux
+        # naux = self.naux
 
         if cell is None:
             cell = self.cell
         if mesh is None:
             mesh = self.cell.mesh
-
-        def constrcuct_V_CCode(aux_basis: np.ndarray, mesh, coul_G):
-
-            coulG_real = coul_G.reshape(*mesh)[:, :, : mesh[2] // 2 + 1].reshape(-1)
-            nThread = lib.num_threads()
-            bunchsize = naux // (2 * nThread)
-            bufsize_per_thread = bunchsize * coulG_real.shape[0] * 2
-            bufsize_per_thread = (bufsize_per_thread + 15) // 16 * 16
-            nAux = aux_basis.shape[0]
-            ngrids = aux_basis.shape[1]
-            mesh_int32 = np.array(mesh, dtype=np.int32)
-
-            V = np.zeros((nAux, ngrids), dtype=np.double)
-
-            fn = getattr(libisdf, "_construct_V", None)
-            assert fn is not None
-
-            fn(
-                mesh_int32.ctypes.data_as(ctypes.c_void_p),
-                ctypes.c_int(nAux),
-                aux_basis.ctypes.data_as(ctypes.c_void_p),
-                coulG_real.ctypes.data_as(ctypes.c_void_p),
-                V.ctypes.data_as(ctypes.c_void_p),
-                ctypes.c_int(bunchsize),
-                self.jk_buffer.ctypes.data_as(ctypes.c_void_p),
-                ctypes.c_int(bufsize_per_thread),
-            )
-
-            return V
 
         t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
 
@@ -966,7 +981,10 @@ class PBC_ISDF_Info(df.fft.FFTDF):
 
         coulG = tools.get_coulG(cell, mesh=mesh)
 
-        V_R = constrcuct_V_CCode(self.aux_basis, mesh, coulG)
+        if USE_FFTW:
+            V_R = constrcuct_V_CCode(self.aux_basis, mesh, coulG, self.jk_buffer)
+        else:
+            V_R = constrcuct_V(self.aux_basis, mesh, coulG, self.jk_buffer)
 
         t2 = (lib.logger.process_clock(), lib.logger.perf_counter())
         if debug:
@@ -1174,32 +1192,8 @@ class PBC_ISDF_Info(df.fft.FFTDF):
                 
                 self.nuc = self.nuc[:nao_prim, :].copy()
 
-                # n_complex = self.kmesh[0] * self.kmesh[1] * (self.kmesh[2] // 2 + 1)
-                # n_cell = np.prod(self.kmesh)
-                # nuc_complex = np.zeros(
-                #     (nao_prim, n_complex * nao_prim), dtype=np.complex128
-                # )
-                # nuc_real = np.ndarray(
-                #     (nao_prim, n_cell * nao_prim), dtype=np.double, buffer=nuc_complex
-                # )
-                # nuc_real.ravel()[:] = self.nuc.ravel()
-                # buf_fft = np.zeros((nao_prim, n_complex, nao_prim), dtype=np.complex128)
-                # fn1 = getattr(libisdf, "_FFT_Matrix_Col_InPlace", None)
-                # assert fn1 is not None
-                # fn1(
-                #     nuc_real.ctypes.data_as(ctypes.c_void_p),
-                #     ctypes.c_int(nao_prim),
-                #     ctypes.c_int(nao_prim),
-                #     kmesh.ctypes.data_as(ctypes.c_void_p),
-                #     buf_fft.ctypes.data_as(ctypes.c_void_p),
-                # )
-                # del buf_fft
-
                 from pyscf.isdf.isdf_tools_kSampling import _RowCol_FFT_bench
                 from pyscf.isdf.isdf_tools_densitymatrix import pack_JK_in_FFT_space
-
-                #nuc_complex = nuc_complex.conj().copy()
-                #self.nuc = pack_JK_in_FFT_space(nuc_complex, kmesh, nao_prim)
 
                 nuc_complex = _RowCol_FFT_bench(
                     self.nuc, kmesh, inv=False, TransBra=False, TransKet=True

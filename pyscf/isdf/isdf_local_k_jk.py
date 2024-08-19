@@ -1532,12 +1532,9 @@ def _get_k_kSym(mydf, _dm):
 def _get_k_kSym_direct(mydf, _dm, use_mpi=False):
 
     if use_mpi:
-        # assert mydf.direct == True
         if not mydf.direct:
             raise RuntimeError("MPI must work with direct mode.")
         from pyscf.isdf.isdf_tools_mpi import rank, comm, comm_size, bcast, reduce
-
-        # size = comm.Get_size()
 
     t1 = (logger.process_clock(), logger.perf_counter())
     t0 = (logger.process_clock(), logger.perf_counter())
