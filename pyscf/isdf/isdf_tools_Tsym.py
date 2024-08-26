@@ -33,6 +33,12 @@ from pyscf.isdf.BackEnd.isdf_backend import _maximum as MAX
 from pyscf.isdf.BackEnd.isdf_backend import _is_realtype as IsRealTy
 from pyscf.isdf.BackEnd.isdf_backend import _is_complextype as IsComplexTy
 from pyscf.isdf.BackEnd.isdf_backend import TENSORTy
+from pyscf.isdf.BackEnd.isdf_backend import _toTensor as ToTensor
+from pyscf.isdf.BackEnd.isdf_backend import _toNumpy as ToNUMPY
+from pyscf.isdf.BackEnd.isdf_backend import _ifftn as IFFTN
+from pyscf.isdf.BackEnd.isdf_backend import _fftn as FFTN
+from pyscf.isdf.BackEnd.isdf_backend import _permute as PERMUTE
+from pyscf.isdf.BackEnd.isdf_backend import _conjugate_ as CONJUGATE_
 
 
 def symmetrize_mat(dm: TENSORTy, Ls):
@@ -230,3 +236,62 @@ def _kmesh_to_Kpoints(cell, mesh):
     kpts = np.array(kpts)
 
     return KPoints(cell, kpts)
+
+
+def _make_kpts_kmesh(cell, kpts=None, kmesh=None):
+    if kpts is None and kmesh is None:
+        kmesh = np.asarray([1, 1, 1])
+        kpts = _kmesh_to_Kpoints(cell, kmesh)
+    elif kpts is not None:
+
+        if not isinstance(kpts, KPoints):
+            kpts = KPoints(cell, kpts)
+        nkpts = kpts.nkpts
+
+        from pyscf.pbc.tools.k2gamma import kpts_to_kmesh
+
+        kmesh = kpts_to_kmesh(cell, kpts)
+        kmesh = np.asarray(kmesh)
+
+        if PROD(kmesh) != nkpts:
+            raise ValueError("The number of k-points is not consistent with kmesh")
+    else:
+        if not isinstance(kmesh, np.ndarray):
+            kmesh = np.asarray(kmesh)
+        kpts = _kmesh_to_Kpoints(cell, kmesh)
+
+    return kpts, kmesh
+
+
+def _1e_operator_gamma2k(supercell, kmesh, operator_gamma: TENSORTy):
+
+    IsNumpy = isinstance(operator_gamma, np.ndarray)
+
+    nao_prim = supercell.nao // PROD(kmesh)
+    nkpts = PROD(kmesh)
+
+    if operator_gamma.ndim == 3:
+        assert operator_gamma.shape[0] == 1
+        operator_gamma = operator_gamma[0]
+
+    if operator_gamma.shape[0] != nao_prim:
+        assert operator_gamma.shape[0] == nao_prim * nkpts
+        assert operator_gamma.shape[1] == nao_prim * nkpts
+        operator_gamma = operator_gamma[:nao_prim, :]
+    else:
+        assert operator_gamma.shape[1] == nao_prim * nkpts
+
+    operator_gamma = ToTensor(operator_gamma)
+    operator_gamma = operator_gamma.reshape(nao_prim, *kmesh, nao_prim)
+    operator_gamma = PERMUTE(operator_gamma, (0, 4, 1, 2, 3))
+
+    operator_k = FFTN(operator_gamma, s=kmesh, axes=(2, 3, 4), overwrite_input=False)
+    operator_k = operator_k.reshape(nao_prim, nao_prim, nkpts)
+    operator_k = PERMUTE(operator_k, (2, 0, 1))
+    operator_k = CONJUGATE_(operator_k)
+
+    # print(operator_k[1])
+
+    if IsNumpy:
+        operator_k = ToNUMPY(operator_k)
+    return operator_k

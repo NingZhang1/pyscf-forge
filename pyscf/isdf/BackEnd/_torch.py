@@ -130,6 +130,22 @@ def imag(a, force_outofplace=False):
         return a.imag
 
 
+def permute(a, axes):
+    return a.permute(axes)
+
+
+def conjugate(a, out=None):
+    if a is out:
+        assert out is not None
+        return torch.conj_physical_(a)
+    else:
+        return torch.conj_physical(a, out=out)
+
+
+def conjugate_(a):
+    return torch.conj_physical_(a)
+
+
 # FFT on cpu/gpu #
 
 if _pyfftw.FFTW_FOUND and ENABLE_FFTW and not FFT_CPU_USE_TORCH_ANYWAY:
@@ -400,10 +416,16 @@ def take(a, indices, axis=None, out=None):
 
 
 def maximum(a, axis=None, out=None):
+    if axis is None:
+        assert out is None
+        return torch.max(a).item()
     return torch.max(a, dim=axis, out=out)
 
 
 def minimum(a, axis=None, out=None):
+    if axis is None:
+        assert out is None
+        return torch.min(a).item()
     return torch.min(a, dim=axis, out=out)
 
 

@@ -59,6 +59,9 @@ TENSORTy = backend.TENSORTy
 _zeros = backend.zeros
 _real = backend.real
 _imag = backend.imag
+_permute = backend.permute
+_conjugate = backend.conjugate
+_conjugate_ = backend.conjugate_
 _is_realtype = backend.is_realtype
 _is_complextype = backend.is_complextype
 # func interface #

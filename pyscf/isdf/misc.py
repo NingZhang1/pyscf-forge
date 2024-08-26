@@ -19,9 +19,20 @@
 from pyscf import lib
 
 
-def _benchmark_time(t1, t2, label, rec):
-    lib.logger.debug4(
-        rec,
-        "%20s wall time: %12.6f CPU time: %12.6f"
-        % (label, t2[1] - t1[1], t2[0] - t1[0]),
-    )
+def _benchmark_time(t1, t2, label, rec, rank=None):
+    if rank is None or rank == 0:
+        lib.logger.debug4(
+            rec,
+            "%20s wall time: %12.6f CPU time: %12.6f"
+            % (label, t2[1] - t1[1], t2[0] - t1[0]),
+        )
+
+
+def _info(rec, rank, msg, *args):
+    if rank == 0 or rank is None:
+        lib.logger.info(rec, msg, *args)
+
+
+def _debug4(rec, rank, msg, *args):
+    if rank == 0 or rank is None:
+        lib.logger.debug4(rec, msg, *args)

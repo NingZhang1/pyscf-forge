@@ -46,6 +46,9 @@ malloc = __malloc
 zeros = SHARED_FUNC_LIB.zeros
 real = SHARED_FUNC_LIB.real
 imag = SHARED_FUNC_LIB.imag
+permute = SHARED_FUNC_LIB.permute
+conjugate = SHARED_FUNC_LIB.conjugate
+conjugate_ = SHARED_FUNC_LIB.conjugate_
 
 # FFT #
 

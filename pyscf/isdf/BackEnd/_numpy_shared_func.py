@@ -43,6 +43,18 @@ def imag(a, force_outofplace=False):
         return numpy.imag(a)
 
 
+def permute(a, axes):
+    return a.transpose(axes)
+
+
+def conjugate(a, out=None):
+    return numpy.conjugate(a, out=out)
+
+
+def conjugate_(a):
+    return conjugate(a, out=a)
+
+
 def index_add(A, dim, index, source, alpha=1):
     A[(slice(None),) * dim + (index,)] += alpha * source
     return A
