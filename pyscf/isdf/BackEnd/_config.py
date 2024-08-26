@@ -19,7 +19,7 @@ def disable_multi_threading():
 
 # configuration specific to torch backend #
 
-USE_GPU = True
+USE_GPU = False
 FFT_CPU_USE_TORCH_ANYWAY = False
 QR_PIVOTING_GPU_ANYWAY = False
 

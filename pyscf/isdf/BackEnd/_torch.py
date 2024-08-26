@@ -150,61 +150,61 @@ def conjugate_(a):
 
 if _pyfftw.FFTW_FOUND and ENABLE_FFTW and not FFT_CPU_USE_TORCH_ANYWAY:
 
-    def _rfftn_cpu(x, s=None, axes=None, overwrite_input=None, threads=None):
+    def _rfftn_cpu(x, s=None, axes=None, overwrite_input=None, threads=None, out=None):
         x = toNumpy(x)
         res = _pyfftw.rfftn(
             x, s=s, axes=axes, overwrite_input=overwrite_input, threads=threads
         )
         return toTensor(res, cpu=True)
 
-    def _irfftn_cpu(x, s=None, axes=None, overwrite_input=None, threads=None):
+    def _irfftn_cpu(x, s=None, axes=None, overwrite_input=None, threads=None, out=None):
         x = toNumpy(x)
         res = _pyfftw.irfftn(
             x, s=s, axes=axes, overwrite_input=overwrite_input, threads=threads
         )
         return toTensor(res, cpu=True)
 
-    def _fftn_cpu(x, s=None, axes=None, overwrite_input=None, threads=None):
+    def _fftn_cpu(x, s=None, axes=None, overwrite_input=None, threads=None, out=None):
         x = toNumpy(x)
         res = _pyfftw.fftn(
             x, s=s, axes=axes, overwrite_input=overwrite_input, threads=threads
         )
         return toTensor(res, cpu=True)
 
-    def _ifftn_cpu(x, s=None, axes=None, overwrite_input=None, threads=None):
+    def _ifftn_cpu(x, s=None, axes=None, overwrite_input=None, threads=None, out=None):
         x = toNumpy(x)
         res = _pyfftw.ifftn(
             x, s=s, axes=axes, overwrite_input=overwrite_input, threads=threads
         )
         return toTensor(res, cpu=True)
 
-    def rfftn(x, s=None, axes=None, overwrite_input=None, threads=None):
+    def rfftn(x, s=None, axes=None, overwrite_input=None, threads=None, out=None):
         if x.is_cuda:
-            return torch.rfft(x, s=s, dim=axes)
+            return torch.rfft(x, s=s, dim=axes, out=out)
         else:
             return _rfftn_cpu(
                 x, s=s, axes=axes, overwrite_input=overwrite_input, threads=threads
             )
 
-    def irfftn(x, s=None, axes=None, overwrite_input=None, threads=None):
+    def irfftn(x, s=None, axes=None, overwrite_input=None, threads=None, out=None):
         if x.is_cuda:
-            return torch.irfft(x, s=s, dim=axes)
+            return torch.irfft(x, s=s, dim=axes, out=out)
         else:
             return _irfftn_cpu(
                 x, s=s, axes=axes, overwrite_input=overwrite_input, threads=threads
             )
 
-    def fftn(x, s=None, axes=None, overwrite_input=None, threads=None):
+    def fftn(x, s=None, axes=None, overwrite_input=None, threads=None, out=None):
         if x.is_cuda:
-            return torch.fft.fftn(x, s=s, dim=axes)
+            return torch.fft.fftn(x, s=s, dim=axes, out=out)
         else:
             return _fftn_cpu(
                 x, s=s, axes=axes, overwrite_input=overwrite_input, threads=threads
             )
 
-    def ifftn(x, s=None, axes=None, overwrite_input=None, threads=None):
+    def ifftn(x, s=None, axes=None, overwrite_input=None, threads=None, out=None):
         if x.is_cuda:
-            return torch.fft.ifftn(x, s=s, dim=axes)
+            return torch.fft.ifftn(x, s=s, dim=axes, out=out)
         else:
             return _ifftn_cpu(
                 x, s=s, axes=axes, overwrite_input=overwrite_input, threads=threads
@@ -214,17 +214,17 @@ else:
 
     # print("Using torch for FFT")
 
-    def rfftn(x, s=None, axes=None, overwrite_input=None, threads=None):
-        return torch.rfft(x, s=s, dim=axes)
+    def rfftn(x, s=None, axes=None, overwrite_input=None, threads=None, out=None):
+        return torch.rfft(x, s=s, dim=axes, out=out)
 
-    def irfftn(x, s=None, axes=None, overwrite_input=None, threads=None):
-        return torch.irfft(x, s=s, dim=axes)
+    def irfftn(x, s=None, axes=None, overwrite_input=None, threads=None, out=None):
+        return torch.irfft(x, s=s, dim=axes, out=out)
 
-    def fftn(x, s=None, axes=None, overwrite_input=None, threads=None):
-        return torch.fft.fftn(x, s=s, dim=axes)
+    def fftn(x, s=None, axes=None, overwrite_input=None, threads=None, out=None):
+        return torch.fft.fftn(x, s=s, dim=axes, out=out)
 
-    def ifftn(x, s=None, axes=None, overwrite_input=None, threads=None):
-        return torch.fft.ifftn(x, s=s, dim=axes)
+    def ifftn(x, s=None, axes=None, overwrite_input=None, threads=None, out=None):
+        return torch.fft.ifftn(x, s=s, dim=axes, out=out)
 
 
 # matmul #

@@ -64,16 +64,16 @@ if _pyfftw.FFTW_FOUND and ENABLE_FFTW:
 else:
     # print("Using numpy.fft")
 
-    def rfftn(x, s=None, axes=None, overwrite_input=None, threads=None):
+    def rfftn(x, s=None, axes=None, overwrite_input=None, threads=None, out=None):
         return numpy.fft.rfftn(x, s, axes)
 
-    def irfftn(x, s=None, axes=None, overwrite_input=None, threads=None):
+    def irfftn(x, s=None, axes=None, overwrite_input=None, threads=None, out=None):
         return numpy.fft.irfftn(x, s, axes)
 
-    def fftn(x, s=None, axes=None, overwrite_input=None, threads=None):
+    def fftn(x, s=None, axes=None, overwrite_input=None, threads=None, out=None):
         return numpy.fft.fftn(x, s, axes)
 
-    def ifftn(x, s=None, axes=None, overwrite_input=None, threads=None):
+    def ifftn(x, s=None, axes=None, overwrite_input=None, threads=None, out=None):
         return numpy.fft.ifftn(x, s, axes)
 
 

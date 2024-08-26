@@ -220,20 +220,9 @@ def pack_JK_in_FFT_space(input_mat: TENSORTy, kmesh, nao_prim, output=None):
     return output
 
 
-def _kmesh_to_Kpoints(cell, mesh):
+def _kmesh_to_Kpoints(cell, kmesh):
 
-    kpts = []
-
-    for i, j, k in product(range(mesh[0]), range(mesh[1]), range(mesh[2])):
-        kpts.append(
-            [
-                1.0 / float(mesh[0]) * float(i),
-                1.0 / float(mesh[1]) * float(j),
-                1.0 / float(mesh[2]) * float(k),
-            ]
-        )
-
-    kpts = np.array(kpts)
+    kpts = cell.make_kpts(kmesh)
 
     return KPoints(cell, kpts)
 

@@ -63,18 +63,18 @@ if _pyfftw.FFTW_FOUND and ENABLE_FFTW:
 
 else:
 
-    def rfftn(x, s=None, axes=None, overwrite_input=None, threads=None):
+    def rfftn(x, s=None, axes=None, overwrite_input=None, threads=None, out=None):
         return scipy.fft.rfftn(x, s, axes, overwrite_x=overwrite_input, workers=threads)
 
-    def irfftn(x, s=None, axes=None, overwrite_input=None, threads=None):
+    def irfftn(x, s=None, axes=None, overwrite_input=None, threads=None, out=None):
         return scipy.fft.irfftn(
             x, s, axes, overwrite_x=overwrite_input, workers=threads
         )
 
-    def fftn(x, s=None, axes=None, overwrite_input=None, threads=None):
+    def fftn(x, s=None, axes=None, overwrite_input=None, threads=None, out=None):
         return scipy.fft.fftn(x, s, axes, overwrite_x=overwrite_input, workers=threads)
 
-    def ifftn(x, s=None, axes=None, overwrite_input=None, threads=None):
+    def ifftn(x, s=None, axes=None, overwrite_input=None, threads=None, out=None):
         return scipy.fft.ifftn(x, s, axes)
 
 

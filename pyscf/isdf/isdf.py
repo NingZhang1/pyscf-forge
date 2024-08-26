@@ -44,7 +44,13 @@ import pyscf.isdf.misc as misc
 
 import pyscf.isdf.BackEnd.isdf_backend as BACKEND
 
+USE_GPU = BACKEND.USE_GPU
+
 NUM_THREADS = BACKEND.NUM_THREADS
+ToNUMPY = BACKEND._toNumpy
+ToTENSOR = BACKEND._toTensor
+MAX = BACKEND._maximum
+ABS = BACKEND._absolute
 
 ############ global variables ############
 
@@ -62,6 +68,7 @@ def select_IP(
     global_IP_selection=True,
     aoR_cutoff=None,
     no_retriction_on_nIP=False,
+    use_mpi=False,
 ):
     r"""Select the interpolation points (IP) based on the given criteria.
 
@@ -161,25 +168,39 @@ class ISDF(df.fft.FFTDF):
         self.kmesh = kmesh
         self.with_robust_fitting = with_robust_fitting
 
+        # cell
+
         self.cell = cell.copy()
         self.mesh = self.cell.mesh
         self.natm = self.cell.natm
         self.nao = self.cell.nao_nr()
         self.ke_cutoff = self.cell.ke_cutoff
 
-        misc._info(self, None, "ISDF: mol.ke_cutoff = %f", self.cell.ke_cutoff)
-
         ao2atomID = np.zeros(self.nao, dtype=np.int32)
+        # build ao2atomID #
         self.ao2atomID = ao2atomID
 
         self.coords = np.asarray(self.grids.coords).reshape(-1, 3)
         self.ngrids = self.coords.shape[0]
+        self.mesh = np.asarray(self.grids.mesh)
 
         # the following variables are to be built
+
+        self.aoR = None  # TensorTy, cpu/gpu
+        self.partition = None  # TensorTy, cpu
+
+        self.IP_ID = None  # TensorTy, cpu
+        self.naux = None
+        self.aoRg = None  # TensorTy, cpu/gpu
+        self.aux_basis = None  # TensorTy, cpu/gpu
+
+        self.V = None  # TensorTy, cpu/gpu
+        self.W = None  # TensorTy, cpu/gpu
 
         # buffer
 
         self.buffer = None
+        self.fft_buffer = None  # must be singled out due to the alignment problem
 
         # other properties
 
@@ -197,15 +218,47 @@ class ISDF(df.fft.FFTDF):
         else:
             self.rank = 0
 
+        misc._info(self, self.rank, "ISDF: mol.ke_cutoff = %f", self.cell.ke_cutoff)
+        misc._info(self, self.rank, "ISDF: mol.natm      = %d", self.natm)
+        misc._info(self, self.rank, "ISDF: mol.nao       = %d", self.nao)
+
     ### build ###
 
-    def build(self):
-        pass
+    def build(self, c, m=5, rela_cutoff=None, global_IP_selection=True):
+
+        self._build_aoR()
+        self._build_buffer()
+        self._build_fft_buffer()
+        self._build_IP(c, m, rela_cutoff, global_IP_selection)
+        self._build_V_W()
 
     def _build_aoR(self):
+
+        # NOTE: currently, do not consider k-sampling case #
+
+        from pyscf.isdf.isdf_eval_gto import ISDF_eval_gto
+
+        self.aoR = ISDF_eval_gto(self.cell, coords=self.coords) * np.sqrt(
+            self.cell.vol / self.ngrids
+        )
+
+        max_id = np.argmax(ToNUMPY(ABS(self.aoR)), axis=0)
+        self.partition = np.asarray([self.ao2atomID[x] for x in max_id])
+        self.partition = ToTENSOR(self.partition)
+
+        if USE_GPU:
+            self.aoR = ToTENSOR(self.aoR, cpu=False)
+
+    def _build_buffer(self):
         pass
 
-    def _build_IP(self, c=5, m=5, global_IP_selection=True, build_global_basis=True):
+    def _build_fft_buffer(self):
+        pass
+
+    def _build_IP(self, c=5, m=5, rela_cutoff=None, global_IP_selection=True):
+        pass
+
+    def _build_V_W(self):
         pass
 
     ### properties ###
@@ -218,6 +271,8 @@ class ISDF(df.fft.FFTDF):
     def aoRgTensor(self):
         ToTensor = BACKEND._toTensor
         return ToTensor(self.aoRg), None
+
+    ### utils to infer the size of certain quantities ###
 
     ### get_pp ###
 
@@ -288,33 +343,18 @@ class ISDF(df.fft.FFTDF):
                 ### info used in super().get_pp() ###
 
                 assert hasattr(self, "prim_cell")
-
-                nao_prim = self.cell.nao_nr() // nkpts
                 assert self.cell.nao_nr() % nkpts == 0
 
-                from pyscf.isdf.isdf_tools_kSampling import _RowCol_FFT_bench
                 from pyscf.isdf.isdf_tools_Tsym import (
                     pack_JK_in_FFT_space,
                     symmetrize_mat,
+                    _1e_operator_gamma2k,
                 )
 
                 ##### NOTE: first symmetrization #####
 
                 self.PP = symmetrize_mat(self.PP, kmesh)
-
-                PP_complex = _RowCol_FFT_bench(
-                    self.PP[:nao_prim, :],
-                    kmesh,
-                    inv=False,
-                    TransBra=False,
-                    TransKet=True,
-                )
-                PP_complex = PP_complex.conj().copy()
-                self.PP = []
-                for i in range(nkpts):
-                    self.PP.append(
-                        PP_complex[:, i * nao_prim : (i + 1) * nao_prim].copy()
-                    )
+                self.PP = _1e_operator_gamma2k(self.cell, kmesh, self.PP)
 
             if self.use_mpi:
                 from pyscf.isdf.isdf_tools_mpi import bcast
@@ -322,3 +362,6 @@ class ISDF(df.fft.FFTDF):
                 self.PP = bcast(self.PP, root=0)
 
             return self.PP
+
+    ##### functions defined in isdf_ao2mo.py #####
+    ##### functions defined in isdf_jk.py    #####

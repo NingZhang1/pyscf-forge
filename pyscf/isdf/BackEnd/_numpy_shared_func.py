@@ -44,7 +44,7 @@ def imag(a, force_outofplace=False):
 
 
 def permute(a, axes):
-    return a.transpose(axes)
+    return numpy.transpose(a, axes)
 
 
 def conjugate(a, out=None):
