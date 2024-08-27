@@ -1,0 +1,3 @@
+import pyscf.isdf.BackEnd._isdf_numpy_shared_func as ISDF_SHARED_FUNC_LIB
+
+distance_translation = ISDF_SHARED_FUNC_LIB.distance_translation

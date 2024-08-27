@@ -68,7 +68,6 @@ def _get_j_dm(mydf, dm, use_mpi=False):
     IFFTN = BACKEND._ifftn
     REAL = BACKEND._real
     IMAG = BACKEND._imag
-    FROBENIUS_NORM = BACKEND._Frobenius_norm
 
     # step 0 info #
 
@@ -190,7 +189,9 @@ def _get_k_dm_wrf(mydf, dm, use_mpi=False):
     #### step 2. get K term1 and term2 ####
 
     tmp = CWISE_MUL(mydf.V, density_RgR, out=density_RgR)
-    buf3 = BACKEND._malloc((mydf.naux, mydf.nao), dtype=FLOAT64, buf=buf1, gpu=USE_GPU)
+    buf3 = BACKEND._malloc(
+        (mydf.naux, mydf.nao), dtype=FLOAT64, buf=buf1, gpu=USE_GPU
+    )  # reuse the buffer
     K = DOT(tmp, mydf.aoR.T, c=buf3)
     K = DOT(mydf.aoRg, K)
     # K += K.T

@@ -26,7 +26,6 @@ from pyscf.isdf.isdf import ISDF
 #############################
 
 ke_cutoff = 70
-# basis = "gth-szv"
 basis = "gth-dzvp"
 
 boxlen = 3.57371000
@@ -57,7 +56,7 @@ prim_cell = isdf_tools_cell.build_supercell(
 
 prim_mesh = prim_cell.mesh
 
-for kmesh in kmeshes[:1]:
+for kmesh in kmeshes:
 
     mesh = [int(k * x) for k, x in zip(kmesh, prim_mesh)]
     print("kmesh:", kmesh, "mesh:", mesh)

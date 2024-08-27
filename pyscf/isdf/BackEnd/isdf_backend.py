@@ -105,3 +105,16 @@ _solve_cholesky = backend.solve_cholesky
 import numpy
 
 _prod = numpy.prod
+
+# some special functions designed for ISDF #
+
+if USE_NUMPY:
+    import pyscf.isdf.BackEnd._isdf_numpy as isdf_special_func
+elif USE_SCIPY:
+    import pyscf.isdf.BackEnd._isdf_scipy as isdf_special_func
+elif USE_TORCH_GPU:
+    import pyscf.isdf.BackEnd._isdf_torch as isdf_special_func
+else:
+    import pyscf.isdf.BackEnd._isdf_torch as isdf_special_func
+
+_distance_translation = isdf_special_func.distance_translation

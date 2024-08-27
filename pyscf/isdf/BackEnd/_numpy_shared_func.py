@@ -1,4 +1,4 @@
-# this file shared the functions shared by numpy and scipy backend
+# this file contains the functions shared by numpy and scipy backend
 # to avoid mutual import
 
 import numpy
@@ -119,11 +119,13 @@ def einsum_ik_jk_ijk(a, b, out=None):
     else:
         return numpy.einsum("ik,jk->ijk", a, b, out=out)
 
+
 def einsum_ij_ij_j(a, b, out=None):
     if out is None:
         return numpy.einsum("ij,ij->j", a, b)
     else:
         return numpy.einsum("ij,ij->j", a, b, out=out)
+
 
 def square(a, out=None):
     return numpy.square(a, out=out)
@@ -132,6 +134,7 @@ def square(a, out=None):
 def square_(a):
     return square(a, out=a)
 
+
 def add_transpose_(a):
-    a+=a.T
+    a += a.T
     return a
