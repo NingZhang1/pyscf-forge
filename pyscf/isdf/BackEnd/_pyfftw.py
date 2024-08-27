@@ -16,7 +16,7 @@ try:
         s=None,
         axes=None,
         overwrite_input=False,
-        threads=pyfftw.config.NUM_THREADS,
+        threads=None,
         out=None,
     ):
         return pyfftw.interfaces.scipy_fft.rfftn(
@@ -28,7 +28,7 @@ try:
         s=None,
         axes=None,
         overwrite_input=False,
-        threads=pyfftw.config.NUM_THREADS,
+        threads=None,
         out=None,
     ):
         return pyfftw.interfaces.scipy_fft.irfftn(
@@ -40,7 +40,7 @@ try:
         s=None,
         axes=None,
         overwrite_input=False,
-        threads=pyfftw.config.NUM_THREADS,
+        threads=None,
         out=None,
     ):
         return pyfftw.interfaces.scipy_fft.fftn(
@@ -52,7 +52,7 @@ try:
         s=None,
         axes=None,
         overwrite_input=False,
-        threads=pyfftw.config.NUM_THREADS,
+        threads=None,
         out=None,
     ):
         return pyfftw.interfaces.scipy_fft.ifftn(

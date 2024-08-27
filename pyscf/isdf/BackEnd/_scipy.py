@@ -1,7 +1,7 @@
 import numpy
 import scipy
-import pyscf.isdf.BackEnd._pyfftw as _pyfftw
 from pyscf.isdf.BackEnd._config import ENABLE_FFTW, ENABLE_PYSCF_LIB
+import pyscf.isdf.BackEnd._pyfftw as _pyfftw
 from pyscf.isdf.BackEnd._malloc import __malloc
 import pyscf.isdf.BackEnd._numpy_shared_func as SHARED_FUNC_LIB
 
