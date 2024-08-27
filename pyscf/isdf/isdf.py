@@ -36,10 +36,6 @@ from pyscf.gto.mole import ATOM_OF, NCTR_OF, ANG_OF
 from pyscf.pbc.dft import multigrid
 from pyscf.pbc import df
 
-############ isdf utils ############
-
-import pyscf.isdf.misc as misc
-
 ############ isdf backends ############
 
 import pyscf.isdf.BackEnd.isdf_backend as BACKEND
@@ -48,12 +44,17 @@ from pyscf.isdf.BackEnd.isdf_memory_allocator import SimpleMemoryAllocator
 USE_GPU = BACKEND.USE_GPU
 
 NUM_THREADS = BACKEND.NUM_THREADS
+FLOAT64 = BACKEND.FLOAT64
 ToNUMPY = BACKEND._toNumpy
 ToTENSOR = BACKEND._toTensor
 MAX = BACKEND._maximum
 ABS = BACKEND._absolute
-FLOAT64 = BACKEND.FLOAT64
 DOT = BACKEND._dot
+
+############ isdf utils ############
+
+import pyscf.isdf.misc as misc
+import pyscf.isdf.isdf_jk as isdf_jk
 
 ############ global variables ############
 
@@ -155,7 +156,9 @@ def select_IP(
 
         # get the involved ao values #
 
-        grid_ID = ToTENSOR(np.where(ToNUMPY(mydf.partition) == atm_id)[0], cpu=not USE_GPU)
+        grid_ID = ToTENSOR(
+            np.where(ToNUMPY(mydf.partition) == atm_id)[0], cpu=not USE_GPU
+        )
         aoR_atm = buffer.malloc(
             (mydf.nao, grid_ID.shape[0]), dtype=FLOAT64, name="aoRatm"
         )
@@ -311,7 +314,7 @@ def select_IP(
     buffer.free_all()
 
     t2 = (lib.logger.process_clock(), lib.logger.perf_counter())
-    
+
     misc._benchmark_time(t1, t2, "select_IP", mydf, mydf.rank)
 
     return results
@@ -378,7 +381,7 @@ def construct_V(mydf, use_mpi=False):
     coul_G = ToTENSOR(coul_G, cpu=not USE_GPU)
 
     # construct V #
-    
+
     tmp1 = RFFTN(aux_basis, s=mesh, axes=(1, 2, 3), overwrite_input=False)
     tmp1 = tmp1.reshape(-1, np.prod(mesh_complex))
     EINSUM_IJ_J_IJ(tmp1, coul_G, out=tmp1)
@@ -547,9 +550,16 @@ class ISDF(df.fft.FFTDF):
         # used in build_aux_basis #
         size3 = naux_max * naux_max + naux_max * self.ngrids
         # used in get J #
+        size4 = self.nao * self.ngrids
         # used in get K #
+        if self.with_robust_fitting:
+            size5 = self.nao * self.ngrids
+            size5 += naux_max * self.ngrids
+        else:
+            size5 = self.nao * naux_max
+            size5 += naux_max * naux_max
         # allocate buffer #
-        size = max(size1, size2, size3)
+        size = max(size1, size2, size3, size4, size5)
         self.buffer = SimpleMemoryAllocator(total_size=size, gpu=USE_GPU)
         pass
 
@@ -571,6 +581,7 @@ class ISDF(df.fft.FFTDF):
         )
         self.IP_ID = ToTENSOR(self.IP_ID, cpu=not USE_GPU)
         self.aoRg = BACKEND._take(self.aoR, self.IP_ID, axis=1)
+        self.naux = self.IP_ID.shape[0]
         assert self.aoRg.shape[1] == self.IP_ID.shape[0]
         assert self.aoRg.shape[0] == self.nao
 
@@ -616,6 +627,8 @@ class ISDF(df.fft.FFTDF):
         ToTensor = BACKEND._toTensor
         return ToTensor(self.aoRg), None
 
+    ### utils to infer the size of certain quantities ###
+
     def nauxMaxPerAtm_sqrt(self, c, m):
         res = 0
         for nao_atm in ToNUMPY(self.atmID2nao):
@@ -636,8 +649,6 @@ class ISDF(df.fft.FFTDF):
         for i in range(self.ngrids):
             ngrid_atm[partition[i]] += 1
         return np.max(ngrid_atm)
-
-    ### utils to infer the size of certain quantities ###
 
     ### get_pp ###
 
@@ -729,4 +740,7 @@ class ISDF(df.fft.FFTDF):
             return self.PP
 
     ##### functions defined in isdf_ao2mo.py #####
-    ##### functions defined in isdf_jk.py    #####
+
+    ##### functions defined in isdf_jk.py #####
+
+    get_jk = isdf_jk.get_jk_dm

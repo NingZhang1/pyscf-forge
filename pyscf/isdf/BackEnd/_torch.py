@@ -437,6 +437,15 @@ def Frobenius_norm(a):
     return torch.norm(a)
 
 
+def cwise_mul(a, b, out=None):
+    assert a.shape == b.shape
+    if out is None:
+        return a * b
+    else:
+        torch.mul(a, b, out=out)
+        return out
+
+
 def einsum_ij_j_ij(a, b, out=None):
     if out is None:
         return a * b
@@ -474,6 +483,11 @@ def einsum_ik_jk_ijk(A, B, out=None):
 
     return out
 
+def einsum_ij_ij_j(a, b, out=None):
+    if out is None:
+        return torch.einsum("ij,ij->j", a, b)
+    else:
+        return torch.einsum("ij,ij->j", a, b, out=out)
 
 # eigh #
 
@@ -492,6 +506,10 @@ def square(a, out=None):
 def square_(a):
     return square(a, out=a)
 
+
+def add_transpose_(a):
+    a.add_(a.t().clone())
+    return a
 
 # cholesky #
 

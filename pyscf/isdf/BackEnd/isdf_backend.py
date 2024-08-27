@@ -1,4 +1,10 @@
-from pyscf.isdf.BackEnd._config import USE_NUMPY, USE_SCIPY, USE_TORCH, USE_TORCH_GPU, ENABLE_FFTW
+from pyscf.isdf.BackEnd._config import (
+    USE_NUMPY,
+    USE_SCIPY,
+    USE_TORCH,
+    USE_TORCH_GPU,
+    ENABLE_FFTW,
+)
 from pyscf.isdf.BackEnd._config import MULTI_THREADING, USE_GPU
 
 if not MULTI_THREADING:
@@ -82,12 +88,15 @@ _maximum = backend.maximum
 _minimum = backend.minimum
 _absolute = backend.absolute
 _Frobenius_norm = backend.Frobenius_norm
+_cwise_mul = backend.cwise_mul
 _einsum_ij_j_ij = backend.einsum_ij_j_ij
 _einsum_i_ij_ij = backend.einsum_i_ij_ij
 _einsum_ik_jk_ijk = backend.einsum_ik_jk_ijk
+_einsum_ij_ij_j = backend.einsum_ij_ij_j
 _eigh = backend.eigh
 _square = backend.square
 _square_ = backend.square_
+_add_transpose_ = backend.add_transpose_
 _cholesky = backend.cholesky
 _solve_cholesky = backend.solve_cholesky
 

@@ -87,6 +87,15 @@ def Frobenius_norm(a):
     return numpy.linalg.norm(a)
 
 
+def cwise_mul(a, b, out=None):
+    assert a.shape == b.shape
+    if out is None:
+        return a * b
+    else:
+        numpy.multiply(a, b, out=out)
+        return out
+
+
 def einsum_ij_j_ij(a, b, out=None):
     if out is None:
         return a * b
@@ -110,6 +119,11 @@ def einsum_ik_jk_ijk(a, b, out=None):
     else:
         return numpy.einsum("ik,jk->ijk", a, b, out=out)
 
+def einsum_ij_ij_j(a, b, out=None):
+    if out is None:
+        return numpy.einsum("ij,ij->j", a, b)
+    else:
+        return numpy.einsum("ij,ij->j", a, b, out=out)
 
 def square(a, out=None):
     return numpy.square(a, out=out)
@@ -117,3 +131,7 @@ def square(a, out=None):
 
 def square_(a):
     return square(a, out=a)
+
+def add_transpose_(a):
+    a+=a.T
+    return a

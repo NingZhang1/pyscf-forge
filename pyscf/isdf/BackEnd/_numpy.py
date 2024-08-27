@@ -152,10 +152,11 @@ Frobenius_norm = SHARED_FUNC_LIB.Frobenius_norm
 
 # special einsum #
 
+cwise_mul = SHARED_FUNC_LIB.cwise_mul
 einsum_ij_j_ij = SHARED_FUNC_LIB.einsum_ij_j_ij
 einsum_i_ij_ij = SHARED_FUNC_LIB.einsum_i_ij_ij
 einsum_ik_jk_ijk = SHARED_FUNC_LIB.einsum_ik_jk_ijk
-
+einsum_ij_ij_j = SHARED_FUNC_LIB.einsum_ij_ij_j
 
 # eigh #
 
@@ -168,6 +169,8 @@ def eigh(a):
 
 square = SHARED_FUNC_LIB.square
 square_ = SHARED_FUNC_LIB.square_
+
+add_transpose_ = SHARED_FUNC_LIB.add_transpose_
 
 # cholesky #
 

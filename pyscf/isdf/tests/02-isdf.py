@@ -2,7 +2,7 @@
 
 import pyscf.isdf.BackEnd._config as config
 
-# config.disable_fftw()
+config.disable_fftw()
 # config.backend("numpy")
 # config.backend("scipy")
 config.backend("torch")
@@ -42,7 +42,7 @@ atm = [
     ["C", (0.8934275, 2.6802825, 2.6802825)],
 ]
 
-kmeshes = [[1, 1, 1], [1, 1, 2]]
+kmeshes = [[1, 1, 1], [1, 1, 2]]  # -44.20339674 and -88.67568935
 VERBOSE = 10
 
 prim_cell = isdf_tools_cell.build_supercell(
@@ -74,6 +74,17 @@ for kmesh in kmeshes[:1]:
         pseudo="gth-pade",
         verbose=VERBOSE,
     )
+    cell.max_memory = 200
 
     isdf = ISDF(cell, with_robust_fitting=True)
-    isdf.build(c=12, m=5, rela_cutoff=1e-4)
+    isdf.build(c=25, m=5, rela_cutoff=1e-4)
+
+    from pyscf.pbc import scf
+
+    mf = scf.RHF(cell)
+    mf.with_df = isdf
+    mf.kernel()
+
+    # benchmark #
+    mf = scf.RHF(cell)
+    mf.kernel()

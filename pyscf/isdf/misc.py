@@ -33,6 +33,11 @@ def _info(rec, rank, msg, *args):
         lib.logger.info(rec, msg, *args)
 
 
+def _warn(rec, rank, msg, *args):
+    if rank == 0 or rank is None:
+        lib.logger.warn(rec, msg, *args)
+
+
 def _debug4(rec, rank, msg, *args):
     if rank == 0 or rank is None:
         lib.logger.debug4(rec, msg, *args)
