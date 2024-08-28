@@ -84,6 +84,7 @@ _qr = backend.qr
 _index_add = backend.index_add
 _index_copy = backend.index_copy
 _take = backend.take
+_clean = backend.clean
 _maximum = backend.maximum
 _minimum = backend.minimum
 _absolute = backend.absolute

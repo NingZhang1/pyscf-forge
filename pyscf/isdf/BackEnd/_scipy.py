@@ -125,6 +125,7 @@ def qr(A, mode="full"):
 index_add = SHARED_FUNC_LIB.index_add
 index_copy = SHARED_FUNC_LIB.index_copy
 take = SHARED_FUNC_LIB.take
+clean = SHARED_FUNC_LIB.clean
 
 # min/max/abs/norm #
 

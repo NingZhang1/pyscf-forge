@@ -125,7 +125,6 @@ for kmesh in kmeshes:
 
     # benchmark #
 
-
     from pyscf.isdf.isdf_eval_gto import ISDF_eval_gto
 
     weight = np.sqrt(cell.vol / coords.shape[0])

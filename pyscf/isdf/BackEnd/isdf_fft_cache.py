@@ -5,7 +5,7 @@ NUM_THREADS = BackEnd.NUM_THREADS
 ToTENSOR = BackEnd._toTensor
 ToNUMPY = BackEnd._toNumpy
 USE_GPU = BackEnd.USE_GPU
-USE_TORCH = BackEnd.USE_TORCH or BackEnd.USE_TORCH_GPU
+USE_TORCH = BackEnd.USE_TORCH == 1 or BackEnd.USE_TORCH_GPU == 1
 
 if BackEnd.ENABLE_FFTW:
 
@@ -130,6 +130,7 @@ if FFTW_FOUND:
                 input_array.__array_interface__["data"][0]
                 != complex_buf.__array_interface__["data"][0]
             ):
+                raise ValueError("input_array is not complex_buf")
                 complex_buf[:] = input_array
             # else:
             #     print("irfft: input_array is complex_buf")
@@ -229,6 +230,7 @@ else:
                     : torch.prod(torch.tensor(input_array.shape))
                 ].view(input_array.shape)
                 if input_array.data_ptr() != complex_buf.data_ptr():
+                    raise ValueError("input_array is not complex_buf")
                     complex_buf.copy_(input_array)
                 # allocate out #
                 out = self.real_buffer[: torch.prod(torch.tensor(s))].view(s)
@@ -265,7 +267,7 @@ else:
 if USE_GPU:
 
     USE_TORCH_GPU = BackEnd.USE_TORCH_GPU
-    assert USE_TORCH_GPU == 1
+    assert USE_TORCH_GPU == 1 and not FFTW_FOUND
 
     class DynamicCached3DRFFT_GPU(DynamicCached3DRFFT):
         def __init__(self, initial_shape, num_threads=None):

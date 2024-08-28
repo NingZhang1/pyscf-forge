@@ -414,6 +414,9 @@ def index_copy(A, dim, index, source):
 def take(a, indices, axis=None, out=None):
     return torch.index_select(a, axis, indices, out=out)
 
+def clean(a):
+    a.zero_()
+    return a
 
 # min/max/abs/norm #
 

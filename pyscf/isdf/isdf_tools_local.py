@@ -42,6 +42,7 @@ FLOAT64 = BACKEND.FLOAT64
 INT32 = BACKEND.INT32
 ToNUMPY = BACKEND._toNumpy
 ToTENSOR = BACKEND._toTensor
+MALLOC = BACKEND._malloc
 ZEROS = BACKEND._zeros
 MAX = BACKEND._maximum
 MIN = BACKEND._minimum
@@ -137,7 +138,7 @@ def _get_aoR_holders_memory(aoR_holders: list[aoR_Holder]):
     )
 
 
-def _pack_aoR_holder(aoR_holders: list[aoR_Holder], nao):
+def _pack_aoR_holder(aoR_holders: list[aoR_Holder], nao, out_buf=None):
     # NOTE: everything is should be put on CPU #
     # NOTE: the grid ordering is determined by the input of aoR_holders! #
     # determine basic info #
@@ -159,7 +160,10 @@ def _pack_aoR_holder(aoR_holders: list[aoR_Holder], nao):
 
     # pack aoR #
 
-    aoR_packed = ZEROS((nao_involved, ngrids), dtype=FLOAT64)
+    if out_buf is None:
+        aoR_packed = ZEROS((nao_involved, ngrids), dtype=FLOAT64)
+    else:
+        aoR_packed = MALLOC((nao_involved, ngrids), dtype=FLOAT64, buf=out_buf)
 
     grid_begin_id = 0
     for _aoR_holder in aoR_holders:

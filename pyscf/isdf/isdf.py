@@ -309,6 +309,7 @@ def select_IP(
 
         results = ToNUMPY(results)
         results = results[pivot]
+        results.sort()
         results = ToTENSOR(results)
 
     buffer.free_all()
@@ -407,7 +408,6 @@ class ISDF(df.fft.FFTDF):
         with_robust_fitting=True,
         kmesh=None,
         kpts=None,
-        get_partition=True,
         verbose=None,
         use_mpi=False,
     ):
@@ -633,7 +633,6 @@ class ISDF(df.fft.FFTDF):
         res = 0
         for nao_atm in ToNUMPY(self.atmID2nao):
             res = max(res, int(np.sqrt(nao_atm * c) + m))
-        # res = max(res, int(np.sqrt(self.nao * c) + m))
         return res
 
     def naux_max(self, c, m):

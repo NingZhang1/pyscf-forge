@@ -1,6 +1,6 @@
 import os
 import multiprocessing
-from BackEnd._config import ENABLE_PYSCF_LIB, MULTI_THREADING
+from pyscf.isdf.BackEnd._config import ENABLE_PYSCF_LIB, MULTI_THREADING
 
 _PYSCF_FOUND = False
 
