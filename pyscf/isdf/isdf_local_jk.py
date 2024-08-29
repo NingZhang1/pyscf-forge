@@ -436,9 +436,7 @@ def _get_k_dm_local(mydf, dm, direct=None, with_robust_fitting=None, use_mpi=Fal
                 )
                 # final contraction #
                 if nao_involved == mydf.nao:
-                    DOT(
-                        aoRg_packed.aoR[:, p0:p1], half_K, c=K[i], beta=1
-                    )  # TODO: fix this bug!
+                    DOT(aoRg_packed.aoR[:, p0:p1], half_K, c=K[i], beta=1)
                 else:
                     tmp_ddot_res = buffer.malloc(
                         (nao_involved, nao), dtype=FLOAT64, name="tmp_ddot_res"
@@ -470,9 +468,7 @@ def _get_k_dm_local(mydf, dm, direct=None, with_robust_fitting=None, use_mpi=Fal
                     )
                     # final contraction #
                     if nao_involved == mydf.nao:
-                        DOT(
-                            aoRg_packed.aoR[:, p0:p1], half_K, c=K_V[i], beta=1
-                        )  # TODO: fix this bug!
+                        DOT(aoRg_packed.aoR[:, p0:p1], half_K, c=K_V[i], beta=1)
                     else:
                         tmp_ddot_res = buffer.malloc(
                             (nao_involved, nao), dtype=FLOAT64, name="tmp_ddot_res"

@@ -144,6 +144,8 @@ def _get_dm_RgR(
     # ngrids_tot = dm_RgR.shape[1]
     nao = dm_RgAO.shape[1]
 
+    ngrids = 0
+
     for _aoR_holder in aoR_holders:
 
         aoR = _aoR_holder.aoR
@@ -151,6 +153,8 @@ def _get_dm_RgR(
         ngrids_involved = aoR.shape[1]
         ao_involved = _aoR_holder.ao_involved
         nao_involved = aoR.shape[0]
+
+        ngrids += ngrids_involved
 
         if nao_involved == nao:
             DOT(
@@ -171,6 +175,9 @@ def _get_dm_RgR(
                 # beta=1,
             )
             buffer.free(count=1)
+    
+    assert ngrids == dm_RgR.shape[1]
+    
     return dm_RgR
 
 

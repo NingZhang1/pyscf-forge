@@ -179,7 +179,6 @@ def select_IP_local_step1(
             max_rank = min(naux2_now, grid_ID.shape[0])
         else:
             max_rank = min(naux2_now, grid_ID.shape[0], nao_atm * c + m)
-
         R = ToNUMPY(R)
         threshold = abs(R[0, 0]) * rela_cutoff
         indices = np.where(np.abs(np.diag(R)) > threshold)[0]
@@ -522,7 +521,7 @@ def build_aux_basis_local(mydf, group, IP_group, use_mpi=False):
     mydf.aux_basis = [ToTENSOR(x, cpu=True) for x in mydf.aux_basis]
 
     t2 = (lib.logger.process_clock(), lib.logger.perf_counter())
-    
+
     misc._benchmark_time(t1, t2, "build_aux_basis_local", mydf, mydf.rank)
 
     return mydf.aux_basis
@@ -1110,7 +1109,7 @@ class ISDF_Local(isdf.ISDF):
         for group_id, atm_ids in enumerate(group):
             naux_tmp = 0
             for atm_id in atm_ids:
-                naux_tmp += int(np.sqrt(self.atmID2nao[atm_id] * c) + m) ** 2
+                naux_tmp += int(np.sqrt(self.atmID2nao[atm_id] * (c+1)) + m) ** 2
             max_group_naux_possible = max(max_group_naux_possible, naux_tmp)
         return max_group_naux_possible
 
