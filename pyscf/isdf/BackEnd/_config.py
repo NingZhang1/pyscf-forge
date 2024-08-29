@@ -1,5 +1,5 @@
 ENABLE_FFTW = True
-ENABLE_PYSCF_LIB = True
+ENABLE_PYSCF_LIB = False
 FORCE_PYSCF_LIB = False
 
 # multithreading #
