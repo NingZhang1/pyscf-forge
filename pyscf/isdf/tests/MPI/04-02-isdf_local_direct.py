@@ -43,7 +43,13 @@ atm = [
     ["C", (0.8934275, 2.6802825, 2.6802825)],
 ]
 
-kmeshes = [[1, 1, 1], [1, 1, 2], [1, 1, 4]]  # -44.20339674 and -88.67568935
+kmeshes = [
+    [1, 1, 1],
+    [1, 1, 2],
+    [1, 1, 4],
+    [1, 2, 2],
+    [2, 2, 2],
+]  # -44.20339674 and -88.67568935
 VERBOSE = 10 if rank == 0 else 0
 
 prim_cell = isdf_tools_cell.build_supercell(
@@ -80,20 +86,25 @@ for kmesh in kmeshes:
         verbose=VERBOSE,
     )
     cell.max_memory = 200
-    
+
     if rank == 0:
         print("group:", group)
 
     isdf = ISDF_Local(
-        cell, with_robust_fitting=True, limited_memory=True, build_V_K_bunchsize=8, use_mpi=True
+        cell,
+        with_robust_fitting=True,
+        limited_memory=True,
+        build_V_K_bunchsize=56,
+        direct=True,
+        use_mpi=True,
     )
-    isdf.build(c=30, m=5, rela_cutoff=2e-3, group=group)
+    isdf.build(c=30, m=5, rela_cutoff=1e-4, group=group)
 
     from pyscf.pbc import scf
 
     mf = scf.RHF(cell)
     mf.with_df = isdf
-    # mf.kernel()
+    mf.kernel()
 
     # benchmark #
     # mf = scf.RHF(cell)

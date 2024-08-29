@@ -23,6 +23,7 @@ from pyscf.isdf.isdf_tools_Tsym import _kmesh_to_Kpoints, _1e_operator_gamma2k
 from pyscf.isdf import isdf_tools_cell
 from pyscf.isdf.isdf import ISDF
 from pyscf.isdf.isdf_local import ISDF_Local
+from pyscf.isdf.isdf_tools_mpi import rank, comm, comm_size
 
 #############################
 
@@ -42,8 +43,14 @@ atm = [
     ["C", (0.8934275, 2.6802825, 2.6802825)],
 ]
 
-kmeshes = [[1, 1, 1], [1, 1, 2], [1, 1, 4]]  # -44.20339674 and -88.67568935
-VERBOSE = 10
+kmeshes = [
+    [1, 1, 1],
+    [1, 1, 2],
+    [1, 1, 4],
+    [1, 2, 2],
+    [2, 2, 2],
+]  # -44.20339674 and -88.67568935
+VERBOSE = 10 if rank == 0 else 0
 
 prim_cell = isdf_tools_cell.build_supercell(
     atm,
@@ -62,7 +69,8 @@ prim_mesh = prim_cell.mesh
 for kmesh in kmeshes:
 
     mesh = [int(k * x) for k, x in zip(kmesh, prim_mesh)]
-    print("kmesh:", kmesh, "mesh:", mesh)
+    if rank == 0:
+        print("kmesh:", kmesh, "mesh:", mesh)
 
     kpts = prim_cell.make_kpts(kmesh)
 
@@ -78,18 +86,24 @@ for kmesh in kmeshes:
         verbose=VERBOSE,
     )
     cell.max_memory = 200
-    print("group:", group)
+
+    if rank == 0:
+        print("group:", group)
 
     isdf = ISDF_Local(
-        cell, with_robust_fitting=True, limited_memory=True, build_V_K_bunchsize=8
+        cell,
+        with_robust_fitting=True,
+        limited_memory=True,
+        build_V_K_bunchsize=56,
+        use_mpi=True,
     )
-    isdf.build(c=30, m=5, rela_cutoff=1e-3, group=group)
+    isdf.build(c=30, m=5, rela_cutoff=1e-4, group=group)
 
     from pyscf.pbc import scf
 
     mf = scf.RHF(cell)
     mf.with_df = isdf
-    # mf.kernel()
+    mf.kernel()
 
     # benchmark #
     # mf = scf.RHF(cell)

@@ -111,8 +111,14 @@ class aoR_Holder:
         self.ngrid_tot = global_gridID_end - global_gridID_begin
         self.ngrid_kept = aoR.shape[1]
 
+        aoR = ToNUMPY(aoR)
+        ao_involved = np.array(ao_involved, dtype=np.int64)
+        sort_indices = np.argsort(ao_involved)
+        ao_involved = ao_involved[sort_indices].copy()
+        aoR = aoR[sort_indices].copy()
+
         self.aoR = ToTENSOR(aoR)
-        self.ao_involved = ToTENSOR(np.array(ao_involved, dtype=np.int32))
+        self.ao_involved = ToTENSOR(ao_involved)  # NOTE: to be consistent with torch
         self.nao_involved = len(ao_involved)
         self.global_gridID_begin = global_gridID_begin
         self.global_gridID_end = global_gridID_end

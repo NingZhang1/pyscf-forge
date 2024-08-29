@@ -144,10 +144,9 @@ for kmesh in kmeshes:
         diff = MAX(ABS(aoR2 - aoR))
         print("diff = ", diff)
         PASS = diff < 1e-8
-    
+
     PASS = comm.bcast(PASS, root=0)
-    
+
     if not PASS:
         print("Test failed")
         exit(1)
-    

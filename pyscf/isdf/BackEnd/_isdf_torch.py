@@ -36,3 +36,21 @@ def distance_translation(pa: torch.Tensor, pb: torch.Tensor, a: torch.Tensor):
     distances = torch.sqrt(torch.sum(diff**2, dim=2))  # Shape becomes (n, m)
 
     return distances
+
+
+def add_to_indexed_submatrix_(
+    a: torch.Tensor, idx: torch.Tensor, idy: torch.Tensor, b: torch.Tensor
+) -> torch.Tensor:
+    idx_grid = idx.unsqueeze(1).expand(-1, len(idy))
+    idy_grid = idy.unsqueeze(0).expand(len(idx), -1)
+    a[idx_grid, idy_grid] += b
+    return a
+
+
+def copy_indexed_submatrix(
+    a: torch.Tensor, idx: torch.Tensor, idy: torch.Tensor, out: torch.Tensor = None
+) -> torch.Tensor:
+    if out is None:
+        out = torch.empty((len(idx), len(idy)), dtype=a.dtype, device=a.device)
+    out.copy_(a[idx[:, None], idy])
+    return out

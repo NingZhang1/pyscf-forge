@@ -22,6 +22,7 @@ from pyscf.pbc import df
 from pyscf.isdf.isdf_tools_Tsym import _kmesh_to_Kpoints, _1e_operator_gamma2k
 from pyscf.isdf import isdf_tools_cell
 from pyscf.isdf.isdf import ISDF
+from pyscf.isdf.isdf_local import ISDF_Local
 
 #############################
 
@@ -41,7 +42,13 @@ atm = [
     ["C", (0.8934275, 2.6802825, 2.6802825)],
 ]
 
-kmeshes = [[1, 1, 1], [1, 1, 2]]  # -44.20339674 and -88.67568935
+kmeshes = [
+    [1, 1, 1],
+    [1, 1, 2],
+    [1, 1, 4],
+    [1, 2, 2],
+    [2, 2, 2],
+]  # -44.20339674 and -88.67568935
 VERBOSE = 10
 
 prim_cell = isdf_tools_cell.build_supercell(
@@ -54,6 +61,8 @@ prim_cell = isdf_tools_cell.build_supercell(
     verbose=VERBOSE,
 )
 
+prim_group = [[0, 1], [2, 3], [4, 5], [6, 7]]
+
 prim_mesh = prim_cell.mesh
 
 for kmesh in kmeshes:
@@ -63,20 +72,24 @@ for kmesh in kmeshes:
 
     kpts = prim_cell.make_kpts(kmesh)
 
-    cell = isdf_tools_cell.build_supercell(
+    cell, group = isdf_tools_cell.build_supercell_with_partition(
         atm,
         prim_a,
         Ls=kmesh,
         ke_cutoff=ke_cutoff,
+        partition=prim_group,
         mesh=mesh,
         basis=basis,
         pseudo="gth-pade",
         verbose=VERBOSE,
     )
     cell.max_memory = 200
+    print("group:", group)
 
-    isdf = ISDF(cell, with_robust_fitting=True)
-    isdf.build(c=25, m=5, rela_cutoff=1e-4)
+    isdf = ISDF_Local(
+        cell, with_robust_fitting=False, limited_memory=True, build_V_K_bunchsize=56
+    )
+    isdf.build(c=30, m=5, rela_cutoff=1e-4, group=group)
 
     from pyscf.pbc import scf
 

@@ -119,3 +119,5 @@ else:
     import pyscf.isdf.BackEnd._isdf_torch as isdf_special_func
 
 _distance_translation = isdf_special_func.distance_translation
+_add_to_indexed_submatrix_ = isdf_special_func.add_to_indexed_submatrix_
+_copy_indexed_submatrix = isdf_special_func.copy_indexed_submatrix

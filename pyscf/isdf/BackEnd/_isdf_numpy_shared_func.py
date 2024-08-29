@@ -37,3 +37,18 @@ def distance_translation(pa: numpy.ndarray, pb: numpy.ndarray, a: numpy.ndarray)
     distances = numpy.sqrt(numpy.sum(diff**2, axis=2))  # Shape becomes (n, m)
 
     return distances
+
+
+def add_to_indexed_submatrix_(
+    a: numpy.ndarray, idx: numpy.ndarray, idy: numpy.ndarray, b: numpy.ndarray
+) -> numpy.ndarray:
+    a[idx[:, numpy.newaxis], idy] += b
+    return a
+
+
+def copy_indexed_submatrix(
+    a: numpy.ndarray, idx: numpy.ndarray, idy: numpy.ndarray, out: numpy.ndarray = None
+) -> numpy.ndarray:
+    if out is None:
+        out = numpy.empty((len(idx), len(idy)), dtype=a.dtype)
+    out[:] = a[idx[:, numpy.newaxis], idy]

@@ -251,12 +251,30 @@ if FORCE_PYSCF_LIB and PYSCF_LIB_FOUND:
 else:
 
     def dot(a, b, alpha=1, c=None, beta=0):
+        if beta == 0 or beta == 0.0:
+            if c is not None:
+                torch.matmul(a, b, out=c)
+                if alpha != 1 and alpha != 1.0:
+                    c *= alpha
+                return c
+            else:
+                if alpha != 1 and alpha != 1.0:
+                    return alpha * torch.matmul(a, b)
+                else:
+                    return torch.matmul(a, b)
         if c is not None:
-            c *= beta
-            c += alpha * torch.matmul(a, b)
+            if beta != 1 and beta != 1.0:
+                c *= beta
+            if alpha == 1 or alpha == 1.0:
+                c += torch.matmul(a, b)
+            else:
+                c += alpha * torch.matmul(a, b)
             return c
         else:
-            return alpha * torch.matmul(a, b)
+            if alpha == 1 or alpha == 1.0:
+                return torch.matmul(a, b)
+            else:
+                return alpha * torch.matmul(a, b)
 
 
 # QR #
@@ -414,9 +432,11 @@ def index_copy(A, dim, index, source):
 def take(a, indices, axis=None, out=None):
     return torch.index_select(a, axis, indices, out=out)
 
+
 def clean(a):
     a.zero_()
     return a
+
 
 # min/max/abs/norm #
 
@@ -495,7 +515,8 @@ def einsum_ij_ij_j(a, b, out=None):
     if out is None:
         return torch.einsum("ij,ij->j", a, b)
     else:
-        return torch.einsum("ij,ij->j", a, b, out=out)
+        # return torch.einsum("ij,ij->j", a, b, out=out)
+        return torch.sum(a * b, dim=0, out=out)
 
 
 # eigh #

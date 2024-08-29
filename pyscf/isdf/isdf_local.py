@@ -68,6 +68,7 @@ from pyscf.isdf.isdf_tools_local import (
     _get_grid_ordering,
     _get_aoR_holders_memory,
 )
+import pyscf.isdf.isdf_local_jk as isdf_local_jk
 
 ############ subroutines --- select IP ############
 
@@ -107,8 +108,6 @@ def select_IP_local_step1(
     QR = BACKEND._qr
     QR_PIVOT = BACKEND._qr_col_pivoting
     EINSUM_IK_JK_IJK = BACKEND._einsum_ik_jk_ijk
-
-    # from pyscf.isdf.isdf_tools_local import _range_partition
 
     ### loop over atm ###
 
@@ -342,7 +341,9 @@ def select_IP_local_step2(
 
     if len(group) < mydf.first_natm:
         if global_IP_selection:
+
             # split tasks #
+
             group_begin, group_end = _range_partition(
                 len(group), rank, comm_size, use_mpi
             )
@@ -404,32 +405,9 @@ def select_IP_local_step3(mydf, group, use_mpi=False):
         partition_IP[mydf.gridID_2_atmID[ip_id] % mydf.first_natm].append(ip_id)
 
     # Convert to sorted numpy arrays
+
     partition_IP = [np.sort(np.array(p, dtype=np.int32)) for p in partition_IP]
     mydf.partition_IP = [ToTENSOR(p, cpu=True) for p in partition_IP]
-
-    # build aoRg #
-
-    # aoRg_holders = [None] * mydf.first_natm
-    # atm_ordering = [atm for subgroup in group for atm in subgroup]
-    # IP_ID_now = 0
-    # for atm_id in atm_ordering:
-    #     aoR_holder = mydf.aoR[atm_id]
-    #     IP_group = mydf.IP_group[atm_id]
-    #     if aoR_holder is None or IP_group is None:
-    #         IP_ID_now += len(IP_group) if IP_group is not None else 0
-    #         continue
-    #     nIP = len(IP_group)
-    #     idx = np.searchsorted(ToNUMPY(mydf.partition[atm_id]), ToNUMPY(IP_group))
-    #     aoRg_holders[atm_id] = aoR_Holder(
-    #         TAKE(aoR_holder.aoR, ToTENSOR(idx, cpu=True), axis=1),
-    #         ToTENSOR(ToNUMPY(aoR_holder.ao_involved).copy()),
-    #         IP_ID_now,
-    #         IP_ID_now + nIP,
-    #     )
-    #     IP_ID_now += nIP
-    # mydf.aoRg = aoRg_holders
-
-    # return aoRg_holders
 
 
 ############ subroutines --- build aux_basis ############
@@ -458,6 +436,8 @@ def _find_common_elements_positions(arr1, arr2):
 
 
 def build_aux_basis_local(mydf, group, IP_group, use_mpi=False):
+
+    t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
 
     if use_mpi:
         from pyscf.isdf.isdf_tools_mpi import rank, comm, comm_size
@@ -541,6 +521,10 @@ def build_aux_basis_local(mydf, group, IP_group, use_mpi=False):
 
     mydf.aux_basis = [ToTENSOR(x, cpu=True) for x in mydf.aux_basis]
 
+    t2 = (lib.logger.process_clock(), lib.logger.perf_counter())
+    
+    misc._benchmark_time(t1, t2, "build_aux_basis_local", mydf, mydf.rank)
+
     return mydf.aux_basis
 
 
@@ -576,6 +560,7 @@ def build_V_W_local(mydf, use_mpi=False):
     ngrids = mydf.ngrids
     bucnhsize = mydf._build_V_K_bunchsize
 
+    # print("naux_involved = ", naux_involved)
     mydf.W = ZEROS((naux_involved, naux_tot), dtype=FLOAT64, cpu=True)
     if mydf.with_robust_fitting:
         mydf.V = ZEROS((naux_involved, ngrids), dtype=FLOAT64, cpu=True)
@@ -592,9 +577,13 @@ def build_V_W_local(mydf, use_mpi=False):
 
     ## do the work ##
 
-    from pyscf.isdf._isdf_local_K_direct import _build_V_local_bas_kernel
+    from pyscf.isdf._isdf_local_K_kernel import (
+        _build_V_local_bas_kernel,
+        _build_W_local_bas_kernel,
+    )
 
-    coul_G = tools.get_coulG(mydf.cell, mesh=mydf.mesh)
+    # coul_G = tools.get_coulG(mydf.cell, mesh=mydf.mesh)
+    coul_G = mydf.coul_G
     coul_G = ToTENSOR(coul_G, cpu=True).reshape(*mydf.mesh)
     coul_G = ToTENSOR(ToNUMPY(coul_G[:, :, : mydf.mesh[2] // 2 + 1].reshape(-1)).copy())
 
@@ -612,7 +601,7 @@ def build_V_W_local(mydf, use_mpi=False):
                 p1,
                 buffer,
                 buffer_fft,
-                mydf.partition_group_to_gridID,
+                mydf.partition_group_2_gridID,
                 mydf.gridID_ordering,
                 mydf.mesh,
                 coul_G,
@@ -623,29 +612,13 @@ def build_V_W_local(mydf, use_mpi=False):
 
             # loop over all aux basis to construct W #
 
-            aux_loc = 0
-            grid_loc = 0
-            for i in range(len(mydf.group)):
-                aux_bas_ket = mydf.aux_basis[i]
-                naux_ket = aux_bas_ket.shape[0]
-                ngrid_now = aux_bas_ket.shape[1]
-                ddot_res = buffer.malloc(
-                    (p1 - p0, naux_ket), dtype=FLOAT64, name="ddot_res"
-                )
-                DOT(
-                    V_tmp[:, grid_loc : grid_loc + ngrid_now], aux_bas_ket.T, c=ddot_res
-                )
-                mydf.W[V_loc : V_loc + V_tmp.shape[0], aux_loc : aux_loc + naux_ket] = (
-                    ddot_res
-                )
-                buffer.free(count=1)
-                aux_loc += naux_ket
-                grid_loc += ngrid_now
-
-            assert aux_loc == mydf.naux
-            assert grid_loc == ngrids
+            _build_W_local_bas_kernel(
+                V_tmp, mydf.aux_basis, mydf.W[V_loc : V_loc + V_tmp.shape[0]]
+            )
 
             V_loc += V_tmp.shape[0]
+
+            buffer.free(count=1)
 
     t2 = (lib.logger.process_clock(), lib.logger.perf_counter())
 
@@ -726,7 +699,7 @@ class ISDF_Local(isdf.ISDF):
         self._limited_memory = limited_memory
         self._build_V_K_bunchsize = build_V_K_bunchsize
         if build_V_K_bunchsize is None:
-            from _isdf_local_K_direct import K_DIRECT_NAUX_BUNCHSIZE
+            from pyscf.isdf._isdf_local_K_kernel import K_DIRECT_NAUX_BUNCHSIZE
 
             self._build_V_K_bunchsize = K_DIRECT_NAUX_BUNCHSIZE
 
@@ -822,9 +795,9 @@ class ISDF_Local(isdf.ISDF):
 
         t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
 
-        sync_aoR = False
-        if self.direct:
-            sync_aoR = True
+        # sync_aoR = False
+        # if self.direct:
+        #     sync_aoR = True
 
         first_natm = self.first_natm
 
@@ -846,15 +819,15 @@ class ISDF_Local(isdf.ISDF):
 
         # build some indices info #
 
-        # Create partition_group_to_gridID
-        self.partition_group_to_gridID = [
+        # Create partition_group_2_gridID
+        self.partition_group_2_gridID = [
             np.concatenate([self.partition[atm_id] for atm_id in subgroup]).astype(
                 np.int64
             )  # NOTE: to be compatible with torch backend
             for subgroup in group
         ]
-        self.partition_group_to_gridID = [
-            ToTENSOR(x, cpu=True) for x in self.partition_group_to_gridID
+        self.partition_group_2_gridID = [
+            ToTENSOR(x, cpu=True) for x in self.partition_group_2_gridID
         ]
 
         # Create gridID_2_atmID
@@ -888,14 +861,47 @@ class ISDF_Local(isdf.ISDF):
         size3 += max_naux_group**2  # A
         size3 += max_naux_group * max_group_ngrids  # B
         # 4. build V and W #
+        self._build_V_K_bunchsize = min(max_naux_group, self._build_V_K_bunchsize)
         if self.direct:
-            pass  # TODO: #
+            size4 = 0
         else:
             _size_4_1 = self._build_V_K_bunchsize * np.prod(self.mesh)
-            _size_4_2 = self._build_V_K_bunchsize * max_naux_group
-            size4 = max(_size_4_1, _size_4_2)
+            # _size_4_2 = self._build_V_K_bunchsize * max_naux_group
+            # size4 = max(_size_4_1, _size_4_2)
+            size4 = _size_4_1
+        # 5. get J #
+        from pyscf.isdf.isdf_local_jk import J_MAX_GRID_BUNCHSIZE
 
-        size = max(size1, size2, size3, size4)
+        nao_max_atm = self.max_nao_involved
+        size51 = (
+            nao_max_atm**2
+            + ngrid_max_atm
+            + nao_max_atm * min(ngrid_max_atm, J_MAX_GRID_BUNCHSIZE)
+        )
+        size51 += self.ngrids
+        size52 = nao_max_atm**2 + nao_max_atm * min(ngrid_max_atm, J_MAX_GRID_BUNCHSIZE)
+        size5 = max(size51, size52)
+        # 6. get K #
+        size6 = self.nao * max_naux_group + 4 * nao_max_atm * nao  # pack aoRg and dm
+        size6 += max_naux_group * nao_max_atm  # used in _isdf_local_K_kernel
+        if self.direct:
+            size6 += self._build_V_K_bunchsize * self.ngrids
+            size6 += self._build_V_K_bunchsize * self.naux_max(c, m)
+        size6 += self._build_V_K_bunchsize * self.nao
+        if self.with_robust_fitting:
+            size6 += self._build_V_K_bunchsize * self.ngrids
+        else:
+            size6 += self._build_V_K_bunchsize * self.naux_max(c, m)
+        size6 += self._build_V_K_bunchsize * self.nao
+        size6 += nao_max_atm * self.nao
+        # build buf #
+        size = max(size1, size2, size3, size4, size5, size6)
+        misc._info(
+            self,
+            self.rank,
+            "In _build_buffer: ISDF Local size of buffer = %.3f MB",
+            size * 8 / 1024 / 1024,
+        )
         self.buffer_cpu = SimpleMemoryAllocator(total_size=size, gpu=False)
         self.buffer = self.buffer_cpu
 
@@ -993,6 +999,8 @@ class ISDF_Local(isdf.ISDF):
             memory_aoRg / 1024 / 1024,
         )
 
+        misc._benchmark_time(t1, t5, "build_IP", self, self.rank)
+
         return self.IP_group
 
     def _build_aoRg(self, IP_group, group=None):
@@ -1028,6 +1036,7 @@ class ISDF_Local(isdf.ISDF):
         self.aux_basis = build_aux_basis_local(self, group, self.IP_group, self.use_mpi)
 
     def _build_V_W(self):
+        self.coul_G = tools.get_coulG(self.cell, mesh=self.mesh)
         if not self.direct:
             self.V, self.W = build_V_W_local(self, self.use_mpi)
 
@@ -1135,3 +1144,7 @@ class ISDF_Local(isdf.ISDF):
                     if rela_cutoff > SEGMENT[i]:
                         return C[i]
                 return C[-1]
+
+    ########## other funcs ##########
+
+    get_jk = isdf_local_jk.get_jk_dm_local

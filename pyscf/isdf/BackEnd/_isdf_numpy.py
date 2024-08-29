@@ -1,3 +1,5 @@
 import pyscf.isdf.BackEnd._isdf_numpy_shared_func as ISDF_SHARED_FUNC_LIB
 
 distance_translation = ISDF_SHARED_FUNC_LIB.distance_translation
+add_to_indexed_submatrix_ = ISDF_SHARED_FUNC_LIB.add_to_indexed_submatrix_
+copy_indexed_submatrix = ISDF_SHARED_FUNC_LIB.copy_indexed_submatrix
