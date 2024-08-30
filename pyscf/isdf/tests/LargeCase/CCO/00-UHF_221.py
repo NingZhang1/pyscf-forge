@@ -1,3 +1,14 @@
+# backend to test #
+
+import pyscf.isdf.BackEnd._config as config
+
+config.disable_fftw()
+# config.backend("numpy")
+# config.backend("scipy")
+config.backend("torch")
+# config.backend("torch_gpu")
+import pyscf.isdf.BackEnd.isdf_backend as BACKEND
+
 import numpy as np
 from pyscf import lib
 
@@ -71,8 +82,10 @@ PARTITION = [
 if __name__ == "__main__":
 
     for supercell in SuperCell_ARRAY:
-        ke_cutoff = Ke_CUTOFF[0]
-        for partition in PARTITION:  ## test different partition of atoms
+        # ke_cutoff = Ke_CUTOFF[0]
+        for ke_cutoff in Ke_CUTOFF:
+            # for partition in PARTITION:  ## test different partition of atoms
+            partition = PARTITION[0]
             for _basis_ in Basis:
 
                 DM_CACHED = None
@@ -92,7 +105,7 @@ if __name__ == "__main__":
                     ke_cutoff=ke_cutoff,
                     basis=basis,
                     pseudo=pseudo,
-                    verbose=4,
+                    verbose=10,
                 )
                 prim_mesh = prim_cell.mesh
 
@@ -112,7 +125,7 @@ if __name__ == "__main__":
                     mesh=mesh,
                     basis=basis,
                     pseudo=pseudo,
-                    verbose=4,
+                    verbose=10,
                 )
 
                 cell.incore_anyway = False
@@ -153,7 +166,7 @@ if __name__ == "__main__":
                     mf = scf.UHF(cell)
                     mf.with_df = pbc_isdf_info
                     mf.max_cycle = 64
-                    mf.conv_tol = 1e-7
+                    mf.conv_tol = 1e-8
                     pbc_isdf_info.direct_scf = mf.direct_scf
                     if DM_CACHED is not None:
                         mf.kernel(DM_CACHED)
@@ -162,6 +175,8 @@ if __name__ == "__main__":
                     t2 = (lib.logger.process_clock(), lib.logger.perf_counter())
                     print(misc._benchmark_time(t1, t2, "scf_isdf", pbc_isdf_info, pbc_isdf_info.rank))
 
+                    DM_CACHED = mf.make_rdm1()
+
                     del mf
                     del pbc_isdf_info
 
@@ -169,6 +184,6 @@ if __name__ == "__main__":
 
                 mf = scf.UHF(cell).density_fit()
                 mf.max_cycle = 64
-                mf.conv_tol = 1e-7
+                mf.conv_tol = 1e-8
                 # pbc_isdf_info.direct_scf = mf.direct_scf
                 mf.kernel(DM_CACHED)
