@@ -4,8 +4,8 @@ import pyscf.isdf.BackEnd._config as config
 
 config.disable_fftw()
 # config.backend("numpy")
-config.backend("scipy")
-# config.backend("torch")
+# config.backend("scipy")
+config.backend("torch")
 # config.backend("torch_gpu")
 import pyscf.isdf.BackEnd.isdf_backend as BACKEND
 
@@ -61,11 +61,12 @@ prim_cell = isdf_tools_cell.build_supercell(
     verbose=VERBOSE,
 )
 
-prim_group = [[0, 1], [2, 3], [4, 5], [6, 7]]
+# prim_group = [[0, 1], [2, 3], [4, 5], [6, 7]]
+prim_group = [[0, 1, 2, 3], [4, 5, 6, 7]]
 
 prim_mesh = prim_cell.mesh
 
-for kmesh in kmeshes:
+for kmesh in kmeshes[2:3]:
 
     mesh = [int(k * x) for k, x in zip(kmesh, prim_mesh)]
     print("kmesh:", kmesh, "mesh:", mesh)

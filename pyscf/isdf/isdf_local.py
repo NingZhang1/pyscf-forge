@@ -213,6 +213,7 @@ def _select_IP_local_group(
     group=None,
     atm_2_IP_possible=None,
 ):
+    ### WARNING: this subroutine has bugs ###
 
     assert isinstance(aoRg_possible, list)
     assert isinstance(group, list) or isinstance(group, np.ndarray)
@@ -266,6 +267,7 @@ def _select_IP_local_group(
     # random projection #
 
     naux_now = int(np.sqrt(c * nao_group)) + m
+    naux_now = min(naux_now, nao)
     G1 = ToTENSOR(np.random.randn(nao, naux_now), cpu=True)
     G1, _ = QR(G1, mode="economic")
     G1 = G1.T
@@ -332,7 +334,8 @@ def select_IP_local_step2(
         rank = 0
         comm_size = 1
 
-    IP_group = [None] * len(group)
+    # IP_group = [None] * len(group)
+    IP_group = [None for _ in range(len(group))]
 
     assert len(IP_possible_atm) == mydf.first_natm
 
@@ -362,17 +365,23 @@ def select_IP_local_step2(
                 comm.barrier()
                 IP_group = _sync_list(IP_group, len(group))
         else:
-            group_begin, group_end = 0, len(group)
+            # print("no global selection")
+            # print("group = ", group)
+            # group_begin, group_end = 0, len(group)
+            group_begin, group_end = _range_partition(len(group), rank, comm_size, use_mpi)
             for i in range(len(group)):
                 IP_group[i] = []
                 for atm_id in group[i]:
+                    # print(IP_possible_atm[atm_id])
                     IP_group[i].extend(list(IP_possible_atm[atm_id]))
                 IP_group[i] = np.array(IP_group[i], dtype=np.int32)
                 IP_group[i].sort()
+                # print(IP_group[i])
                 IP_group[i] = ToTENSOR(IP_group[i])
 
     else:
-        group_begin, group_end = 0, len(group)
+        # group_begin, group_end = 0, len(group)
+        group_begin, group_end = _range_partition(len(group), rank, comm_size, use_mpi)
         IP_group = IP_possible_atm
 
     mydf.group_begin = group_begin
@@ -1109,7 +1118,7 @@ class ISDF_Local(isdf.ISDF):
         for group_id, atm_ids in enumerate(group):
             naux_tmp = 0
             for atm_id in atm_ids:
-                naux_tmp += int(np.sqrt(self.atmID2nao[atm_id] * (c+1)) + m) ** 2
+                naux_tmp += int(np.sqrt(self.atmID2nao[atm_id] * (c + 1)) + m) ** 2
             max_group_naux_possible = max(max_group_naux_possible, naux_tmp)
         return max_group_naux_possible
 

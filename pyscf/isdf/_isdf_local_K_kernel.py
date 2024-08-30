@@ -175,9 +175,9 @@ def _get_dm_RgR(
                 # beta=1,
             )
             buffer.free(count=1)
-    
+
     assert ngrids == dm_RgR.shape[1]
-    
+
     return dm_RgR
 
 
