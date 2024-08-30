@@ -41,6 +41,7 @@ ToNUMPYTy = {
     numpy.int64: numpy.int64,
     numpy.complex64: numpy.complex64,
     numpy.complex128: numpy.complex128,
+    numpy.dtype('float64'): numpy.float64
 }
 
 
@@ -104,6 +105,8 @@ def malloc(shape, dtype, buf=None, offset=0, gpu=False):
 
 
 def zeros(shape, dtype=FLOAT64Ty, like=None, cpu=True):
+    if cpu is None and like is not None:
+        cpu = not like.is_cuda
     if like is not None:
         if dtype is None:
             dtype = like.dtype
@@ -130,6 +133,8 @@ def imag(a, force_outofplace=False):
     if force_outofplace:
         return a.imag.clone()
     else:
+        if a.dtype != torch.complex64 and a.dtype != torch.complex128:
+            return zeros(a.shape, dtype=a.dtype)
         return a.imag
 
 

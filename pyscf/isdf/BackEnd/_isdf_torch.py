@@ -54,3 +54,8 @@ def copy_indexed_submatrix(
         out = torch.empty((len(idx), len(idy)), dtype=a.dtype, device=a.device)
     out.copy_(a[idx[:, None], idy])
     return out
+
+def cast_to_complex(a: torch.Tensor) -> torch.Tensor:
+    if a.dtype == torch.complex128:
+        return a
+    return a.to(torch.complex128)

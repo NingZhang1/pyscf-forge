@@ -77,7 +77,7 @@ prim_cell = isdf_tools_cell.build_supercell(
 
 # prim_group = [[0, 1], [2, 3], [4, 5], [6, 7]]
 # prim_group = [[0], [1], [2], [3], [4], [5], [6], [7]]
-prim_group = [[0,1,2,3]]
+prim_group = [[0, 1, 2, 3]]
 # prim_group = [[0, 1], [2, 3]]
 # prim_group = [[0], [1], [2], [3]]
 # prim_group = [[0, 1, 2, 3]]
@@ -86,6 +86,7 @@ prim_mesh = prim_cell.mesh
 
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+
 
 def plot_3d_scatter(x, y, z, title="3D Scatter Plot"):
     """创建并显示三维散点图"""
@@ -184,14 +185,14 @@ for kmesh in kmeshes:
         y = coords_IP[:, 1]
         z = coords_IP[:, 2]
 
-        plot_3d_scatter(x, y, z, "group %d"%(ID))
-    
+        plot_3d_scatter(x, y, z, "group %d" % (ID))
+
     for atmID, IPs in enumerate(isdf.partition):
         coords_IP = isdf.coords[IPs]
         x = coords_IP[:, 0]
         y = coords_IP[:, 1]
         z = coords_IP[:, 2]
 
-        plot_3d_scatter(x, y, z, "atm %d"%(atmID))
-    
+        plot_3d_scatter(x, y, z, "atm %d" % (atmID))
+
     exit(1)

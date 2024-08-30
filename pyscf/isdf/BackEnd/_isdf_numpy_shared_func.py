@@ -52,3 +52,8 @@ def copy_indexed_submatrix(
     if out is None:
         out = numpy.empty((len(idx), len(idy)), dtype=a.dtype)
     out[:] = a[idx[:, numpy.newaxis], idy]
+
+def cast_to_complex(a: numpy.ndarray) -> numpy.ndarray:
+    if a.dtype == numpy.complex128:
+        return a
+    return a.astype(numpy.complex128)

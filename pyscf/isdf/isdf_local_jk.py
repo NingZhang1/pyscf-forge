@@ -21,6 +21,7 @@
 import copy, sys
 import ctypes
 import numpy as np
+from functools import partial
 
 ############ pyscf module ############
 
@@ -102,8 +103,8 @@ def _half_J(mydf, dm, use_mpi=False):
     # funcs #
 
     EINSUM_IJ_IJ_J = BACKEND._einsum_ij_ij_j
-    FFTN = BACKEND._fftn
-    IFFTN = BACKEND._ifftn
+    FFTN = partial(BACKEND._fftn, threads=NUM_THREADS)
+    IFFTN = partial(BACKEND._ifftn, threads=NUM_THREADS)
     REAL = BACKEND._real
     IMAG = BACKEND._imag
 

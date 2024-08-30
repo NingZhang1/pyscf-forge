@@ -20,6 +20,7 @@ import sys
 import numpy
 import numpy as np
 from itertools import product
+from functools import partial
 
 from pyscf.pbc.gto import Cell
 import pyscf.pbc.gto as pbcgto
@@ -27,6 +28,7 @@ from pyscf.pbc.lib.kpts import KPoints
 
 from pyscf.isdf.BackEnd.isdf_backend import _prod as PROD
 from pyscf.isdf.BackEnd.isdf_backend import _zeros as ZEROS
+from pyscf.isdf.BackEnd.isdf_backend import _real as REAL
 from pyscf.isdf.BackEnd.isdf_backend import _imag as IMAG
 from pyscf.isdf.BackEnd.isdf_backend import _absolute as ABS
 from pyscf.isdf.BackEnd.isdf_backend import _maximum as MAX
@@ -39,6 +41,9 @@ from pyscf.isdf.BackEnd.isdf_backend import _ifftn as IFFTN
 from pyscf.isdf.BackEnd.isdf_backend import _fftn as FFTN
 from pyscf.isdf.BackEnd.isdf_backend import _permute as PERMUTE
 from pyscf.isdf.BackEnd.isdf_backend import _conjugate_ as CONJUGATE_
+from pyscf.isdf.BackEnd.isdf_backend import NUM_THREADS
+
+FFTN = partial(FFTN, threads=NUM_THREADS)
 
 
 def symmetrize_mat(dm: TENSORTy, Ls):
@@ -64,7 +69,7 @@ def symmetrize_mat(dm: TENSORTy, Ls):
     nao = dm.shape[1]
     nset = dm.shape[0]
     nao_prim = nao // ncell
-    dm_symm = ZEROS((nset, nao, nao), dtype=dm.dtype, like=dm, cpu=None)
+    dm_symm = ZEROS((nset, nao, nao), dtype=dm.dtype, like=dm, cpu=True)
 
     def _loc(i, j, k):
         return i * Ls[1] * Ls[2] + j * Ls[2] + k
@@ -72,7 +77,7 @@ def symmetrize_mat(dm: TENSORTy, Ls):
     for i, j, k in product(range(Ls[0]), range(Ls[1]), range(Ls[2])):
 
         dm_symmetrized_buf = ZEROS(
-            (nset, nao_prim, nao_prim), dtype=dm.dtype, like=dm, cpu=None
+            (nset, nao_prim, nao_prim), dtype=dm.dtype, like=dm, cpu=True
         )
 
         for i_row, j_row, k_row in product(range(Ls[0]), range(Ls[1]), range(Ls[2])):
@@ -120,7 +125,7 @@ def pack_JK(input_mat: TENSORTy, Ls, nao_prim, output=None):
 
     _FloatTy = input_mat.dtype
 
-    assert IsComplexTy(_FloatTy)
+    assert IsRealTy(_FloatTy)
     ncell = PROD(Ls)
     assert input_mat.shape[0] == nao_prim
     assert input_mat.shape[1] == nao_prim * ncell
@@ -274,7 +279,9 @@ def _1e_operator_gamma2k(supercell, kmesh, operator_gamma: TENSORTy):
     operator_gamma = operator_gamma.reshape(nao_prim, *kmesh, nao_prim)
     operator_gamma = PERMUTE(operator_gamma, (0, 4, 1, 2, 3))
 
-    operator_k = FFTN(operator_gamma, s=kmesh, axes=(2, 3, 4), overwrite_input=False)
+    operator_k = FFTN(
+        operator_gamma, s=tuple(kmesh), axes=(2, 3, 4), overwrite_input=False
+    )
     operator_k = operator_k.reshape(nao_prim, nao_prim, nkpts)
     operator_k = PERMUTE(operator_k, (2, 0, 1))
     operator_k = CONJUGATE_(operator_k)
@@ -284,3 +291,46 @@ def _1e_operator_gamma2k(supercell, kmesh, operator_gamma: TENSORTy):
     if IsNumpy:
         operator_k = ToNUMPY(operator_k)
     return operator_k
+
+
+def _1e_operator_k2gamma(supercell, kmesh, operator_k: TENSORTy):
+
+    IsNumpy = isinstance(operator_k, np.ndarray)
+
+    operator_k = ToTensor(operator_k)
+
+    nao_prim = supercell.nao // PROD(kmesh)
+
+    assert operator_k.ndim == 3
+
+    assert operator_k.shape[0] == PROD(kmesh)
+    assert operator_k.shape[1] == nao_prim
+    assert operator_k.shape[2] == nao_prim
+
+    if PROD(kmesh) == 1:
+        imag = IMAG(operator_k)
+        if MAX(ABS(imag)) > 1e-8:
+            print("Warning: max abs of imag_part = ", MAX(ABS(imag)))
+        return REAL(operator_k).reshape(nao_prim, nao_prim)
+
+    op_res = ToTensor(ToNUMPY(operator_k).copy())
+    op_res = CONJUGATE_(op_res)
+    op_res = PERMUTE(op_res, (1, 2, 0))
+    op_res = op_res.reshape(nao_prim, nao_prim, *kmesh)
+    op_res = IFFTN(op_res, s=tuple(kmesh), axes=(2, 3, 4), overwrite_input=False)
+    op_res = PERMUTE(op_res, (0, 2, 3, 4, 1))
+    op_res = op_res.reshape(nao_prim, PROD(kmesh) * nao_prim)
+
+    imag = IMAG(op_res)
+    if MAX(ABS(imag)) > 1e-8:
+        print(
+            "Warning: In _1e_operator_k2gamma max abs of imag_part = ", MAX(ABS(imag))
+        )
+    op_res = REAL(op_res)
+
+    res = pack_JK(op_res, kmesh, nao_prim)
+
+    if IsNumpy:
+        res = ToNUMPY(res)
+
+    return res

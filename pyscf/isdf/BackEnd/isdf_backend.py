@@ -16,6 +16,13 @@ from pyscf.isdf.BackEnd._num_threads import num_threads
 
 NUM_THREADS = num_threads()
 
+print("LOADING ISDF BACKEND")
+print("NUM_THREADS   :", NUM_THREADS)
+print("USE_NUMPY     :", USE_NUMPY)
+print("USE_SCIPY     :", USE_SCIPY)
+print("USE_TORCH     :", USE_TORCH)
+print("USE_TORCH_GPU :", USE_TORCH_GPU)
+
 assert isinstance(USE_NUMPY, int)
 assert isinstance(USE_SCIPY, int)
 assert isinstance(USE_TORCH, int)
@@ -36,11 +43,13 @@ elif USE_SCIPY:
     import pyscf.isdf.BackEnd._scipy as backend
 elif USE_TORCH_GPU:
     import pyscf.isdf.BackEnd._torch as backend
-
+    import torch
+    torch.set_num_threads(NUM_THREADS)
     USE_GPU = 1
 else:
     import pyscf.isdf.BackEnd._torch as backend
-
+    import torch
+    torch.set_num_threads(NUM_THREADS)
     USE_GPU = 0
 
 # assign python interface #
@@ -121,3 +130,4 @@ else:
 _distance_translation = isdf_special_func.distance_translation
 _add_to_indexed_submatrix_ = isdf_special_func.add_to_indexed_submatrix_
 _copy_indexed_submatrix = isdf_special_func.copy_indexed_submatrix
+_cast_to_complex = isdf_special_func.cast_to_complex

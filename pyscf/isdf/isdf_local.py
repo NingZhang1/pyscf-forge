@@ -368,7 +368,9 @@ def select_IP_local_step2(
             # print("no global selection")
             # print("group = ", group)
             # group_begin, group_end = 0, len(group)
-            group_begin, group_end = _range_partition(len(group), rank, comm_size, use_mpi)
+            group_begin, group_end = _range_partition(
+                len(group), rank, comm_size, use_mpi
+            )
             for i in range(len(group)):
                 IP_group[i] = []
                 for atm_id in group[i]:
@@ -564,7 +566,7 @@ def build_V_W_local(mydf, use_mpi=False):
 
     group_begin_id, group_end_id = mydf.group_begin, mydf.group_end
     naux_involved = mydf.IP_segment[group_end_id] - mydf.IP_segment[group_begin_id]
-    naux_tot = mydf.naux
+    naux_tot = mydf.naux  ## NOTE: the meaning of mydf.naux
     ngrids = mydf.ngrids
     bucnhsize = mydf._build_V_K_bunchsize
 
@@ -900,7 +902,7 @@ class ISDF_Local(isdf.ISDF):
             size6 += self._build_V_K_bunchsize * self.ngrids
         else:
             size6 += self._build_V_K_bunchsize * self.naux_max(c, m)
-        size6 += self._build_V_K_bunchsize * self.nao
+        size6 += self._build_V_K_bunchsize * self.nao * 2
         size6 += nao_max_atm * self.nao
         # build buf #
         size = max(size1, size2, size3, size4, size5, size6)

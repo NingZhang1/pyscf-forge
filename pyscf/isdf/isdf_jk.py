@@ -20,6 +20,7 @@ import copy
 import numpy as np
 import numpy
 import ctypes
+from functools import partial
 
 from pyscf import lib
 from pyscf.lib import logger
@@ -64,8 +65,8 @@ def _get_j_dm(mydf, dm, use_mpi=False):
 
     EINSUM_IJ_IJ_J = BACKEND._einsum_ij_ij_j
     EINSUM_IJ_J_IJ = BACKEND._einsum_ij_j_ij
-    FFTN = BACKEND._fftn
-    IFFTN = BACKEND._ifftn
+    FFTN = partial(BACKEND._fftn, threads=NUM_THREADS)
+    IFFTN = partial(BACKEND._ifftn, threads=NUM_THREADS)
     REAL = BACKEND._real
     IMAG = BACKEND._imag
 
