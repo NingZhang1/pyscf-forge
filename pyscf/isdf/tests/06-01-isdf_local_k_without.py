@@ -69,7 +69,7 @@ prim_group = [[0, 1], [2, 3], [4, 5], [6, 7]]
 
 prim_mesh = prim_cell.mesh
 
-for kmesh in kmeshes[:1]:
+for kmesh in kmeshes:
 
     mesh = [int(k * x) for k, x in zip(kmesh, prim_mesh)]
     print("kmesh:", kmesh, "mesh:", mesh)

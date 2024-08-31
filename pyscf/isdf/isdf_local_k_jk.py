@@ -453,9 +453,6 @@ def _get_k_dm_k_local(mydf, dm, direct=None, with_robust_fitting=None, use_mpi=F
 
         segment_map = _get_ref_cell_aoR_indices(ao_involved, mydf.kmesh, mydf.naoPrim)
 
-        # print(segment_map)
-        # exit(1)
-
         for p0, p1 in lib.prange(0, nIP_involved, bunchsize):
             # if direct build W first #
             if direct:
