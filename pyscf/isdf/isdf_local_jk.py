@@ -501,6 +501,7 @@ def _get_k_dm_local(mydf, dm, direct=None, with_robust_fitting=None, use_mpi=Fal
         K = bcast(K, root=0)
         K = ToTENSOR(K)
     else:
+        print(K[0])
         for i in range(nset):
             K[i] = (K[i] + K[i].T) / 2.0  # make it symmetric
         if with_robust_fitting:

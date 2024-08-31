@@ -80,7 +80,8 @@ for kmesh in kmeshes[:1]:
     isdf = ISDF_Local_K(
         prim_cell,
         kmesh=kmesh,
-        with_robust_fitting=True,
+        direct=False,
+        with_robust_fitting=False,
         limited_memory=True,
         build_V_K_bunchsize=128,
     )

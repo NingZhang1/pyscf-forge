@@ -75,6 +75,53 @@ from pyscf.isdf.isdf_local_k_jk import get_jk_dm_k_local
 ############ subroutines --- select IP ############
 
 
+def _canonicalize_partition_prim(mydf, partition_prim):
+
+    DISTANCE = BACKEND._distance_translation
+    mesh, kmesh = mydf.mesh, mydf.kmesh
+    meshPrim = np.array(mesh) // np.array(kmesh)
+
+    shifts = np.array(
+        [
+            i * meshPrim[0] * mesh[1] * mesh[2]
+            + j * meshPrim[1] * mesh[2]
+            + k * meshPrim[2]
+            for i, j, k in itertools.product(
+                range(kmesh[0]), range(kmesh[1]), range(kmesh[2])
+            )
+        ]
+    )
+
+    cell = mydf.cell
+
+    assert len(partition_prim) == mydf.natmPrim
+
+    lattice_vector = copy.deepcopy(cell.lattice_vectors())
+    lattice_vector = ToTENSOR(lattice_vector)
+
+    for i in range(mydf.first_natm):
+
+        partition_i = partition_prim[i]
+        atm_coord = ToTENSOR(np.array([cell.atom_coord(i)]))
+
+        for j in range(len(partition_i)):
+            imags = [(partition_i[j] + shift) % (np.prod(mesh)) for shift in shifts]
+            coord_imag = ToTENSOR(mydf.coords[imags])
+            distance = ToNUMPY(
+                DISTANCE(coord_imag, atm_coord, lattice_vector).reshape(-1)
+            )
+            argmin_distance = np.argmin(distance, axis=0)
+            if argmin_distance != 0:
+                partition_i[j] = imags[argmin_distance]
+
+        partition_i = ToNUMPY(partition_i)
+        partition_i = np.sort(partition_i)
+
+        partition_prim[i] = ToTENSOR(partition_i)
+
+    return partition_prim
+
+
 def _expand_partition_prim(partition_prim, kmesh, mesh):
     meshPrim = np.array(mesh) // np.array(kmesh)
     shifts = np.array(
@@ -88,7 +135,14 @@ def _expand_partition_prim(partition_prim, kmesh, mesh):
         ]
     )
 
-    return [data + shift for shift in shifts for data in partition_prim]
+    res = [data + shift for shift in shifts for data in partition_prim]
+
+    for i in range(len(res)):
+        res[i] = [x % np.prod(mesh) for x in res[i]]
+        res[i] = np.sort(res[i])
+        res[i] = ToTENSOR(res[i])
+
+    return res
 
 
 def _expand_primlist_2_superlist(primlist, kmesh, mesh):
@@ -379,6 +433,7 @@ class ISDF_Local_K(ISDF_Local):
             self.use_mpi,
         )
         self.partitionPrim = [ToTENSOR(x) for x in self.partitionPrim]
+        # self.partitionPrim = _canonicalize_partition_prim(self, self.partitionPrim)  # NOTE: one shold further polish the partition within the ref unit cell, TODO: do it
         assert len(self.partitionPrim) == self.natmPrim
         self.partition = _expand_partition_prim(
             self.partitionPrim, self.kmesh, self.mesh
@@ -450,6 +505,10 @@ class ISDF_Local_K(ISDF_Local):
             ix = grid_ID // (self.mesh[1] * self.mesh[2])
             iy = (grid_ID % (self.mesh[1] * self.mesh[2])) // self.mesh[2]
             iz = grid_ID % self.mesh[2]
+
+            ix = ix % self.meshPrim[0]
+            iy = iy % self.meshPrim[1]
+            iz = iz % self.meshPrim[2]
 
             return ix * self.meshPrim[1] * self.meshPrim[2] + iy * self.meshPrim[2] + iz
 

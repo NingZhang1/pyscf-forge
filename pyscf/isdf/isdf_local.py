@@ -412,7 +412,8 @@ def select_IP_local_step3(mydf, group, use_mpi=False):
 
     partition_IP = [[] for _ in range(mydf.first_natm)]
     for ip_id in mydf.IP_flat:
-        partition_IP[mydf.gridID_2_atmID[ip_id] % mydf.first_natm].append(ip_id)
+        # assert mydf.gridID_2_atmID[ip_id] < mydf.first_natm
+        partition_IP[mydf.gridID_2_atmID[ip_id]].append(ip_id)
 
     # Convert to sorted numpy arrays
 

@@ -257,11 +257,11 @@ def _make_kpts_kmesh(cell, kpts=None, kmesh=None):
     return kpts, kmesh
 
 
-def _1e_operator_gamma2k(supercell, kmesh, operator_gamma: TENSORTy):
+def _1e_operator_gamma2k(nao, kmesh, operator_gamma: TENSORTy):
 
     IsNumpy = isinstance(operator_gamma, np.ndarray)
 
-    nao_prim = supercell.nao // PROD(kmesh)
+    nao_prim = nao // PROD(kmesh)
     nkpts = PROD(kmesh)
 
     if operator_gamma.ndim == 3:
@@ -293,13 +293,13 @@ def _1e_operator_gamma2k(supercell, kmesh, operator_gamma: TENSORTy):
     return operator_k
 
 
-def _1e_operator_k2gamma(supercell, kmesh, operator_k: TENSORTy):
+def _1e_operator_k2gamma(nao, kmesh, operator_k: TENSORTy):
 
     IsNumpy = isinstance(operator_k, np.ndarray)
 
     operator_k = ToTensor(operator_k)
 
-    nao_prim = supercell.nao // PROD(kmesh)
+    nao_prim = nao // PROD(kmesh)
 
     assert operator_k.ndim == 3
 

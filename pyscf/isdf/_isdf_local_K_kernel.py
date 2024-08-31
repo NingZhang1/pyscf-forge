@@ -176,9 +176,9 @@ def _get_dm_RgR(
 
         aoR = _aoR_holder.aoR
         gridID_begin = _aoR_holder.global_gridID_begin
+        nao_involved = aoR.shape[0]
         ngrids_involved = aoR.shape[1]
         ao_involved = _aoR_holder.ao_involved
-        nao_involved = aoR.shape[0]
 
         ngrids += ngrids_involved
 
@@ -332,8 +332,6 @@ def _get_half_K_k(
 
     # check the input #
 
-    # print("shape of dm_RgR is ", dm_RgR.shape)
-
     assert half_K.shape[0] == dm_RgR.shape[0]
 
     nIP_involved = dm_RgR.shape[0]
@@ -377,6 +375,8 @@ def _final_contraction_k(K, aoRg_packed, p0, p1, half_K, box_2_segment, kmesh, b
     naoPrim = nao // np.prod(kmesh)
     for ix, iy, iz in product(range(kmesh[0]), range(kmesh[1]), range(kmesh[2])):
         loc_begin, loc_end, ao_involved = box_2_segment[(ix, iy, iz)]
+
+        # print("loc_begin, loc_end, ao_involved", loc_begin, loc_end, ao_involved)
 
         aoRg_involved = aoRg_packed.aoR[loc_begin:loc_end, p0:p1]
 

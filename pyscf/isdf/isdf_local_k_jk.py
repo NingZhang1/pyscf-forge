@@ -97,11 +97,11 @@ def _preprocess_dm(mydf, _dm):
     # transform dm to gamma-space #
 
     if len(dm.shape) == 3:
-        return _1e_operator_k2gamma(mydf.cell, mydf.kmesh, dm)
+        return _1e_operator_k2gamma(mydf.cell.nao_nr(), mydf.kmesh, dm)
     else:
         dm_res = []
         for i in range(dm.shape[0]):
-            dm_res.append(_1e_operator_k2gamma(mydf.cell, mydf.kmesh, dm[i]))
+            dm_res.append(_1e_operator_k2gamma(mydf.cell.nao_nr(), mydf.kmesh, dm[i]))
         return ToTENSOR(np.asarray(dm_res))
 
 
@@ -173,7 +173,7 @@ def _get_j_dm_k_local(mydf, dm, use_mpi=False):
                 (nao_involved, nao_involved), dtype=FLOAT64, name="dm_packed"
             )
             # dm_packed[:] = dm[ao_involved][:, ao_involved]
-            COPY_INDEXED_SUBMAT(dm, ao_involved, ao_involved, out=dm_packed)
+            COPY_INDEXED_SUBMAT(ToTENSOR(dm), ao_involved, ao_involved, out=dm_packed)
 
         rhoR_local = buffer.malloc((ngrids_involved,), dtype=FLOAT64, name="rhoR_local")
 
@@ -291,7 +291,7 @@ def _get_j_dm_k_local(mydf, dm, use_mpi=False):
 
     if mydf.rank == 0:
         J *= mydf.ngrids / mydf.cell.vol
-        J = _1e_operator_gamma2k(mydf.cell, mydf.kmesh, J)
+        J = _1e_operator_gamma2k(mydf.cell.nao_nr(), mydf.kmesh, J)
 
     if use_mpi:
         J = bcast(J, root=0)
@@ -504,15 +504,6 @@ def _get_k_dm_k_local(mydf, dm, direct=None, with_robust_fitting=None, use_mpi=F
                 _final_contraction_k(
                     K[i], aoRg_packed, p0, p1, half_K, segment_map, mydf.kmesh, buffer
                 )
-                # if nao_involved == nao:
-                #     DOT(aoRg_packed.aoR[:, p0:p1], half_K, c=K[i], beta=1)
-                # else:
-                #     tmp_ddot_res = buffer.malloc(
-                #         (nao_involved, nao), dtype=FLOAT64, name="tmp_ddot_res"
-                #     )
-                #     DOT(aoRg_packed.aoR[:, p0:p1], half_K, c=tmp_ddot_res)
-                #     INDEX_ADD(K[i], 0, ao_involved, tmp_ddot_res)
-                #     buffer.free(count=1)
                 if with_robust_fitting:
                     buffer.free(count=2)
                     ## (2) contract with aoR ##
@@ -540,15 +531,6 @@ def _get_k_dm_k_local(mydf, dm, direct=None, with_robust_fitting=None, use_mpi=F
                         mydf.kmesh,
                         buffer,
                     )
-                    # if nao_involved == nao:
-                    #     DOT(aoRg_packed.aoR[:, p0:p1], half_K, c=K_V[i], beta=1)
-                    # else:
-                    #     tmp_ddot_res = buffer.malloc(
-                    #         (nao_involved, nao), dtype=FLOAT64, name="tmp_ddot_res"
-                    #     )
-                    #     DOT(aoRg_packed.aoR[:, p0:p1], half_K, c=tmp_ddot_res)
-                    #     INDEX_ADD(K_V[i], 0, ao_involved, tmp_ddot_res)
-                    #     buffer.free(count=1)
                     buffer.free(count=3)
                 else:
                     buffer.free(count=3)
@@ -575,7 +557,7 @@ def _get_k_dm_k_local(mydf, dm, direct=None, with_robust_fitting=None, use_mpi=F
                 for i in range(nset):
                     K_V[i] = K_V[i] + K_V[i].T
                 K = K_V - K
-            K = ToTENSOR(ToNUMPY(K[:, :nao_prim, :]).copy())
+            K = _1e_operator_gamma2k(mydf.cell.nao_nr(), mydf.kmesh, K)
             K = CAST_TO_COMPLEX(K)
         comm.barrier()
         K = bcast(K, root=0)
@@ -591,8 +573,11 @@ def _get_k_dm_k_local(mydf, dm, direct=None, with_robust_fitting=None, use_mpi=F
             for i in range(nset):
                 K_V[i] = K_V[i] + K_V[i].T
             K = K_V - K
-        K = ToTENSOR(ToNUMPY(K[:, :nao_prim, :]).copy())
+        K = _1e_operator_gamma2k(mydf.cell.nao_nr(), mydf.kmesh, K)
         K = CAST_TO_COMPLEX(K)
+
+    t2 = (logger.process_clock(), logger.perf_counter())
+    misc._benchmark_time(mydf, mydf.rank, "_get_k_dm_k_local", t1, t2)
 
     return K * mydf.ngrids / mydf.cell.vol
 
@@ -699,16 +684,5 @@ def get_jk_dm_k_local(
         vk = bcast(vk, root=0)
 
         comm.Barrier()
-
-    # print(vj[0][0])
-    # print(vk[0][0])
-    # exit(1)
-
-    # vk = ToNUMPY(vk)
-    vk = np.zeros_like(vk)
-    # vk = ToTENSOR(vk)
-
-    # print(vj.__class__)
-    # print(vk.__class__)
 
     return vj, vk

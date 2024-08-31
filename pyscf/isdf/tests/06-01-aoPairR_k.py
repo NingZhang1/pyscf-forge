@@ -20,6 +20,8 @@ ABS = BACKEND._absolute
 # sys and pyscf #
 
 import numpy as np
+from itertools import product
+
 from pyscf import lib
 
 from pyscf.lib.parameters import BOHR
@@ -31,6 +33,7 @@ from pyscf.isdf.isdf_tools_Tsym import _kmesh_to_Kpoints, _1e_operator_gamma2k
 from pyscf.isdf import isdf_tools_cell
 from pyscf.isdf.isdf import ISDF
 from pyscf.isdf.isdf_local import ISDF_Local
+from pyscf.isdf.isdf_local_k import ISDF_Local_K
 from pyscf.isdf.isdf_tools_local import (
     _pack_aoR_holder,
 )
@@ -71,9 +74,6 @@ prim_cell = isdf_tools_cell.build_supercell(
     pseudo="gth-pade",
     verbose=VERBOSE,
 )
-
-# NOTE: weird thing, when [[0, 1], [2, 3]] + 1 x 1 x 4 unit cell, the error is very large (1e-5)
-# however, for [[0,1,2,3]] (5e-7) and [[0], [1], [2], [3]] (~1e-8) the error is not that large
 
 # prim_group = [[0, 1], [2, 3], [4, 5], [6, 7]]
 # prim_group = [[0], [1], [2], [3], [4], [5], [6], [7]]
@@ -126,14 +126,16 @@ for kmesh in kmeshes:
     cell.max_memory = 200
     print("group:", group)
 
-    isdf = ISDF_Local(
-        cell,
+    isdf = ISDF_Local_K(
+        # cell,
+        prim_cell,
+        kmesh=kmesh,
         with_robust_fitting=True,
         limited_memory=True,
         build_V_K_bunchsize=56,
         direct=True,
     )
-    isdf.build(c=50, m=5, rela_cutoff=1e-5, group=group, global_IP_selection=False)
+    isdf.build(c=50, m=5, rela_cutoff=1e-5, group=prim_group, global_IP_selection=False)
 
     ## groupID ##
 
@@ -144,27 +146,70 @@ for kmesh in kmeshes:
 
     iaux = 0
     igrid = 0
-    for aux_basis in isdf.aux_basis:
-        aux_basis_tensor[
-            iaux : iaux + aux_basis.shape[0], igrid : igrid + aux_basis.shape[1]
-        ] = aux_basis
-        iaux += aux_basis.shape[0]
-        igrid += aux_basis.shape[1]
-    grid_ordering = isdf.gridID_ordering
-    aux_basis_tensor_ordered = ZEROS((naux, ngrids), dtype=FLOAT64)
-    # TAKE(aux_basis_tensor, grid_ordering, 1, out=aux_basis_tensor_ordered)
-    aux_basis_tensor_ordered[:, grid_ordering] = aux_basis_tensor
+    for ix, iy, iz in product(range(kmesh[0]), range(kmesh[1]), range(kmesh[2])):
+        for aux_basis in isdf.aux_basis:
+            aux_basis_tensor[
+                iaux : iaux + aux_basis.shape[0], igrid : igrid + aux_basis.shape[1]
+            ] = aux_basis
+            iaux += aux_basis.shape[0]
+            igrid += aux_basis.shape[1]
+    assert iaux == naux
+    assert igrid == ngrids
 
     ## check not ordered ##
 
+    naoPrim = isdf.naoPrim
     aoRg_packed = _pack_aoR_holder(isdf.aoRg, isdf.nao)
     aoR_packed = _pack_aoR_holder(isdf.aoR, isdf.nao)
     print(aoRg_packed.aoR.shape)
     print(aoR_packed.aoR.shape)
     print(aux_basis_tensor.shape)
+    ngridPrim = aoR_packed.aoR.shape[1]
+    nIPPrim = aoRg_packed.aoR.shape[1]
+    assert ngridPrim == isdf.ngridPrim
+    assert nIPPrim == isdf.nauxPrim
 
-    aoPairRg = EINSUM_IK_JK_IJK(aoRg_packed.aoR, aoRg_packed.aoR)
-    aoPairR = EINSUM_IK_JK_IJK(aoR_packed.aoR, aoR_packed.aoR)
+    aoRg_full = ZEROS(
+        (aoRg_packed.aoR.shape[0], aoRg_packed.aoR.shape[1] * np.prod(kmesh)),
+        dtype=FLOAT64,
+    )
+    aoR_full = ZEROS(
+        (aoR_packed.aoR.shape[0], aoR_packed.aoR.shape[1] * np.prod(kmesh)),
+        dtype=FLOAT64,
+    )
+
+    IBOX_AO = 0
+    for ix_ao, iy_ao, iz_ao in product(
+        range(kmesh[0]), range(kmesh[1]), range(kmesh[2])
+    ):
+        # pack aoRg #
+        aoRg_topack = aoRg_packed.aoR[IBOX_AO * naoPrim : (IBOX_AO + 1) * naoPrim, :]
+
+        # pack aoR #
+
+        aoR_topack = aoR_packed.aoR[IBOX_AO * naoPrim : (IBOX_AO + 1) * naoPrim, :]
+
+        IBOX_GRID = 0
+        for ix_grid, iy_grid, iz_grid in product(
+            range(kmesh[0]), range(kmesh[1]), range(kmesh[2])
+        ):
+            loc_x = (ix_ao + ix_grid) % kmesh[0]
+            loc_y = (iy_ao + iy_grid) % kmesh[1]
+            loc_z = (iz_ao + iz_grid) % kmesh[2]
+            loc = loc_x * kmesh[1] * kmesh[2] + loc_y * kmesh[2] + loc_z
+            aoRg_full[
+                loc * naoPrim : (loc + 1) * naoPrim,
+                IBOX_GRID * nIPPrim : (IBOX_GRID + 1) * nIPPrim,
+            ] = aoRg_topack
+            aoR_full[
+                loc * naoPrim : (loc + 1) * naoPrim,
+                IBOX_GRID * ngridPrim : (IBOX_GRID + 1) * ngridPrim,
+            ] = aoR_topack
+            IBOX_GRID += 1
+        IBOX_AO += 1
+
+    aoPairRg = EINSUM_IK_JK_IJK(aoRg_full, aoRg_full)
+    aoPairR = EINSUM_IK_JK_IJK(aoR_full, aoR_full)
     aoPairR2 = DOT(aoPairRg.reshape(isdf.nao * isdf.nao, -1), aux_basis_tensor).reshape(
         isdf.nao, isdf.nao, -1
     )

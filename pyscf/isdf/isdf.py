@@ -729,7 +729,7 @@ class ISDF(df.fft.FFTDF):
                 ##### NOTE: first symmetrization #####
 
                 self.PP = symmetrize_mat(self.PP, kmesh)
-                self.PP = _1e_operator_gamma2k(self.cell, kmesh, self.PP)
+                self.PP = _1e_operator_gamma2k(self.cell.nao_nr(), kmesh, self.PP)
 
             if self.use_mpi:
                 from pyscf.isdf.isdf_tools_mpi import bcast
