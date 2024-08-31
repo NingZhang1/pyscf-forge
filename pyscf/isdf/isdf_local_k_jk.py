@@ -630,6 +630,7 @@ def get_jk_dm_k_local(
     vk = None
     if with_k:
         vk = ToNUMPY(_get_k_dm_k_local(self, dm, use_mpi=self.use_mpi))
+        # vk = np.zeros_like(vj)
 
     ### post process J and K ###
 
@@ -683,5 +684,7 @@ def get_jk_dm_k_local(
         vk = bcast(vk, root=0)
 
         comm.Barrier()
+
+    # vk = np.zeros_like(vj)
 
     return vj, vk

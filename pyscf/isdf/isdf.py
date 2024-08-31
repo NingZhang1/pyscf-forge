@@ -670,6 +670,8 @@ class ISDF(df.fft.FFTDF):
                     self.PP = super().get_pp(kpts=np.zeros(3))
                 t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
 
+                # symmetrization to force TR symmetry #
+
             if not use_super_pp:
                 t0 = (lib.logger.process_clock(), lib.logger.perf_counter())
                 cell = self.cell.copy()

@@ -42,6 +42,7 @@ from pyscf.isdf.BackEnd.isdf_backend import _fftn as FFTN
 from pyscf.isdf.BackEnd.isdf_backend import _permute as PERMUTE
 from pyscf.isdf.BackEnd.isdf_backend import _conjugate_ as CONJUGATE_
 from pyscf.isdf.BackEnd.isdf_backend import NUM_THREADS
+from pyscf.isdf.BackEnd.isdf_backend import _cast_to_complex as CAST_TO_COMPLEX
 
 FFTN = partial(FFTN, threads=NUM_THREADS)
 
@@ -312,6 +313,32 @@ def _1e_operator_k2gamma(nao, kmesh, operator_k: TENSORTy):
         if MAX(ABS(imag)) > 1e-8:
             print("Warning: max abs of imag_part = ", MAX(ABS(imag)))
         return REAL(operator_k).reshape(nao_prim, nao_prim)
+    else:
+        # symmetrization #
+        for ix, iy, iz in product(range(kmesh[0]), range(kmesh[1]), range(kmesh[2] // 2 + 1)):
+            loc1 = ix * kmesh[1] * kmesh[2] + iy * kmesh[2] + iz
+            ix2 = (kmesh[0] - ix) % kmesh[0]
+            iy2 = (kmesh[1] - iy) % kmesh[1]
+            iz2 = (kmesh[2] - iz) % kmesh[2]
+            loc2 = ix2 * kmesh[1] * kmesh[2] + iy2 * kmesh[2] + iz2
+            if loc1 == loc2:
+                op_1 = operator_k[loc1]
+                # op_2 = operator_k[loc2]
+                imag = IMAG(op_1)
+                if MAX(ABS(imag)) > 1e-8:
+                    print("Warning: In _1e_operator_k2gamma max abs of imag_part = ", MAX(ABS(imag)), ix, iy,iz)
+                operator_k[loc1] =  CAST_TO_COMPLEX(REAL(op_1))
+            else:
+                op_1 = ToNUMPY(operator_k[loc1])
+                op_2 = ToNUMPY(operator_k[loc2])
+                # operator_k[loc1] = CAST_TO_COMPLEX(op_1)
+                # operator_k[loc2] = CAST_TO_COMPLEX(op_2)
+                diff = op_1 - op_2.conj()
+                if np.max(np.abs(diff)) > 1e-8:
+                    print("Warning: In _1e_operator_k2gamma max abs of diff = ", np.max(np.abs(diff)), ix, iy,iz)
+                op_1 = (op_1 + op_2.conj()) / 2
+                operator_k[loc1] = CAST_TO_COMPLEX(ToTensor(op_1))
+                operator_k[loc2] = CAST_TO_COMPLEX(ToTensor(op_1.conj()))
 
     op_res = ToTensor(ToNUMPY(operator_k).copy())
     op_res = CONJUGATE_(op_res)

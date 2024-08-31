@@ -50,7 +50,8 @@ kmeshes = [
     [1, 1, 4],
     [1, 2, 2],
     [2, 2, 2],
-    [3, 3, 3],
+    [1, 1, 5],
+    [2, 2, 3],
     [4, 4, 4],
 ]
 VERBOSE = 10
@@ -65,7 +66,8 @@ prim_cell = isdf_tools_cell.build_supercell(
     verbose=VERBOSE,
 )
 
-prim_group = [[0, 1], [2, 3], [4, 5], [6, 7]]
+# prim_group = [[0, 1], [2, 3], [4, 5], [6, 7]]  # can cause large error for (1,1,5)
+prim_group = [[0], [1], [2], [3], [4], [5], [6], [7]]
 
 prim_mesh = prim_cell.mesh
 
@@ -85,6 +87,8 @@ for kmesh in kmeshes:
         limited_memory=True,
         build_V_K_bunchsize=128,
     )
+    # isdf._use_super_pp = True
+    # isdf._use_FFTDF_pp = True
     isdf.build(c=30, m=5, rela_cutoff=1e-4, group=prim_group)
 
     from pyscf.pbc.scf.khf import KRHF

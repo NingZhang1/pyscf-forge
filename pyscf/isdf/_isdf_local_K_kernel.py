@@ -375,7 +375,9 @@ def _final_contraction_k(K, aoRg_packed, p0, p1, half_K, box_2_segment, kmesh, b
     naoPrim = nao // np.prod(kmesh)
     for ix, iy, iz in product(range(kmesh[0]), range(kmesh[1]), range(kmesh[2])):
         loc_begin, loc_end, ao_involved = box_2_segment[(ix, iy, iz)]
-
+        if loc_begin is None:
+            assert loc_end is None
+            continue
         # print("loc_begin, loc_end, ao_involved", loc_begin, loc_end, ao_involved)
 
         aoRg_involved = aoRg_packed.aoR[loc_begin:loc_end, p0:p1]

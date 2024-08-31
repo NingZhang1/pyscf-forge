@@ -47,6 +47,7 @@ if USE_GPU == 1:
 assert (USE_GPU == 0) or (not USE_GPU), "ISDF_Local does not support GPU backend!"
 
 FLOAT64 = BACKEND.FLOAT64
+INT64 = BACKEND.INT64
 ToNUMPY = BACKEND._toNumpy
 ToTENSOR = BACKEND._toTensor
 ZEROS = BACKEND._zeros
@@ -687,6 +688,14 @@ class ISDF_Local_K(ISDF_Local):
             for loc, aoID in enumerate(_aoR_Holder.ao_involved)
             if aoID >= ao_begin and aoID < ao_end
         ]
+
+        if len(pos) == 0:
+            return aoR_Holder(
+                ZEROS((0, ngrids_involved), dtype=FLOAT64),
+                ZEROS((0,), dtype=INT64),
+                gridID_begin,
+                gridID_begin+ ngrids_involved,
+            )
 
         loc_begin = pos[0]
         loc_end = pos[-1] + 1
