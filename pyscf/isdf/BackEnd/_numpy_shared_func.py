@@ -13,12 +13,12 @@ ToNUMPYTy = {
 }
 
 
-def is_realtype(a):
-    return numpy.issubdtype(a.dtype, numpy.floating)
+def is_realtype(dtype):
+    return numpy.issubdtype(dtype, numpy.floating)
 
 
-def is_complextype(a):
-    return numpy.issubdtype(a.dtype, numpy.complexfloating)
+def is_complextype(dtype):
+    return numpy.issubdtype(dtype, numpy.complexfloating)
 
 
 def zeros(shape, dtype=numpy.float64, like=None, cpu=True):

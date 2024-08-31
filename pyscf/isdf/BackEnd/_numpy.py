@@ -34,6 +34,8 @@ def toTensor(data, cpu=True):
 
 
 def toNumpy(data):
+    if isinstance(data, list):
+        return numpy.array(data)
     if not isinstance(data, numpy.ndarray):
         raise ValueError("Data is not a numpy array")
     return data

@@ -119,7 +119,7 @@ def _get_j_dm_k_local(mydf, dm, use_mpi=False):
         from pyscf.isdf.isdf_tools_mpi import rank, comm, comm_size, bcast
         from pyscf.isdf.isdf_tools_mpi import reduce as mpi_reduce
 
-        dm = bcast(dm, root=0)
+        dm = ToTENSOR(bcast(dm, root=0))
     else:
         comm_size = 1
 
@@ -144,12 +144,14 @@ def _get_j_dm_k_local(mydf, dm, use_mpi=False):
     IMAG = BACKEND._imag
 
     rhoR_prim = buffer.malloc((mydf.ngridPrim,), dtype=FLOAT64, name="rhoR_prim")
+    CLEAN(rhoR_prim)
 
     #### step 1. get density value on real space grid and IPs ####
 
     # split task #
 
     assert len(mydf.aoR) == mydf.natmPrim
+    assert len(mydf.aoR) == mydf.first_natm
 
     atm_id_begin, atm_id_end = _range_partition(
         mydf.first_natm, mydf.rank, comm_size, use_mpi
@@ -191,7 +193,7 @@ def _get_j_dm_k_local(mydf, dm, use_mpi=False):
             buffer.free(count=1)
         else:
             buffer.free(count=2)
-
+    
     if use_mpi:
         rhoR_prim = ToTENSOR(mpi_reduce(rhoR_prim, root=0))
 
@@ -229,8 +231,8 @@ def _get_j_dm_k_local(mydf, dm, use_mpi=False):
         half_J = None
 
     if use_mpi:
-        half_J = bcast(half_J, root=0)
-
+        half_J = ToTENSOR(bcast(half_J, root=0))
+        
     buffer.free_all()
 
     #### step 3. get J , using translation symmetry ####
@@ -287,14 +289,14 @@ def _get_j_dm_k_local(mydf, dm, use_mpi=False):
 
     J = J_Res
     if use_mpi:
-        J = mpi_reduce(J_Res, root=0)
+        J = ToTENSOR(mpi_reduce(J_Res, root=0))
 
     if mydf.rank == 0:
         J *= mydf.ngrids / mydf.cell.vol
         J = _1e_operator_gamma2k(mydf.cell.nao_nr(), mydf.kmesh, J)
 
     if use_mpi:
-        J = bcast(J, root=0)
+        J = ToTENSOR(bcast(J, root=0))
 
     t2 = (logger.process_clock(), logger.perf_counter())
 
@@ -360,7 +362,7 @@ def _get_k_dm_k_local(mydf, dm, direct=None, with_robust_fitting=None, use_mpi=F
         from pyscf.isdf.isdf_tools_mpi import rank, comm, comm_size, bcast
         from pyscf.isdf.isdf_tools_mpi import reduce as mpi_reduce
 
-        dm = bcast(dm, root=0)
+        dm = ToTENSOR(bcast(dm, root=0))
     else:
         comm_size = 1
 
@@ -539,9 +541,9 @@ def _get_k_dm_k_local(mydf, dm, direct=None, with_robust_fitting=None, use_mpi=F
         IP_begin_id += nIP_involved
 
     if use_mpi:
-        K = mpi_reduce(K, root=0)
+        K = ToTENSOR(mpi_reduce(K, root=0))
         if with_robust_fitting:
-            K_V = mpi_reduce(K_V, root=0)
+            K_V = ToTENSOR(mpi_reduce(K_V, root=0))
         if rank == 0:
             ## expand ##
             K = [pack_JK(K[i], mydf.kmesh, nao_prim) for i in range(nset)]
