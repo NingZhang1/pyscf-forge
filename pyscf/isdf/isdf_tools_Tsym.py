@@ -315,7 +315,9 @@ def _1e_operator_k2gamma(nao, kmesh, operator_k: TENSORTy):
         return REAL(operator_k).reshape(nao_prim, nao_prim)
     else:
         # symmetrization #
-        for ix, iy, iz in product(range(kmesh[0]), range(kmesh[1]), range(kmesh[2] // 2 + 1)):
+        for ix, iy, iz in product(
+            range(kmesh[0]), range(kmesh[1]), range(kmesh[2] // 2 + 1)
+        ):
             loc1 = ix * kmesh[1] * kmesh[2] + iy * kmesh[2] + iz
             ix2 = (kmesh[0] - ix) % kmesh[0]
             iy2 = (kmesh[1] - iy) % kmesh[1]
@@ -326,8 +328,14 @@ def _1e_operator_k2gamma(nao, kmesh, operator_k: TENSORTy):
                 # op_2 = operator_k[loc2]
                 imag = IMAG(op_1)
                 if MAX(ABS(imag)) > 1e-8:
-                    print("Warning: In _1e_operator_k2gamma max abs of imag_part = ", MAX(ABS(imag)), ix, iy,iz)
-                operator_k[loc1] =  CAST_TO_COMPLEX(REAL(op_1))
+                    print(
+                        "Warning: In _1e_operator_k2gamma max abs of imag_part = ",
+                        MAX(ABS(imag)),
+                        ix,
+                        iy,
+                        iz,
+                    )
+                operator_k[loc1] = CAST_TO_COMPLEX(REAL(op_1))
             else:
                 op_1 = ToNUMPY(operator_k[loc1])
                 op_2 = ToNUMPY(operator_k[loc2])
@@ -335,7 +343,13 @@ def _1e_operator_k2gamma(nao, kmesh, operator_k: TENSORTy):
                 # operator_k[loc2] = CAST_TO_COMPLEX(op_2)
                 diff = op_1 - op_2.conj()
                 if np.max(np.abs(diff)) > 1e-8:
-                    print("Warning: In _1e_operator_k2gamma max abs of diff = ", np.max(np.abs(diff)), ix, iy,iz)
+                    print(
+                        "Warning: In _1e_operator_k2gamma max abs of diff = ",
+                        np.max(np.abs(diff)),
+                        ix,
+                        iy,
+                        iz,
+                    )
                 op_1 = (op_1 + op_2.conj()) / 2
                 operator_k[loc1] = CAST_TO_COMPLEX(ToTensor(op_1))
                 operator_k[loc2] = CAST_TO_COMPLEX(ToTensor(op_1.conj()))

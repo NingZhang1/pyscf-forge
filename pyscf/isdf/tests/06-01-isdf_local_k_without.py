@@ -50,6 +50,8 @@ kmeshes = [
     [1, 1, 4],
     [1, 2, 2],
     [2, 2, 2],
+    # [1, 3, 3], # NOTE: problematic
+    [1, 1, 9],
     [3, 3, 3],
     [4, 4, 4],
 ]
@@ -65,7 +67,8 @@ prim_cell = isdf_tools_cell.build_supercell(
     verbose=VERBOSE,
 )
 
-prim_group = [[0, 1], [2, 3], [4, 5], [6, 7]]
+# prim_group = [[0, 1], [2, 3], [4, 5], [6, 7]]
+prim_group = [[0], [1], [2], [3], [4], [5], [6], [7]]
 
 prim_mesh = prim_cell.mesh
 

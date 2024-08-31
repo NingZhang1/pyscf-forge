@@ -550,6 +550,12 @@ def get_jk_dm_local(
     dm = ToTENSOR(dm, cpu=True)
     nset, nao = dm.shape[:2]
 
+    if mydf._force_translation_sym:
+        assert mydf.natm % np.prod(mydf._T_mesh) == 0
+        from pyscf.isdf.isdf_tools_Tsym import symmetrize_mat
+
+        dm = symmetrize_mat(dm, mydf._T_mesh)
+
     #### perform the calculation ####
 
     if "exxdiv" in kwargs:
@@ -622,8 +628,19 @@ def get_jk_dm_local(
         vk = np.zeros((nset, nao, nao))
 
     if use_mpi:
+        if rank == 0 and mydf._force_translation_sym:
+            from pyscf.isdf.isdf_tools_Tsym import symmetrize_mat
+
+            vj = symmetrize_mat(vj, mydf._T_mesh)
+            vk = symmetrize_mat(vk, mydf._T_mesh)
         vj = bcast(vj, root=0)
         vk = bcast(vk, root=0)
+    else:
+        if mydf._force_translation_sym:
+            from pyscf.isdf.isdf_tools_Tsym import symmetrize_mat
+
+            vj = symmetrize_mat(vj, mydf._T_mesh)
+            vk = symmetrize_mat(vk, mydf._T_mesh)
 
     t1 = log.timer("get_jk_dm_local", *t1)
 

@@ -164,6 +164,7 @@ if __name__ == "__main__":
 
                     t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
                     mf = scf.GHF(cell)
+                    mf = scf.addons.smearing_(mf, sigma=0.02, method='fermi')
                     mf.with_df = pbc_isdf_info
                     mf.max_cycle = 64
                     mf.conv_tol = 1e-8
@@ -183,6 +184,7 @@ if __name__ == "__main__":
                 ### GDF benchmark ###
 
                 mf = scf.GHF(cell).density_fit()
+                mf = scf.addons.smearing_(mf, sigma=0.02, method='fermi')
                 mf.max_cycle = 64
                 mf.conv_tol = 1e-8
                 # pbc_isdf_info.direct_scf = mf.direct_scf

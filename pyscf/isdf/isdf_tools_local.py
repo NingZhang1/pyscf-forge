@@ -134,6 +134,14 @@ class aoR_Holder:
         BACKEND._index_copy(aoR, dim=0, index=self.ao_involved, source=self.aoR)
         return aoR
 
+    def toFull(self, nao):
+        aoR = ZEROS((nao, self.ngrid_tot), dtype=FLOAT64)
+        BACKEND._index_copy(aoR, dim=0, index=self.ao_involved, source=self.aoR)
+        ao_involved = ToTENSOR(np.array(list(range(nao)), dtype=np.int64))
+        return aoR_Holder(
+            aoR, ao_involved, self.global_gridID_begin, self.global_gridID_end
+        )
+
 
 # utils for aoR Holder #
 

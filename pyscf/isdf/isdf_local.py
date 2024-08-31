@@ -705,6 +705,9 @@ class ISDF_Local(isdf.ISDF):
         self.buffer_cpu = None
         self.buffer_gpu = None
 
+        self._force_translation_sym = False
+        self._T_mesh = None
+
         ### limited memory ###
 
         self._limited_memory = limited_memory
@@ -1050,6 +1053,11 @@ class ISDF_Local(isdf.ISDF):
         self.coul_G = tools.get_coulG(self.cell, mesh=self.mesh)
         if not self.direct:
             self.V, self.W = build_V_W_local(self, self.use_mpi)
+
+    def force_translation_symmetry(self, T_mesh=None):
+        assert T_mesh is not None
+        self._force_translation_sym = True
+        self._T_mesh = T_mesh
 
     ### properties ###
 

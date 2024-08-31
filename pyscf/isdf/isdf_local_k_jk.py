@@ -193,7 +193,7 @@ def _get_j_dm_k_local(mydf, dm, use_mpi=False):
             buffer.free(count=1)
         else:
             buffer.free(count=2)
-    
+
     if use_mpi:
         rhoR_prim = ToTENSOR(mpi_reduce(rhoR_prim, root=0))
 
@@ -232,7 +232,7 @@ def _get_j_dm_k_local(mydf, dm, use_mpi=False):
 
     if use_mpi:
         half_J = ToTENSOR(bcast(half_J, root=0))
-        
+
     buffer.free_all()
 
     #### step 3. get J , using translation symmetry ####
@@ -438,6 +438,7 @@ def _get_k_dm_k_local(mydf, dm, direct=None, with_robust_fitting=None, use_mpi=F
             (nao, nIP_involved), dtype=FLOAT64, name="packed_buf_aoRg"
         )
         aoRg_packed = _pack_aoR_holder(aoRg_unpacked, nao, out_buf=packed_buf_aoRg)
+        # aoRg_packed = aoRg_packed.toFull(nao)
 
         ## pack dm ##
 

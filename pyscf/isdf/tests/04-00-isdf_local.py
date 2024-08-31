@@ -90,6 +90,7 @@ for kmesh in kmeshes:
         cell, with_robust_fitting=True, limited_memory=True, build_V_K_bunchsize=56
     )
     isdf.build(c=30, m=5, rela_cutoff=1e-4, group=group)
+    # isdf.force_translation_symmetry(kmesh)
 
     from pyscf.pbc import scf
 

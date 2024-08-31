@@ -163,6 +163,7 @@ if __name__ == "__main__":
 
                     t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
                     mf = scf.UHF(cell)
+                    mf = scf.addons.smearing_(mf, sigma=0.02, method='fermi')
                     mf.with_df = pbc_isdf_info
                     mf.max_cycle = 64
                     mf.conv_tol = 1e-7
@@ -182,6 +183,7 @@ if __name__ == "__main__":
 
         ### UDF benchmark ###
         mf = scf.UHF(cell).density_fit()
+        mf = scf.addons.smearing_(mf, sigma=0.02, method='fermi')
         mf.max_cycle = 64
         mf.conv_tol = 1e-8
         # pbc_isdf_info.direct_scf = mf.direct_scf

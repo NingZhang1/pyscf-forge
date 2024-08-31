@@ -694,7 +694,7 @@ class ISDF_Local_K(ISDF_Local):
                 ZEROS((0, ngrids_involved), dtype=FLOAT64),
                 ZEROS((0,), dtype=INT64),
                 gridID_begin,
-                gridID_begin+ ngrids_involved,
+                gridID_begin + ngrids_involved,
             )
 
         loc_begin = pos[0]
