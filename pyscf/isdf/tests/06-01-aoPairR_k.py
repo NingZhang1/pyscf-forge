@@ -40,8 +40,8 @@ from pyscf.isdf.isdf_tools_local import (
 
 #############################
 
-ke_cutoff = 32
-basis = "gth-szv"
+ke_cutoff = 70
+basis = "gth-dzvp"
 
 boxlen = 3.57371000
 prim_a = np.array([[boxlen, 0.0, 0.0], [0.0, boxlen, 0.0], [0.0, 0.0, boxlen]])
@@ -50,10 +50,10 @@ atm = [
     ["C", (0.8934275, 0.8934275, 0.8934275)],
     ["C", (1.786855, 1.786855, 0.0)],
     ["C", (2.6802825, 2.6802825, 0.8934275)],
-    # ["C", (1.786855, 0.0, 1.786855)],
-    # ["C", (2.6802825, 0.8934275, 2.6802825)],
-    # ["C", (0.0, 1.786855, 1.786855)],
-    # ["C", (0.8934275, 2.6802825, 2.6802825)],
+    ["C", (1.786855, 0.0, 1.786855)],
+    ["C", (2.6802825, 0.8934275, 2.6802825)],
+    ["C", (0.0, 1.786855, 1.786855)],
+    ["C", (0.8934275, 2.6802825, 2.6802825)],
 ]
 
 kmeshes = [
@@ -81,7 +81,8 @@ prim_cell = isdf_tools_cell.build_supercell(
 # prim_group = [[0], [1], [2], [3], [4], [5], [6], [7]]
 # prim_group = [[0, 1, 2, 3]]
 # prim_group = [[0, 1], [2, 3]]
-prim_group = [[0], [1], [2], [3]]
+# prim_group = [[0], [1], [2], [3]]
+prim_group = [[0], [1], [2], [3], [4], [5], [6], [7]]
 # prim_group = [[0, 1, 2, 3]]
 
 prim_mesh = prim_cell.mesh
@@ -210,14 +211,24 @@ for kmesh in kmeshes:
             IBOX_GRID += 1
         IBOX_AO += 1
 
-    aoPairRg = EINSUM_IK_JK_IJK(aoRg_full, aoRg_full)
-    aoPairR = EINSUM_IK_JK_IJK(aoR_full, aoR_full)
-    aoPairR2 = DOT(aoPairRg.reshape(isdf.nao * isdf.nao, -1), aux_basis_tensor).reshape(
-        isdf.nao, isdf.nao, -1
-    )
-    diff = MAX(ABS(aoPairR - aoPairR2))
-    print(diff)
+    # compare bunch by bunch #
 
+    # aoPairRg = EINSUM_IK_JK_IJK(aoRg_full, aoRg_full)
+    # aoPairR = EINSUM_IK_JK_IJK(aoR_full, aoR_full)
+    # aoPairR2 = DOT(aoPairRg.reshape(isdf.nao * isdf.nao, -1), aux_basis_tensor).reshape(
+    #     isdf.nao, isdf.nao, -1
+    # )
+    # diff = MAX(ABS(aoPairR - aoPairR2))
+    # print(diff)
+
+    for i in range(isdf.nao):
+        aoPairRg = EINSUM_IK_JK_IJK(aoRg_full[i, :].reshape(1, -1), aoRg_full)
+        aoPairR = EINSUM_IK_JK_IJK(aoR_full[i, :].reshape(1, -1), aoR_full)
+        aoPairR2 = DOT(aoPairRg.reshape(isdf.nao, -1), aux_basis_tensor).reshape(
+            isdf.nao, -1
+        )
+        diff = MAX(ABS(aoPairR - aoPairR2))
+        print("diff of %d is %f" % (i, diff))
     continue
 
     for ID, IPs in enumerate(isdf.IP_group):
