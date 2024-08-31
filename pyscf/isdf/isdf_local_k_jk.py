@@ -388,6 +388,7 @@ def _get_k_dm_k_local(mydf, dm, direct=None, with_robust_fitting=None, use_mpi=F
     buffer = mydf.buffer_cpu  ## only valid for CPU now ##
     buffer.free_all()
     buffer_fft = mydf.buffer_fft
+    # buffer.clean()
 
     # info used in direct mode #
 
@@ -437,8 +438,10 @@ def _get_k_dm_k_local(mydf, dm, direct=None, with_robust_fitting=None, use_mpi=F
         packed_buf_aoRg = buffer.malloc(
             (nao, nIP_involved), dtype=FLOAT64, name="packed_buf_aoRg"
         )
+        CLEAN(packed_buf_aoRg)
         aoRg_packed = _pack_aoR_holder(aoRg_unpacked, nao, out_buf=packed_buf_aoRg)
-        # aoRg_packed = aoRg_packed.toFull(nao)
+        # aoRg_packed = _pack_aoR_holder(aoRg_unpacked, nao)
+        # aoRg_packed = aoRg_packed.toFull(nao) # NOTE: for debugging!
 
         ## pack dm ##
 
@@ -451,6 +454,7 @@ def _get_k_dm_k_local(mydf, dm, direct=None, with_robust_fitting=None, use_mpi=F
             dm_packed = buffer.malloc(
                 (nset, nao_involved, nao), dtype=FLOAT64, name="dm_packed"
             )
+            CLEAN(dm_packed)
             for i in range(nset):
                 TAKE(dm[i], ao_involved, 0, out=dm_packed[i])
 

@@ -65,7 +65,7 @@ from pyscf.isdf.isdf_tools_local import (
     build_cutoff_info,
     get_partition,
     get_aoR,
-    _pack_aoR_holder,
+    # _pack_aoR_holder,
     _range_partition,
     _sync_list,
     _get_grid_ordering,
@@ -273,6 +273,11 @@ def build_V_W_local_k(mydf, use_mpi=False):
 
     if use_mpi:
         comm.barrier()
+
+    # if mydf.V is not None:
+    #     print(MAX(ABS(mydf.V)))
+    # print(MAX(ABS(mydf.W)))
+    # exit(1)
 
     return mydf.V, mydf.W
 
@@ -567,6 +572,27 @@ class ISDF_Local_K(ISDF_Local):
         super()._build_IP(c, m, rela_cutoff, group, global_IP_selection)
         self.nauxPrim = self.naux
         self.naux *= np.prod(self.kmesh)
+
+        # print(len(self.partition_IP))
+        self.partition_IP_global = _expand_partition_prim(
+            self.partition_IP, self.kmesh, self.mesh
+        )
+        # print(len(self.partition_IP_global))
+
+        # NOTE: the following code if for debugging #
+
+        self.aoRg1 = get_aoR(
+            self.cell,
+            self.AtmConnectionInfo,
+            self.coords,
+            self.partition_IP_global,
+            # first_natm,
+            None,
+            self.first_natm,
+            self.group_global,
+            self.use_mpi,
+            self.use_mpi,
+        )
 
     def _build_V_W(self):
         self.coul_G = tools.get_coulG(self.cell, mesh=self.mesh)

@@ -371,6 +371,7 @@ def _get_k_dm_local(mydf, dm, direct=None, with_robust_fitting=None, use_mpi=Fal
         packed_buf_aoRg = buffer.malloc(
             (mydf.nao, nIP_involved), dtype=FLOAT64, name="packed_buf_aoRg"
         )
+        CLEAN(packed_buf_aoRg)
         aoRg_packed = _pack_aoR_holder(aoRg_unpacked, mydf.nao, out_buf=packed_buf_aoRg)
 
         ## pack dm ##

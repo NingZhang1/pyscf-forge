@@ -52,6 +52,7 @@ MAX = BACKEND._maximum
 ABS = BACKEND._absolute
 DOT = BACKEND._dot
 TAKE = BACKEND._take
+CLEAN = BACKEND._clean
 
 ############ isdf utils ############
 
@@ -251,6 +252,7 @@ def _select_IP_local_group(
     if len(aoRg_unpacked) == 1:
         aoRg_packed = aoRg_unpacked[0].aoR
     else:
+        CLEAN(packed_buf)
         aoRg_packed = _pack_aoR_holder(aoRg_unpacked, nao, out_buf=packed_buf).aoR
     nao = aoRg_packed.shape[0]
     ngrids = aoRg_packed.shape[1]
@@ -492,6 +494,8 @@ def build_aux_basis_local(mydf, group, IP_group, use_mpi=False):
         packed_buf_aoRg = buffer.malloc(
             (mydf.nao, max_group_naux_possible), dtype=FLOAT64, name="packed_buf_aoRg"
         )
+        CLEAN(packed_buf_aoR)
+        CLEAN(packed_buf_aoRg)
 
         aoR1 = _pack_aoR_holder(aoR_unpacked, mydf.nao, out_buf=packed_buf_aoR)
         aoRg1 = _pack_aoR_holder(aoRg_unpacked, mydf.nao, out_buf=packed_buf_aoRg)
@@ -505,6 +509,7 @@ def build_aux_basis_local(mydf, group, IP_group, use_mpi=False):
             pos1, pos2 = _find_common_elements_positions(
                 aoRg1.ao_involved, aoR1.ao_involved
             )
+            # print(pos1, pos2)
             assert len(pos1) == aoRg1.aoR.shape[0]
             aoRg1 = aoRg1.aoR
             # aoR1 = aoR1.aoR[pos2, :]
@@ -523,6 +528,16 @@ def build_aux_basis_local(mydf, group, IP_group, use_mpi=False):
         # build aux basis, AX=B #
 
         mydf.aux_basis[i] = CHO_SOLVE(A, B, overwrite_b=False)
+        # from scipy.linalg import lapack
+        # c, info = lapack.dpotrf(ToNUMPY(A).copy(), lower=1)
+        # if info > 0:
+        #     print("A is not positive definite!")
+        #     exit()
+        # x, info = lapack.dpotrs(c, ToNUMPY(B).copy(), lower=1)
+        # if info != 0:
+        #     print("error")
+        #     exit()
+        # mydf.aux_basis[i] = ToTENSOR(x.copy())
 
         buffer.free_all()
 
@@ -1035,6 +1050,14 @@ class ISDF_Local(isdf.ISDF):
                 continue
             nIP = len(_IP_group)
 
+            # NOTE: debugging code #
+            # assert all(
+            #     [
+            #         IP_ID in self.partition[atm_id]
+            #         for IP_ID in ToNUMPY(_IP_group)
+            #     ]
+            # )
+
             idx = np.searchsorted(ToNUMPY(self.partition[atm_id]), ToNUMPY(_IP_group))
             aoRg_holders[atm_id] = aoR_Holder(
                 TAKE(aoR_holder.aoR, ToTENSOR(idx, cpu=True), axis=1),
@@ -1168,6 +1191,7 @@ class ISDF_Local(isdf.ISDF):
         res = super().get_pp(kpts)
         if self._force_translation_sym:
             from pyscf.isdf.isdf_tools_Tsym import symmetrize_mat
+
             res = ToNUMPY(symmetrize_mat(ToTENSOR(res), self._T_mesh))
         return res
 

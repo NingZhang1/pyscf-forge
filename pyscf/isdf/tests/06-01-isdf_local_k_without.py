@@ -9,8 +9,12 @@ config.backend("torch")
 # config.backend("torch_gpu")
 import pyscf.isdf.BackEnd.isdf_backend as BACKEND
 
+MAX = BACKEND._maximum
+ABS = BACKEND._absolute
+
 # sys and pyscf #
 
+from itertools import product
 import numpy as np
 from pyscf import lib
 
@@ -24,11 +28,14 @@ from pyscf.isdf import isdf_tools_cell
 from pyscf.isdf.isdf import ISDF
 from pyscf.isdf.isdf_local import ISDF_Local
 from pyscf.isdf.isdf_local_k import ISDF_Local_K
+from pyscf.isdf.isdf_tools_local import (
+    _pack_aoR_holder,
+)
 
 #############################
 
 ke_cutoff = 70
-basis = "gth-dzvp"
+basis = "gth-szv"
 
 boxlen = 3.57371000
 prim_a = np.array([[boxlen, 0.0, 0.0], [0.0, boxlen, 0.0], [0.0, 0.0, boxlen]])
@@ -50,7 +57,7 @@ kmeshes = [
     [1, 1, 4],
     [1, 2, 2],
     [2, 2, 2],
-    # [1, 3, 3], # NOTE: problematic
+    [1, 3, 3],  # NOTE: problematic
     [1, 1, 9],
     [3, 3, 3],
     [4, 4, 4],
@@ -72,7 +79,7 @@ prim_group = [[0], [1], [2], [3], [4], [5], [6], [7]]
 
 prim_mesh = prim_cell.mesh
 
-for kmesh in kmeshes:
+for kmesh in kmeshes[-4:-3]:
 
     mesh = [int(k * x) for k, x in zip(kmesh, prim_mesh)]
     print("kmesh:", kmesh, "mesh:", mesh)
@@ -89,6 +96,31 @@ for kmesh in kmeshes:
         build_V_K_bunchsize=128,
     )
     isdf.build(c=30, m=5, rela_cutoff=1e-4, group=prim_group)
+    # isdf._use_super_pp = True
+    # isdf._use_FFTDF_pp = True
+
+    # NOTE: debugging code #
+
+    aoRg_packed = _pack_aoR_holder(isdf.aoRg, isdf.nao).todense(isdf.nao)
+    aoRg1_packed = _pack_aoR_holder(isdf.aoRg1, isdf.naoPrim).todense(isdf.naoPrim)
+    nIP_prim = aoRg_packed.shape[1]
+
+    # check the symmetry #
+
+    for ix, iy, iz in product(range(kmesh[0]), range(kmesh[1]), range(kmesh[2])):
+        ix2 = (kmesh[0] - ix) % kmesh[0]
+        iy2 = (kmesh[1] - iy) % kmesh[1]
+        iz2 = (kmesh[2] - iz) % kmesh[2]
+        loc = ix * kmesh[1] * kmesh[2] + iy * kmesh[2] + iz
+        loc2 = ix2 * kmesh[1] * kmesh[2] + iy2 * kmesh[2] + iz2
+        mat1 = aoRg1_packed[:, loc * nIP_prim : (loc + 1) * nIP_prim]
+        mat2 = aoRg_packed[loc2 * isdf.naoPrim : (loc2 + 1) * isdf.naoPrim, :]
+        diff = MAX(ABS(mat1 - mat2))
+        print("diff", diff, " at ", ix, iy, iz)
+    print("aoRg_packed", aoRg_packed.shape)
+    print("aoRg1_packed", aoRg1_packed.shape)
+
+    # exit(1)
 
     from pyscf.pbc.scf.khf import KRHF
 
