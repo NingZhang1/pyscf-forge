@@ -1164,6 +1164,13 @@ class ISDF_Local(isdf.ISDF):
                         return C[i]
                 return C[-1]
 
+    def get_pp(self, kpts=None):
+        res = super().get_pp(kpts)
+        if self._force_translation_sym:
+            from pyscf.isdf.isdf_tools_Tsym import symmetrize_mat
+            res = ToNUMPY(symmetrize_mat(ToTENSOR(res), self._T_mesh))
+        return res
+
     ########## other funcs ##########
 
     get_jk = isdf_local_jk.get_jk_dm_local

@@ -79,7 +79,6 @@ PARTITION = [
         # [15],
     ]
 ]
-
 if __name__ == "__main__":
 
     for supercell in SuperCell_ARRAY:
@@ -164,7 +163,7 @@ if __name__ == "__main__":
                     from pyscf.pbc import scf
 
                     t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
-                    mf = scf.UHF(cell)
+                    mf = scf.RHF(cell)
                     mf = scf.addons.smearing_(mf, sigma=0.02, method='fermi')
                     mf.with_df = pbc_isdf_info
                     mf.max_cycle = 64
@@ -184,7 +183,7 @@ if __name__ == "__main__":
                     del pbc_isdf_info
 
         ### UDF benchmark ###
-        mf = scf.UHF(cell).density_fit()
+        mf = scf.RHF(cell).density_fit()
         mf = scf.addons.smearing_(mf, sigma=0.02, method='fermi')
         mf.max_cycle = 64
         mf.conv_tol = 1e-8
