@@ -83,13 +83,12 @@ if __name__ == "__main__":
 
     for supercell in SuperCell_ARRAY:
         # ke_cutoff = Ke_CUTOFF[0]
+        DM_CACHED = None
         for ke_cutoff in Ke_CUTOFF:
             # for partition in PARTITION:  ## test different partition of atoms
             partition = PARTITION[0]
             for _basis_ in Basis:
-
-                DM_CACHED = None
-
+                
                 from pyscf.gto.basis import parse_nwchem
 
                 fbas = "basis2.dat"
@@ -166,7 +165,8 @@ if __name__ == "__main__":
                     mf = scf.UHF(cell)
                     mf.with_df = pbc_isdf_info
                     mf.max_cycle = 64
-                    mf.conv_tol = 1e-8
+                    mf.conv_tol = 1e-7
+                    mf.conv_tol_grad = 1e-2 
                     pbc_isdf_info.direct_scf = mf.direct_scf
                     if DM_CACHED is not None:
                         mf.kernel(DM_CACHED)
@@ -180,10 +180,9 @@ if __name__ == "__main__":
                     del mf
                     del pbc_isdf_info
 
-                ### GDF benchmark ###
-
-                mf = scf.UHF(cell).density_fit()
-                mf.max_cycle = 64
-                mf.conv_tol = 1e-8
-                # pbc_isdf_info.direct_scf = mf.direct_scf
-                mf.kernel(DM_CACHED)
+        ### UDF benchmark ###
+        mf = scf.UHF(cell).density_fit()
+        mf.max_cycle = 64
+        mf.conv_tol = 1e-8
+        # pbc_isdf_info.direct_scf = mf.direct_scf
+        mf.kernel(DM_CACHED)
