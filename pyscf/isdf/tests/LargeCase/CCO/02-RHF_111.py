@@ -1,13 +1,33 @@
+### read in configuration ###
+from pyscf.isdf.tests.common.test_config import get_args
+
+args = get_args()
+direct = args.direct
+with_robust_fitting = args.with_robust_fitting
+backend = args.backend.lower()
+assert backend in ["numpy", "scipy", "torch", "torch_gpu"]
+aoR_cutoff = args.aoR_cutoff
+bunchsize = args.bunchsize
+robust_fitting_tune = args.robust_fitting_tune
+
+print(" ----- configuration ----- ")
+print("backend             = ", backend)
+print("direct              = ", direct)
+print("with_robust_fitting = ", with_robust_fitting)
+print("aoR_cutoff          = ", aoR_cutoff)
+print("bunchsize           = ", bunchsize)
+print("robust_fitting_tune = ", robust_fitting_tune)
+print(" ------------------------- ")
+
 # backend to test #
 
 import pyscf.isdf.BackEnd._config as config
 
 config.disable_fftw()
-# config.backend("numpy")
-# config.backend("scipy")
-config.backend("torch")
-# config.backend("torch_gpu")
+config.backend(backend)
 import pyscf.isdf.BackEnd.isdf_backend as BACKEND
+
+# other module #
 
 import numpy as np
 from pyscf import lib
@@ -18,13 +38,13 @@ from pyscf.isdf import isdf_tools_cell
 
 from pyscf.lib.parameters import BOHR
 
-#### NOTE: a full tests on combinations of parameters ####
+# CCO #
 
 prim_a = (
     np.array(
         [
-            [14.572056092/2, 0.000000000, 0.000000000],
-            [0.000000000, 14.572056092/2, 0.000000000],
+            [14.572056092 / 2, 0.000000000, 0.000000000],
+            [0.000000000, 14.572056092 / 2, 0.000000000],
             [0.000000000, 0.000000000, 6.010273939],
         ]
     )
@@ -49,14 +69,14 @@ atm = [
     # ["O", (5.783400, 3.855600, 1.590250)],
 ]
 
-C_ARRAY = [25, 30, 35]
-RELA_CUTOFF = [1e-3, 3e-4, 1e-4]
+C_ARRAY = [15, 20, 25, 30, 35]
+RELA_CUTOFF = [1e-2, 3e-3, 1e-3, 3e-4, 1e-4]
 SuperCell_ARRAY = [
-    [1, 1, 1],
+    # [1, 1, 1],
     [2, 2, 1],
     [4, 4, 1],
 ]
-Ke_CUTOFF = [192, 256, 384]
+Ke_CUTOFF = [192, 256]
 Basis = ["gth-dzvp"]
 
 PARTITION = [
@@ -79,16 +99,16 @@ PARTITION = [
         # [15],
     ]
 ]
+
+
 if __name__ == "__main__":
 
     for supercell in SuperCell_ARRAY:
-        # ke_cutoff = Ke_CUTOFF[0]
         DM_CACHED = None
         for ke_cutoff in Ke_CUTOFF:
-            # for partition in PARTITION:  ## test different partition of atoms
             partition = PARTITION[0]
             for _basis_ in Basis:
-                
+
                 from pyscf.gto.basis import parse_nwchem
 
                 fbas = "basis2.dat"
@@ -100,6 +120,7 @@ if __name__ == "__main__":
                 prim_cell = isdf_tools_cell.build_supercell(
                     atm,
                     prim_a,
+                    spin=1,
                     Ls=[1, 1, 1],
                     ke_cutoff=ke_cutoff,
                     basis=basis,
@@ -118,6 +139,7 @@ if __name__ == "__main__":
                 cell, supercell_group = isdf_tools_cell.build_supercell_with_partition(
                     atm,
                     prim_a,
+                    spin=np.product(supercell) % 2,
                     partition=partition,
                     Ls=supercell,
                     ke_cutoff=ke_cutoff,
@@ -142,13 +164,18 @@ if __name__ == "__main__":
 
                     pbc_isdf_info = isdf_local.ISDF_Local(
                         cell,
-                        with_robust_fitting=True,
-                        direct=True,
+                        with_robust_fitting=with_robust_fitting,
+                        direct=direct,
                         limited_memory=True,
-                        build_V_K_bunchsize=56,
+                        build_V_K_bunchsize=bunchsize,
+                        aoR_cutoff=aoR_cutoff,
                     )
-                    pbc_isdf_info.build(c=c, m=5, rela_cutoff=rela_cutoff, group=supercell_group)
-                    pbc_isdf_info.force_translation_symmetry(supercell)
+                    pbc_isdf_info.build(
+                        c=c, m=5, rela_cutoff=rela_cutoff, group=supercell_group
+                    )
+                    pbc_isdf_info.force_translation_symmetry(
+                        supercell
+                    )  # force symmetry, leading to Ferri phase
                     print("pbc_isdf_info.naux = ", pbc_isdf_info.naux)
                     print(
                         "effective c = ", float(pbc_isdf_info.naux) / pbc_isdf_info.nao
@@ -156,7 +183,11 @@ if __name__ == "__main__":
 
                     t2 = (lib.logger.process_clock(), lib.logger.perf_counter())
 
-                    print(misc._benchmark_time(t1, t2, "build_isdf", pbc_isdf_info, pbc_isdf_info.rank))
+                    print(
+                        misc._benchmark_time(
+                            t1, t2, "build_isdf", pbc_isdf_info, pbc_isdf_info.rank
+                        )
+                    )
 
                     ### perform scf ###
 
@@ -164,28 +195,57 @@ if __name__ == "__main__":
 
                     t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
                     mf = scf.RHF(cell)
-                    mf = scf.addons.smearing_(mf, sigma=0.02, method='fermi')
+                    mf = scf.addons.smearing_(mf, sigma=0.2, method="fermi")
                     mf.with_df = pbc_isdf_info
                     mf.max_cycle = 64
                     mf.conv_tol = 1e-7
-                    mf.conv_tol_grad = 1e-2 
+                    mf.conv_tol_grad = 1e-2
                     pbc_isdf_info.direct_scf = mf.direct_scf
                     if DM_CACHED is not None:
                         mf.kernel(DM_CACHED)
                     else:
                         mf.kernel()
                     t2 = (lib.logger.process_clock(), lib.logger.perf_counter())
-                    print(misc._benchmark_time(t1, t2, "scf_isdf", pbc_isdf_info, pbc_isdf_info.rank))
+                    print(
+                        misc._benchmark_time(
+                            t1, t2, "scf_isdf", pbc_isdf_info, pbc_isdf_info.rank
+                        )
+                    )
 
-                    DM_CACHED = mf.make_rdm1()
+                    DM_CACHED = (
+                        mf.make_rdm1()
+                    )  # cache the density matrix as the initial guess
+
+                    print("robust_fitting_tune = ", robust_fitting_tune)
+                    print("with_robust_fitting = ", with_robust_fitting)
+                    if robust_fitting_tune and not with_robust_fitting:
+
+                        print(" ---------- perform robust fitting ---------- ")
+                        pbc_isdf_info.rebuild(True, True)  # direct anyway
+                        mf = scf.RHF(cell)
+                        mf = scf.addons.smearing_(mf, sigma=0.2, method="fermi")
+                        mf.with_df = pbc_isdf_info
+                        mf.max_cycle = 64
+                        mf.conv_tol = 1e-7
+                        mf.conv_tol_grad = 1e-2
+                        mf.kernel(DM_CACHED)
+                        t3 = (lib.logger.process_clock(), lib.logger.perf_counter())
+                        print(
+                            misc._benchmark_time(
+                                t2,
+                                t3,
+                                "scf_isdf_robust",
+                                pbc_isdf_info,
+                                pbc_isdf_info.rank,
+                            )
+                        )
 
                     del mf
                     del pbc_isdf_info
 
         ### UDF benchmark ###
         mf = scf.RHF(cell).density_fit()
-        mf = scf.addons.smearing_(mf, sigma=0.02, method='fermi')
+        mf = scf.addons.smearing_(mf, sigma=0.2, method="fermi")
         mf.max_cycle = 64
         mf.conv_tol = 1e-8
-        # pbc_isdf_info.direct_scf = mf.direct_scf
         mf.kernel(DM_CACHED)

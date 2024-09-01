@@ -3,6 +3,7 @@ from pyscf.isdf.BackEnd.isdf_backend import FLOAT64, USE_GPU, ITEM_SIZE
 from pyscf.isdf.BackEnd.isdf_backend import _prod as PRODUCT
 from pyscf.isdf.BackEnd.isdf_backend import _clean as CLEAN
 
+
 class SimpleMemoryAllocator:
     def __init__(self, total_size, dtype=FLOAT64, gpu=False):
         self.total_size = total_size  # in terms of dtype
@@ -75,7 +76,7 @@ class SimpleMemoryAllocator:
 
     def clean(self):
         CLEAN(self.buffer)
-    
+
     def free_all(self):
         self.free(count=len(self.allocations))
 

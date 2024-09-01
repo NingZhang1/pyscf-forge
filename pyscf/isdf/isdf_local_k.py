@@ -274,11 +274,6 @@ def build_V_W_local_k(mydf, use_mpi=False):
     if use_mpi:
         comm.barrier()
 
-    # if mydf.V is not None:
-    #     print(MAX(ABS(mydf.V)))
-    # print(MAX(ABS(mydf.W)))
-    # exit(1)
-
     return mydf.V, mydf.W
 
 
@@ -610,7 +605,7 @@ class ISDF_Local_K(ISDF_Local):
         self.partition_IP_global = _expand_partition_prim(
             self.partition_IP, self.kmesh, self.mesh
         )
-        nIP_global = sum(len(data) for data in self.partition_IP_global)
+        # nIP_global = sum(len(data) for data in self.partition_IP_global)
 
         # NOTE: the following code if for debugging #
 
@@ -647,6 +642,28 @@ class ISDF_Local_K(ISDF_Local):
         self.coul_G = tools.get_coulG(self.cell, mesh=self.mesh)
         if not self.direct:
             self.V, self.W = build_V_W_local_k(self, self.use_mpi)
+
+    def rebuild(self, direct=True, with_robust_fitting=True):
+        self.direct = direct
+        self.with_robust_fitting = with_robust_fitting
+        self._rebuild_buffer()
+        self._rebuild_VW()
+
+    def _rebuild_buffer(self):
+        del self.buffer_cpu
+        del self.buffer_gpu
+        self._build_buffer(self.c, self.m, self.group)
+
+    def _rebuild_VW(self):
+        del self.V
+        del self.W
+        if self.direct:
+            return
+        else:
+            self._build_V_W()
+
+    def force_translation_symmetry(self, T_mesh=None):
+        raise NotImplementedError
 
     @lru_cache(maxsize=None)
     def _aoR_calculate_permutation(self, box_x, box_y, box_z):

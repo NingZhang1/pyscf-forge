@@ -32,6 +32,10 @@ if FFTW_FOUND:
             self.complex_buffer = None
             self._allocate_buffers(initial_shape)
 
+        @property
+        def memory(self):
+            return self.real_buffer.nbytes + self.complex_buffer.nbytes
+
         def _allocate_buffers(self, shape):
 
             self.current_shape = shape
@@ -152,6 +156,10 @@ else:
                 self.complex_buffer = None
                 self._allocate_buffers(initial_shape)
 
+            @property
+            def memory(self):
+                return self.real_buffer.nbytes + self.complex_buffer.nbytes
+
             def _allocate_buffers(self, shape):
                 self.current_shape = shape
                 assert (
@@ -247,6 +255,10 @@ else:
         class DynamicCached3DRFFT:
             def __init__(self, initial_shape, num_threads=NUM_THREADS):
                 pass
+
+            @property
+            def memory(self):
+                return 0
 
             def rfft(self, input_array):
                 shape = input_array.shape

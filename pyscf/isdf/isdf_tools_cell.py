@@ -126,6 +126,8 @@ def build_primitive_cell(supercell: Cell, kmesh):
 def build_supercell_with_partition(
     prim_atm,
     prim_a,
+    spin=0,
+    charge=0,
     mesh=None,
     Ls=[1, 1, 1],
     partition=None,
@@ -141,6 +143,8 @@ def build_supercell_with_partition(
     cell = build_supercell(
         prim_atm,
         prim_a,
+        spin,
+        charge,
         mesh=mesh,
         Ls=Ls,
         basis=basis,

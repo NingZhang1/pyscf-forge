@@ -41,7 +41,7 @@ ToNUMPYTy = {
     numpy.int64: numpy.int64,
     numpy.complex64: numpy.complex64,
     numpy.complex128: numpy.complex128,
-    numpy.dtype('float64'): numpy.float64
+    numpy.dtype("float64"): numpy.float64,
 }
 
 

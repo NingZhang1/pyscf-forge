@@ -1,6 +1,26 @@
 import argparse
 
 
+def str2bool(v):
+    """
+    Convert string to boolean.
+
+    Args:
+        v: The input string.
+
+    Returns:
+        bool: The corresponding boolean value.
+    """
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ("yes", "true", "t", "y", "1"):
+        return True
+    elif v.lower() in ("no", "false", "f", "n", "0"):
+        return False
+    else:
+        raise argparse.ArgumentTypeError("Boolean value expected.")
+
+
 def get_args():
     """
     Parse command line arguments and return the argument object.
@@ -13,31 +33,27 @@ def get_args():
 
     # Add bunchsize parameter
     parser.add_argument(
-        "--bunchsize", type=int, default=128, help="Set the bunch size (default: 128)"
+        "--bunchsize", type=int, default=64, help="Set the bunch size (default: 64)"
     )
 
     # Add direct parameter
     parser.add_argument(
         "--direct",
-        type=bool,
+        type=str2bool,
         default=True,
+        nargs="?",
+        const=True,
         help="Set the direct option (default: True)",
     )
 
     # Add with_robust_fitting parameter
     parser.add_argument(
         "--with_robust_fitting",
-        type=bool,
+        type=str2bool,
         default=True,
+        nargs="?",
+        const=True,
         help="Whether to use robust fitting (default: True)",
-    )
-    
-    # Add with_robust_fitting parameter
-    parser.add_argument(
-        "--robust_fitting_tune",
-        type=bool,
-        default=False,
-        help="Whether to use robust fitting to tune the result from without r.t. (default: True)",
     )
 
     # Add aoR_cutoff parameter
@@ -56,6 +72,16 @@ def get_args():
         help="Set the backend framework (default: torch)",
     )
 
+    # Add robust_fitting_tune parameter
+    parser.add_argument(
+        "--robust_fitting_tune",
+        type=str2bool,
+        default=False,
+        nargs="?",
+        const=True,
+        help="Whether to tune robust fitting (default: False)",
+    )
+
     # Parse command line arguments
     args = parser.parse_args()
     return args
@@ -70,3 +96,4 @@ if __name__ == "__main__":
     print(f"with_robust_fitting: {args.with_robust_fitting}")
     print(f"aoR_cutoff: {args.aoR_cutoff}")
     print(f"backend: {args.backend}")
+    print(f"robust_fitting_tune: {args.robust_fitting_tune}")

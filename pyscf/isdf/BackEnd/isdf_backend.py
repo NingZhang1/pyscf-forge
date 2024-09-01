@@ -43,11 +43,13 @@ elif USE_SCIPY:
     import pyscf.isdf.BackEnd._scipy as backend
 elif USE_TORCH_GPU:
     import pyscf.isdf.BackEnd._torch as backend
+
     # import torch
     # torch.set_num_threads(NUM_THREADS) # NOTE: problematic on pauling
     USE_GPU = 1
 else:
     import pyscf.isdf.BackEnd._torch as backend
+
     # import torch
     # torch.set_num_threads(NUM_THREADS)
     USE_GPU = 0

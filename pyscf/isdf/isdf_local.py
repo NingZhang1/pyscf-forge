@@ -1077,6 +1077,25 @@ class ISDF_Local(isdf.ISDF):
         if not self.direct:
             self.V, self.W = build_V_W_local(self, self.use_mpi)
 
+    def rebuild(self, direct=True, with_robust_fitting=True):
+        self.direct = direct
+        self.with_robust_fitting = with_robust_fitting
+        self._rebuild_buffer()
+        self._rebuild_VW()
+
+    def _rebuild_buffer(self):
+        del self.buffer_cpu
+        del self.buffer_gpu
+        self._build_buffer(self.c, self.m, self.group)
+
+    def _rebuild_VW(self):
+        del self.V
+        del self.W
+        if self.direct:
+            return
+        else:
+            self._build_V_W()
+
     def force_translation_symmetry(self, T_mesh=None):
         assert T_mesh is not None
         self._force_translation_sym = True
