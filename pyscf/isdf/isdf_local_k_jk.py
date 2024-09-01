@@ -630,11 +630,11 @@ def get_jk_dm_k_local(
     if with_j:
         vj = np.zeros(dm.shape, dtype=np.complex128)
         for iset in range(nset):
-            vj[iset] = ToNUMPY(_get_j_dm_k_local(self, dm[iset], self.use_mpi))
+            vj[iset] = ToNUMPY(_get_j_dm_k_local(self, dm[iset].copy(), self.use_mpi))
 
     vk = None
     if with_k:
-        vk = ToNUMPY(_get_k_dm_k_local(self, dm, use_mpi=self.use_mpi))
+        vk = ToNUMPY(_get_k_dm_k_local(self, dm.copy(), use_mpi=self.use_mpi))
         # vk = np.zeros_like(vj)
 
     ### post process J and K ###

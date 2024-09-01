@@ -429,6 +429,8 @@ class ISDF_Local_K(ISDF_Local):
         ]
 
         t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
+        if np.prod(self.kmesh) > 1:
+            assert self.with_translation_symmetry
         self.partitionPrim = get_partition(
             self.cell,
             self.coords,
@@ -512,6 +514,10 @@ class ISDF_Local_K(ISDF_Local):
             iy = (grid_ID % (self.mesh[1] * self.mesh[2])) // self.mesh[2]
             iz = grid_ID % self.mesh[2]
 
+            # assert ix < self.meshPrim[0]
+            # assert iy < self.meshPrim[1]
+            # assert iz < self.meshPrim[2]
+
             ix = ix % self.meshPrim[0]
             iy = iy % self.meshPrim[1]
             iz = iz % self.meshPrim[2]
@@ -577,6 +583,22 @@ class ISDF_Local_K(ISDF_Local):
         self.partition_IP_global = _expand_partition_prim(
             self.partition_IP, self.kmesh, self.mesh
         )
+        nIP_global = sum(len(data) for data in self.partition_IP_global)
+
+        # NOTE: the following code if for debugging #
+
+        # assert nIP_global == self.naux
+        # assert sum(len(data) for data in self.partition) == self.ngrids
+        # for i in range(len(self.partition)):
+        #     for j in range(len(self.partition)):
+        #         if i == j:
+        #             continue
+        #         set1 = set(self.partition[i])
+        #         set2 = set(self.partition[j])
+        #         assert len(set1.intersection(set2)) == 0
+        #         assert len(set1) == len(self.partition[i])
+        #         assert len(set2) == len(self.partition[j])
+
         # print(len(self.partition_IP_global))
 
         # NOTE: the following code if for debugging #

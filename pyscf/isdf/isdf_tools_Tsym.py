@@ -339,8 +339,6 @@ def _1e_operator_k2gamma(nao, kmesh, operator_k: TENSORTy):
             else:
                 op_1 = ToNUMPY(operator_k[loc1])
                 op_2 = ToNUMPY(operator_k[loc2])
-                # operator_k[loc1] = CAST_TO_COMPLEX(op_1)
-                # operator_k[loc2] = CAST_TO_COMPLEX(op_2)
                 diff = op_1 - op_2.conj()
                 if np.max(np.abs(diff)) > 1e-8:
                     print(
@@ -351,13 +349,16 @@ def _1e_operator_k2gamma(nao, kmesh, operator_k: TENSORTy):
                         iz,
                     )
                 op_1 = (op_1 + op_2.conj()) / 2
-                operator_k[loc1] = CAST_TO_COMPLEX(ToTensor(op_1))
-                operator_k[loc2] = CAST_TO_COMPLEX(ToTensor(op_1.conj()))
+                operator_k[loc1] = ToTensor(op_1.copy())
+                operator_k[loc2] = ToTensor(op_1.conj().copy())
+
+    ## check the input ##
 
     op_res = ToTensor(ToNUMPY(operator_k).copy())
     op_res = CONJUGATE_(op_res)
     op_res = PERMUTE(op_res, (1, 2, 0))
     op_res = op_res.reshape(nao_prim, nao_prim, *kmesh)
+    op_res = ToTensor(op_res)
     op_res = IFFTN(op_res, s=tuple(kmesh), axes=(2, 3, 4), overwrite_input=False)
     op_res = PERMUTE(op_res, (0, 2, 3, 4, 1))
     op_res = op_res.reshape(nao_prim, PROD(kmesh) * nao_prim)

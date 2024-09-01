@@ -35,7 +35,7 @@ from pyscf.isdf.isdf_tools_local import (
 #############################
 
 ke_cutoff = 70
-basis = "gth-szv"
+basis = "gth-dzvp"
 
 boxlen = 3.57371000
 prim_a = np.array([[boxlen, 0.0, 0.0], [0.0, boxlen, 0.0], [0.0, 0.0, boxlen]])
@@ -57,8 +57,9 @@ kmeshes = [
     [1, 1, 4],
     [1, 2, 2],
     [2, 2, 2],
+    # [1, 1, 9],
+    [1, 1, 4],
     [1, 3, 3],  # NOTE: problematic
-    [1, 1, 9],
     [3, 3, 3],
     [4, 4, 4],
 ]
@@ -107,6 +108,8 @@ for kmesh in kmeshes[-4:-3]:
 
     # check the symmetry #
 
+    print("aoRg_packed", aoRg_packed.shape)
+    print("aoRg1_packed", aoRg1_packed.shape)
     for ix, iy, iz in product(range(kmesh[0]), range(kmesh[1]), range(kmesh[2])):
         ix2 = (kmesh[0] - ix) % kmesh[0]
         iy2 = (kmesh[1] - iy) % kmesh[1]
@@ -119,7 +122,6 @@ for kmesh in kmeshes[-4:-3]:
         print("diff", diff, " at ", ix, iy, iz)
     print("aoRg_packed", aoRg_packed.shape)
     print("aoRg1_packed", aoRg1_packed.shape)
-
     # exit(1)
 
     from pyscf.pbc.scf.khf import KRHF

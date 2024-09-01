@@ -59,7 +59,8 @@ atm = [
 kmeshes = [
     # [1, 1, 1],
     # [1, 1, 2],
-    [1, 3, 3],
+    # [1, 3, 3],
+    [1, 1, 4],
     # [1, 1, 6],
     # [1, 2, 2],
     # [1, 3, 3],
@@ -145,71 +146,68 @@ for kmesh in kmeshes:
     naux = isdf.naux
     ngrids = isdf.ngrids
 
-    aux_basis_tensor = ZEROS((naux, ngrids), dtype=FLOAT64)
+    # aux_basis_tensor = ZEROS((naux, ngrids), dtype=FLOAT64)
 
-    iaux = 0
-    igrid = 0
-    for ix, iy, iz in product(range(kmesh[0]), range(kmesh[1]), range(kmesh[2])):
-        for aux_basis in isdf.aux_basis:
-            aux_basis_tensor[
-                iaux : iaux + aux_basis.shape[0], igrid : igrid + aux_basis.shape[1]
-            ] = aux_basis
-            iaux += aux_basis.shape[0]
-            igrid += aux_basis.shape[1]
-    assert iaux == naux
-    assert igrid == ngrids
+    # iaux = 0
+    # igrid = 0
+    # for ix, iy, iz in product(range(kmesh[0]), range(kmesh[1]), range(kmesh[2])):
+    #     for aux_basis in isdf.aux_basis:
+    #         aux_basis_tensor[
+    #             iaux : iaux + aux_basis.shape[0], igrid : igrid + aux_basis.shape[1]
+    #         ] = aux_basis
+    #         iaux += aux_basis.shape[0]
+    #         igrid += aux_basis.shape[1]
+    # assert iaux == naux
+    # assert igrid == ngrids
 
     ## check not ordered ##
 
     naoPrim = isdf.naoPrim
-    aoRg_packed = _pack_aoR_holder(isdf.aoRg, isdf.nao)
-    aoR_packed = _pack_aoR_holder(isdf.aoR, isdf.nao)
-    print(aoRg_packed.aoR.shape)
-    print(aoR_packed.aoR.shape)
-    print(aux_basis_tensor.shape)
-    ngridPrim = aoR_packed.aoR.shape[1]
-    nIPPrim = aoRg_packed.aoR.shape[1]
-    assert ngridPrim == isdf.ngridPrim
-    assert nIPPrim == isdf.nauxPrim
+    # aoRg_packed = _pack_aoR_holder(isdf.aoRg, isdf.nao).todense(isdf.nao)
+    # aoR_packed = _pack_aoR_holder(isdf.aoR, isdf.nao).todense(isdf.nao)
+    # print(aoRg_packed.shape)
+    # print(aoR_packed.shape)
+    # print(aux_basis_tensor.shape)
+    # ngridPrim = aoR_packed.shape[1]
+    # nIPPrim = aoRg_packed.shape[1]
+    # assert ngridPrim == isdf.ngridPrim
+    # assert nIPPrim == isdf.nauxPrim
 
-    aoRg_full = ZEROS(
-        (aoRg_packed.aoR.shape[0], aoRg_packed.aoR.shape[1] * np.prod(kmesh)),
-        dtype=FLOAT64,
-    )
-    aoR_full = ZEROS(
-        (aoR_packed.aoR.shape[0], aoR_packed.aoR.shape[1] * np.prod(kmesh)),
-        dtype=FLOAT64,
-    )
+    # aoRg_full = ZEROS(
+    #     (aoRg_packed.shape[0], aoRg_packed.shape[1] * np.prod(kmesh)),
+    #     dtype=FLOAT64,
+    # )
+    # aoR_full = ZEROS(
+    #     (aoR_packed.shape[0], aoR_packed.shape[1] * np.prod(kmesh)),
+    #     dtype=FLOAT64,
+    # )
 
-    IBOX_AO = 0
-    for ix_ao, iy_ao, iz_ao in product(
-        range(kmesh[0]), range(kmesh[1]), range(kmesh[2])
-    ):
-        # pack aoRg #
-        aoRg_topack = aoRg_packed.aoR[IBOX_AO * naoPrim : (IBOX_AO + 1) * naoPrim, :]
-
-        # pack aoR #
-
-        aoR_topack = aoR_packed.aoR[IBOX_AO * naoPrim : (IBOX_AO + 1) * naoPrim, :]
-
-        IBOX_GRID = 0
-        for ix_grid, iy_grid, iz_grid in product(
-            range(kmesh[0]), range(kmesh[1]), range(kmesh[2])
-        ):
-            loc_x = (ix_ao + ix_grid) % kmesh[0]
-            loc_y = (iy_ao + iy_grid) % kmesh[1]
-            loc_z = (iz_ao + iz_grid) % kmesh[2]
-            loc = loc_x * kmesh[1] * kmesh[2] + loc_y * kmesh[2] + loc_z
-            aoRg_full[
-                loc * naoPrim : (loc + 1) * naoPrim,
-                IBOX_GRID * nIPPrim : (IBOX_GRID + 1) * nIPPrim,
-            ] = aoRg_topack
-            aoR_full[
-                loc * naoPrim : (loc + 1) * naoPrim,
-                IBOX_GRID * ngridPrim : (IBOX_GRID + 1) * ngridPrim,
-            ] = aoR_topack
-            IBOX_GRID += 1
-        IBOX_AO += 1
+    # IBOX_AO = 0
+    # for ix_ao, iy_ao, iz_ao in product(
+    #     range(kmesh[0]), range(kmesh[1]), range(kmesh[2])
+    # ):
+    #     # pack aoRg #
+    #     aoRg_topack = aoRg_packed[IBOX_AO * naoPrim : (IBOX_AO + 1) * naoPrim, :]
+    #     # pack aoR #
+    #     aoR_topack = aoR_packed[IBOX_AO * naoPrim : (IBOX_AO + 1) * naoPrim, :]
+    #     IBOX_GRID = 0
+    #     for ix_grid, iy_grid, iz_grid in product(
+    #         range(kmesh[0]), range(kmesh[1]), range(kmesh[2])
+    #     ):
+    #         loc_x = (ix_ao + ix_grid) % kmesh[0]
+    #         loc_y = (iy_ao + iy_grid) % kmesh[1]
+    #         loc_z = (iz_ao + iz_grid) % kmesh[2]
+    #         loc = loc_x * kmesh[1] * kmesh[2] + loc_y * kmesh[2] + loc_z
+    #         aoRg_full[
+    #             loc * naoPrim : (loc + 1) * naoPrim,
+    #             IBOX_GRID * nIPPrim : (IBOX_GRID + 1) * nIPPrim,
+    #         ] = aoRg_topack
+    #         aoR_full[
+    #             loc * naoPrim : (loc + 1) * naoPrim,
+    #             IBOX_GRID * ngridPrim : (IBOX_GRID + 1) * ngridPrim,
+    #         ] = aoR_topack
+    #         IBOX_GRID += 1
+    #     IBOX_AO += 1
 
     # compare bunch by bunch #
 
@@ -221,15 +219,15 @@ for kmesh in kmeshes:
     # diff = MAX(ABS(aoPairR - aoPairR2))
     # print(diff)
 
-    for i in range(isdf.nao):
-        aoPairRg = EINSUM_IK_JK_IJK(aoRg_full[i, :].reshape(1, -1), aoRg_full)
-        aoPairR = EINSUM_IK_JK_IJK(aoR_full[i, :].reshape(1, -1), aoR_full)
-        aoPairR2 = DOT(aoPairRg.reshape(isdf.nao, -1), aux_basis_tensor).reshape(
-            isdf.nao, -1
-        )
-        diff = MAX(ABS(aoPairR - aoPairR2))
-        print("diff of %d is %f" % (i, diff))
-    continue
+    # for i in range(isdf.nao):
+    #     aoPairRg = EINSUM_IK_JK_IJK(aoRg_full[i, :].reshape(1, -1), aoRg_full)
+    #     aoPairR = EINSUM_IK_JK_IJK(aoR_full[i, :].reshape(1, -1), aoR_full)
+    #     aoPairR2 = DOT(aoPairRg.reshape(isdf.nao, -1), aux_basis_tensor).reshape(
+    #         isdf.nao, -1
+    #     )
+    #     diff = MAX(ABS(aoPairR - aoPairR2))
+    #     print("diff of %3d is %.2e" % (i, diff))
+    # continue
 
     for ID, IPs in enumerate(isdf.IP_group):
         coords_IP = isdf.coords[IPs]

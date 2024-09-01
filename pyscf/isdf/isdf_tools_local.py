@@ -158,7 +158,8 @@ def _pack_aoR_holder(aoR_holders: list[aoR_Holder], nao, out_buf=None):
     # determine basic info #
     has_involved = np.asarray([False] * nao)
     for aoR_holder in aoR_holders:
-        has_involved[ToNUMPY(aoR_holder.ao_involved)] = True
+        if aoR_holder is not None:
+            has_involved[ToNUMPY(aoR_holder.ao_involved)] = True
     ngrids = sum(
         _aoR_holder.ngrid_tot for _aoR_holder in aoR_holders if _aoR_holder is not None
     )
@@ -181,8 +182,8 @@ def _pack_aoR_holder(aoR_holders: list[aoR_Holder], nao, out_buf=None):
 
     grid_begin_id = 0
     for _aoR_holder in aoR_holders:
-        if _aoR_holder is not None:
-            aoR_holder = _aoR_holder
+        if _aoR_holder is None:
+            continue
         grid_end_id = grid_begin_id + _aoR_holder.ngrid_tot
         loc_packed = TAKE(ao2loc, _aoR_holder.ao_involved, axis=0)
         aoR_packed[loc_packed, grid_begin_id:grid_end_id] = _aoR_holder.aoR
@@ -752,6 +753,12 @@ def get_aoR(
 
         grid_ID = partition[atm_id]
         if len(grid_ID) == 0:
+            # aoR_holder[atm_id] = aoR_Holder(
+            #     ZEROS((0, 0), dtype=FLOAT64),
+            #     ToTENSOR(np.array([], dtype=np.int64)),
+            #     global_gridID_begin=global_gridID_begin,
+            #     global_gridID_end=global_gridID_begin
+            # )
             aoR_holder[atm_id] = None
             continue
 

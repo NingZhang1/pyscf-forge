@@ -595,6 +595,7 @@ def get_jk_dm_local(
             vj[iset] = ToNUMPY(_get_j_dm_local(mydf, dm[iset], use_mpi=use_mpi))
     if with_k:
         vk = ToNUMPY(_get_k_dm_local(mydf, dm, use_mpi=use_mpi))
+        # vk = np.zeros_like(vj)
 
     dm = ToNUMPY(dm)
 
@@ -642,6 +643,8 @@ def get_jk_dm_local(
 
             vj = symmetrize_mat(vj, mydf._T_mesh)
             vk = symmetrize_mat(vk, mydf._T_mesh)
+
+    # vk = np.zeros_like(vj)
 
     t1 = log.timer("get_jk_dm_local", *t1)
 
