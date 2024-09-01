@@ -80,9 +80,11 @@ for kmesh in kmeshes:
     isdf = ISDF_Local_K(
         prim_cell,
         kmesh=kmesh,
-        with_robust_fitting=True,
+        direct=True,
+        with_robust_fitting=False,
         limited_memory=True,
         build_V_K_bunchsize=128,
+        aoR_cutoff=1e-10,  # NOTE: for k points it seems that we need a much smaller aoR_cutoff
     )
     isdf.build(c=30, m=5, rela_cutoff=1e-4, group=prim_group)
 

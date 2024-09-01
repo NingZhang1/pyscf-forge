@@ -50,8 +50,7 @@ kmeshes = [
     [1, 1, 4],
     [1, 2, 2],
     [2, 2, 2],
-    [1, 1, 5],
-    [2, 2, 3],
+    [3, 3, 3],
     [4, 4, 4],
 ]
 VERBOSE = 10
@@ -66,8 +65,8 @@ prim_cell = isdf_tools_cell.build_supercell(
     verbose=VERBOSE,
 )
 
-# prim_group = [[0, 1], [2, 3], [4, 5], [6, 7]]  # can cause large error for (1,1,5)
-prim_group = [[0], [1], [2], [3], [4], [5], [6], [7]]
+prim_group = [[0, 1], [2, 3], [4, 5], [6, 7]]
+# prim_group = [[0], [1], [2], [3], [4], [5], [6], [7]]
 
 prim_mesh = prim_cell.mesh
 
@@ -86,6 +85,7 @@ for kmesh in kmeshes:
         with_robust_fitting=True,
         limited_memory=True,
         build_V_K_bunchsize=128,
+        aoR_cutoff=1e-10,
     )
     # isdf._use_super_pp = True
     # isdf._use_FFTDF_pp = True
@@ -98,9 +98,4 @@ for kmesh in kmeshes:
     mf.max_cycle = 100
     mf.conv_tol = 1e-8
     mf.conv_tol_grad = 1e-3
-    # mf.kpts.build()
     mf.kernel()
-
-    # benchmark #
-    # mf = scf.RHF(cell)
-    # mf.kernel()

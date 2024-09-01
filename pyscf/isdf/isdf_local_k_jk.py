@@ -150,8 +150,8 @@ def _get_j_dm_k_local(mydf, dm, use_mpi=False):
 
     # split task #
 
-    assert len(mydf.aoR) == mydf.natmPrim
-    assert len(mydf.aoR) == mydf.first_natm
+    assert len(mydf.aoR) == mydf.natmPrim or len(mydf.aoR) == mydf.natm
+    assert len(mydf.aoR) == mydf.first_natm or len(mydf.aoR) == mydf.natm
 
     atm_id_begin, atm_id_end = _range_partition(
         mydf.first_natm, mydf.rank, comm_size, use_mpi

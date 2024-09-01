@@ -290,7 +290,7 @@ class ISDF_Local_K(ISDF_Local):
         with_robust_fitting=True,
         kmesh=None,
         kpts=None,
-        aoR_cutoff=1e-8,
+        aoR_cutoff=1e-10, # NOTE: it seems that for k points we need a much smaller aoR_cutoff
         direct=False,
         limited_memory=False,
         build_V_K_bunchsize=None,
@@ -412,6 +412,32 @@ class ISDF_Local_K(ISDF_Local):
 
         super()._build_cell_info()
 
+    def _rebuild_aoR(self, aoR_cutoff):
+        self.aoR_cutoff = aoR_cutoff
+        # for atmID, x in enumerate(self.AtmConnectionInfo):
+        #     print("atm ID = ", atmID)
+        #     print(x)
+
+        self.distance_matrix, self.AtmConnectionInfo = build_cutoff_info(
+            self.cell, self.aoR_cutoff, self.ngrids
+        )
+
+        # for atmID, x in enumerate(self.AtmConnectionInfo):
+        #     print("atm ID = ", atmID)
+        #     print(x)
+
+        self.aoR = get_aoR(
+            self.cell,
+            self.AtmConnectionInfo,
+            self.coords,
+            self.partition,
+            self.first_natm,
+            self.cell.natm,
+            self.group_global,
+            self.use_mpi,
+            self.use_mpi,
+        )  # COLs
+
     def _build_aoR(self, group):
 
         from pyscf.isdf.isdf_eval_gto import ISDF_eval_gto
@@ -472,6 +498,7 @@ class ISDF_Local_K(ISDF_Local):
             self.coords,
             self.partition,
             first_natm,
+            # self.cell.natm,
             self.cell.natm,
             self.group_global,
             self.use_mpi,
