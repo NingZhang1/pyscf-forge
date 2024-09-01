@@ -45,6 +45,7 @@ atm = [
 kmeshes = [
     [1, 1, 1],
     [1, 1, 2],
+    [1, 1, 3],
     [1, 1, 4],
     [1, 2, 2],
     [2, 2, 2],
@@ -99,7 +100,3 @@ for kmesh in kmeshes:
     mf = scf.RHF(cell)
     mf.with_df = isdf
     mf.kernel()
-
-    # benchmark #
-    # mf = scf.RHF(cell)
-    # mf.kernel()

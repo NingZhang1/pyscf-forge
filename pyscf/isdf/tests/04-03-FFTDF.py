@@ -1,14 +1,3 @@
-# backend to test #
-
-import pyscf.isdf.BackEnd._config as config
-
-config.disable_fftw()
-# config.backend("numpy")
-# config.backend("scipy")
-config.backend("torch")
-# config.backend("torch_gpu")
-import pyscf.isdf.BackEnd.isdf_backend as BACKEND
-
 # sys and pyscf #
 
 import numpy as np

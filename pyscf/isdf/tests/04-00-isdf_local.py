@@ -101,7 +101,3 @@ for kmesh in kmeshes:
     mf = scf.RHF(cell)
     mf.with_df = isdf
     mf.kernel()
-
-    # benchmark #
-    # mf = scf.RHF(cell)
-    # mf.kernel()

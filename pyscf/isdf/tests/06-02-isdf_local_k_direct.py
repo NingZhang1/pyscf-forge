@@ -66,8 +66,6 @@ prim_cell = isdf_tools_cell.build_supercell(
 )
 
 prim_group = [[0, 1], [2, 3], [4, 5], [6, 7]]
-# prim_group = [[0], [1], [2], [3], [4], [5], [6], [7]]
-
 prim_mesh = prim_cell.mesh
 
 for kmesh in kmeshes:

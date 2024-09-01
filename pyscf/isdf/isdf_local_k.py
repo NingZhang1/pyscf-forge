@@ -290,7 +290,7 @@ class ISDF_Local_K(ISDF_Local):
         with_robust_fitting=True,
         kmesh=None,
         kpts=None,
-        aoR_cutoff=1e-10, # NOTE: it seems that for k points we need a much smaller aoR_cutoff
+        aoR_cutoff=1e-10,  # NOTE: it seems that for k points we need a much smaller aoR_cutoff
         direct=False,
         limited_memory=False,
         build_V_K_bunchsize=None,

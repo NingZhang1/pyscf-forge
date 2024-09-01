@@ -47,10 +47,6 @@ atm = [
     ["C", (0.8934275, 0.8934275, 0.8934275)],
     ["C", (1.786855, 1.786855, 0.0)],
     ["C", (2.6802825, 2.6802825, 0.8934275)],
-    # ["C", (1.786855, 0.0, 1.786855)],
-    # ["C", (2.6802825, 0.8934275, 2.6802825)],
-    # ["C", (0.0, 1.786855, 1.786855)],
-    # ["C", (0.8934275, 2.6802825, 2.6802825)],
 ]
 
 kmeshes = [
@@ -72,15 +68,7 @@ prim_cell = isdf_tools_cell.build_supercell(
     verbose=VERBOSE,
 )
 
-# NOTE: weird thing, when [[0, 1], [2, 3]] + 1 x 1 x 4 unit cell, the error is very large (1e-5)
-# however, for [[0,1,2,3]] (5e-7) and [[0], [1], [2], [3]] (~1e-8) the error is not that large
-
-# prim_group = [[0, 1], [2, 3], [4, 5], [6, 7]]
-# prim_group = [[0], [1], [2], [3], [4], [5], [6], [7]]
-# prim_group = [[0, 1, 2, 3]]
 prim_group = [[0, 1], [2, 3]]
-# prim_group = [[0], [1], [2], [3]]
-# prim_group = [[0, 1, 2, 3]]
 
 prim_mesh = prim_cell.mesh
 
@@ -171,7 +159,7 @@ for kmesh in kmeshes:
     diff = MAX(ABS(aoPairR - aoPairR2))
     print(diff)
 
-    continue
+    continue  #  you can comment out this line if you want to see the plot
 
     for ID, IPs in enumerate(isdf.IP_group):
         coords_IP = isdf.coords[IPs]

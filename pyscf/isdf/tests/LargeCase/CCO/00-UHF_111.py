@@ -165,7 +165,7 @@ if __name__ == "__main__":
 
                     t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
                     mf = scf.UHF(cell)
-                    mf = scf.addons.smearing_(mf, sigma=0.02, method='fermi')
+                    mf = scf.addons.smearing_(mf, sigma=0.2, method='fermi')
                     mf.with_df = pbc_isdf_info
                     mf.max_cycle = 64
                     mf.conv_tol = 1e-7
@@ -178,15 +178,14 @@ if __name__ == "__main__":
                     t2 = (lib.logger.process_clock(), lib.logger.perf_counter())
                     print(misc._benchmark_time(t1, t2, "scf_isdf", pbc_isdf_info, pbc_isdf_info.rank))
 
-                    DM_CACHED = mf.make_rdm1()
+                    DM_CACHED = mf.make_rdm1() # cache the density matrix as the initial guess
 
                     del mf
                     del pbc_isdf_info
 
         ### UDF benchmark ###
         mf = scf.UHF(cell).density_fit()
-        mf = scf.addons.smearing_(mf, sigma=0.02, method='fermi')
+        mf = scf.addons.smearing_(mf, sigma=0.2, method='fermi')
         mf.max_cycle = 64
         mf.conv_tol = 1e-8
-        # pbc_isdf_info.direct_scf = mf.direct_scf
         mf.kernel(DM_CACHED)

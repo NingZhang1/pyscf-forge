@@ -78,13 +78,8 @@ prim_cell = isdf_tools_cell.build_supercell(
     verbose=VERBOSE,
 )
 
-# prim_group = [[0, 1], [2, 3], [4, 5], [6, 7]]
+prim_group = [[0, 1], [2, 3], [4, 5], [6, 7]]
 # prim_group = [[0], [1], [2], [3], [4], [5], [6], [7]]
-# prim_group = [[0, 1, 2, 3]]
-# prim_group = [[0, 1], [2, 3]]
-# prim_group = [[0], [1], [2], [3]]
-prim_group = [[0], [1], [2], [3], [4], [5], [6], [7]]
-# prim_group = [[0, 1, 2, 3]]
 
 prim_mesh = prim_cell.mesh
 
@@ -227,7 +222,8 @@ for kmesh in kmeshes:
     #     )
     #     diff = MAX(ABS(aoPairR - aoPairR2))
     #     print("diff of %3d is %.2e" % (i, diff))
-    # continue
+
+    continue
 
     for ID, IPs in enumerate(isdf.IP_group):
         coords_IP = isdf.coords[IPs]

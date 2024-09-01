@@ -4,8 +4,8 @@ import pyscf.isdf.BackEnd._config as config
 
 config.disable_fftw()
 # config.backend("numpy")
-config.backend("scipy")
-# config.backend("torch")
+# config.backend("scipy")
+config.backend("torch")
 # config.backend("torch_gpu")
 import pyscf.isdf.BackEnd.isdf_backend as BACKEND
 
@@ -70,7 +70,7 @@ prim_group = [[0, 1], [2, 3], [4, 5], [6, 7]]
 
 prim_mesh = prim_cell.mesh
 
-for kmesh in kmeshes[3:4]:
+for kmesh in kmeshes:
 
     mesh = [int(k * x) for k, x in zip(kmesh, prim_mesh)]
     print("kmesh:", kmesh, "mesh:", mesh)
@@ -95,9 +95,4 @@ for kmesh in kmeshes[3:4]:
     mf.max_cycle = 100
     mf.conv_tol = 1e-8
     mf.conv_tol_grad = 1e-3
-    # mf.kpts.build()
     mf.kernel()
-
-    # benchmark #
-    # mf = scf.RHF(cell)
-    # mf.kernel()

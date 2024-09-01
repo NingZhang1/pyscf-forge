@@ -95,9 +95,4 @@ for kmesh in kmeshes:
     mf.max_cycle = 100
     mf.conv_tol = 1e-8
     mf.conv_tol_grad = 1e-3
-    # mf.kpts.build()
     mf.kernel()
-
-    # benchmark #
-    # mf = scf.RHF(cell)
-    # mf.kernel()

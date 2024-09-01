@@ -76,12 +76,8 @@ prim_cell = isdf_tools_cell.build_supercell(
     verbose=VERBOSE,
 )
 
-# prim_group = [[0, 1], [2, 3], [4, 5], [6, 7]]
-# prim_group = [[0], [1], [2], [3], [4], [5], [6], [7]]
-# prim_group = [[0, 1, 2, 3]]
-# prim_group = [[0, 1], [2, 3]]
-prim_group = [[0], [1], [2], [3]]
-# prim_group = [[0, 1, 2, 3]]
+prim_group = [[0, 1], [2, 3]]
+# prim_group = [[0], [1], [2], [3]]
 
 prim_mesh = prim_cell.mesh
 
@@ -186,7 +182,9 @@ for kmesh in kmeshes:
             range(kmesh[0]), range(kmesh[1]), range(kmesh[2])
         ):
             # pack aoRg #
-            aoRg_topack = aoRg_packed.aoR[IBOX_AO * naoPrim : (IBOX_AO + 1) * naoPrim, :]
+            aoRg_topack = aoRg_packed.aoR[
+                IBOX_AO * naoPrim : (IBOX_AO + 1) * naoPrim, :
+            ]
 
             # pack aoR #
 
@@ -213,9 +211,9 @@ for kmesh in kmeshes:
 
         aoPairRg = EINSUM_IK_JK_IJK(aoRg_full, aoRg_full)
         aoPairR = EINSUM_IK_JK_IJK(aoR_full, aoR_full)
-        aoPairR2 = DOT(aoPairRg.reshape(isdf.nao * isdf.nao, -1), aux_basis_tensor).reshape(
-            isdf.nao, isdf.nao, -1
-        )
+        aoPairR2 = DOT(
+            aoPairRg.reshape(isdf.nao * isdf.nao, -1), aux_basis_tensor
+        ).reshape(isdf.nao, isdf.nao, -1)
         diff = MAX(ABS(aoPairR - aoPairR2))
         print(diff)
 
