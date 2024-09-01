@@ -33,6 +33,7 @@ import numpy as np
 from pyscf import lib
 
 from pyscf.isdf import isdf_local
+from pyscf.isdf import isdf_local_k
 from pyscf.isdf import misc
 from pyscf.isdf import isdf_tools_cell
 
@@ -69,8 +70,8 @@ atm = [
     ["O", (5.783400, 3.855600, 1.590250)],
 ]
 
-C_ARRAY = [15, 20, 25, 30, 35]
-RELA_CUTOFF = [1e-2, 3e-3, 1e-3, 3e-4, 1e-4]
+C_ARRAY = [25, 30, 35]
+RELA_CUTOFF = [1e-3, 3e-4, 1e-4]
 SuperCell_ARRAY = [
     [1, 1, 1],
     [2, 2, 1],
@@ -138,8 +139,9 @@ def generate_AFM_init_dm0(cell, kmf, kmesh):
 
     dm0_lo = Lat.R2k(dm0_lo_R)
     dm0 = trans_1e.trans_rdm1_to_ao(dm0_lo, C_ao_lo)
-    if dm0.ndim == 3:
-        dm0 = dm0[0].real
+    #if dm0.ndim == 3:
+    #    dm0 = dm0[0].real
+    print("dm0 shape = ", dm0.shape)
     return dm0
 
 
@@ -216,8 +218,9 @@ if __name__ == "__main__":
 
                         t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
 
-                        pbc_isdf_info = isdf_local.ISDF_Local(
+                        pbc_isdf_info = isdf_local_k.ISDF_Local_K(
                             cell,
+                            kmesh=kmesh,
                             with_robust_fitting=with_robust_fitting,
                             direct=direct,
                             limited_memory=True,
@@ -227,9 +230,9 @@ if __name__ == "__main__":
                         pbc_isdf_info.build(
                             c=c, m=5, rela_cutoff=rela_cutoff, group=supercell_group
                         )
-                        pbc_isdf_info.force_translation_symmetry(
-                            supercell
-                        )  # force symmetry
+                        # pbc_isdf_info.force_translation_symmetry(
+                        #     supercell
+                        # )  # force symmetry
                         print("pbc_isdf_info.naux = ", pbc_isdf_info.naux)
                         print(
                             "effective c = ",

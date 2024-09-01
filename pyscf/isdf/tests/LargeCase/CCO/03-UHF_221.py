@@ -69,8 +69,8 @@ atm = [
     ["O", (5.783400, 3.855600, 1.590250)],
 ]
 
-C_ARRAY = [15, 20, 25, 30, 35]
-RELA_CUTOFF = [1e-2, 3e-3, 1e-3, 3e-4, 1e-4]
+C_ARRAY = [25, 30, 35]
+RELA_CUTOFF = [1e-3, 3e-4, 1e-4]
 SuperCell_ARRAY = [
     [1, 1, 1],
     [2, 2, 1],
@@ -132,9 +132,11 @@ def generate_AFM_init_dm0(cell):
 
     dm0_lo = Lat.R2k(dm0_lo_R)
     dm0 = trans_1e.trans_rdm1_to_ao(dm0_lo, C_ao_lo)
-    if dm0.ndim == 3:
-        dm0 = dm0[0].real
-    return dm0
+    print("shape of dm0 = ", dm0.shape)
+    if dm0.ndim == 4:
+        dm0 = dm0[:, 0]
+    print("shape of dm0 = ", dm0.shape)
+    return dm0.real
 
 
 if __name__ == "__main__":
