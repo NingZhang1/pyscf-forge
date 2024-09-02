@@ -71,9 +71,15 @@ from pyscf.isdf._isdf_local_K_kernel import (
     _build_W_local_bas_kernel,
 )
 
+from pyscf.isdf.isdf_ao2mo import AOPAIR_BLKSIZE
+
 
 def isdf_local_eri(
-    mydf, mo_coeff=None, with_robust_fitting=None, use_mpi=None, AOPAIR_BLKSIZE=2e9
+    mydf,
+    mo_coeff=None,
+    with_robust_fitting=None,
+    use_mpi=None,
+    AOPAIR_BLKSIZE=AOPAIR_BLKSIZE,
 ):
     """
     Perform AO2MO transformation from ISDF with robust fitting with s4 symmetry
@@ -155,7 +161,7 @@ def isdf_local_eri(
         size * GRID_BUNCHIZE + size_aoRg_packed, FLOAT64, gpu=USE_GPU
     )
     if direct:
-        buffer_fft = DynamicCached3DRFFT((GRID_BUNCHIZE, np.prod(mydf.mesh)), mydf.mesh)
+        buffer_fft = DynamicCached3DRFFT((GRID_BUNCHIZE, *mydf.mesh), mydf.mesh)
     else:
         buffer_fft = None
 
@@ -429,7 +435,273 @@ def isdf_local_eri(
     t2 = (logger.process_clock(), logger.perf_counter())
     misc._benchmark_time(t1, t2, "isdf_local_eri", mydf, mydf.rank)
 
+    del res_ddot_buf
+
     return ToNUMPY(res) * mydf.ngrids / mydf.cell.vol
+
+
+def isdf_local_eri_ovov(
+    mydf,
+    mo_coeff_o: np.ndarray = None,
+    mo_coeff_v: np.ndarray = None,
+    with_robust_fitting=None,
+    use_mpi=None,
+    AOPAIR_BLKSIZE=AOPAIR_BLKSIZE,
+):
+    """
+    Perform AO2MO transformation from ISDF with robust fitting with s4 symmetry
+    Locality is explored
+    """
+
+    if with_robust_fitting is None:
+        with_robust_fitting = mydf.with_robust_fitting
+    if use_mpi is None:
+        use_mpi = mydf.use_mpi
+    direct = mydf.direct
+
+    if use_mpi:
+        from pyscf.isdf.isdf_tools_mpi import rank, comm, comm_size, bcast
+        from pyscf.isdf.isdf_tools_mpi import reduce as mpi_reduce
+    else:
+        rank = 0
+        comm = None
+        comm_size = 1
+        mpi_reduce = None
+
+    t1 = (logger.process_clock(), logger.perf_counter())
+
+    if with_robust_fitting:
+        moR_o = _get_moR(mydf.aoR, mo_coeff_o)
+        moR_v = _get_moR(mydf.aoR, mo_coeff_v)
+    else:
+        moR_o = None
+        moR_v = None
+
+    moRg_o = _get_moR(mydf.aoRg, mo_coeff_o)
+    moRg_v = _get_moR(mydf.aoRg, mo_coeff_v)
+
+    nmo_o = mo_coeff_o.shape[1]
+    nmo_v = mo_coeff_v.shape[1]
+
+    nmo_ov = nmo_o * nmo_v
+
+    res = ZEROS((nmo_ov, nmo_ov), cpu=not USE_GPU)
+    if with_robust_fitting:
+        res_V = ZEROS((nmo_ov, nmo_ov), cpu=not USE_GPU)
+    else:
+        res_V = None
+    res_ddot_buf = None
+
+    # allocate buffer #
+
+    size_aoRg_packed = mydf.nao * mydf.max_group_naux_possible(group=mydf.group)
+    if size_aoRg_packed * 8 > AOPAIR_BLKSIZE:
+        raise ValueError(
+            "The AOPAIR_BLKSIZE is too small for the current system, "
+            "please increase the AOPAIR_BLKSIZE"
+        )
+    size0 = nmo_ov  # store moPairRgBra
+    size1 = 0  # construct moPairRgBra
+    size2 = 0  # build V and W
+    if direct:
+        if with_robust_fitting:
+            size2 += mydf.ngrids
+        size2 += mydf.naux
+    size3 = nmo_ov  # store moPairRVKet
+    size4 = nmo_ov  # store moPairRgKet
+    size5 = nmo_ov  # build moPairRgKet
+    size = size0 + size2 + size3 + size4 + size5
+    # print("size = ", size)
+
+    GRID_BUNCHIZE = int((AOPAIR_BLKSIZE - size_aoRg_packed * 8) / (size * 8))
+
+    buffer = SimpleMemoryAllocator(
+        size * GRID_BUNCHIZE + size_aoRg_packed, FLOAT64, gpu=USE_GPU
+    )
+    if direct:
+        buffer_fft = DynamicCached3DRFFT((GRID_BUNCHIZE, *mydf.mesh), mydf.mesh)
+    else:
+        buffer_fft = None
+
+    # perform the contraction group by group bunch by bunch #
+
+    group = mydf.group
+    group_begin, group_end = _range_partition(len(group), rank, comm_size, use_mpi)
+    assert group_begin == mydf.group_begin
+    assert group_end == mydf.group_end
+
+    coul_G = mydf.coul_G
+    coul_G = ToTENSOR(coul_G, cpu=True).reshape(*mydf.mesh)
+    coul_G = ToTENSOR(ToNUMPY(coul_G[:, :, : mydf.mesh[2] // 2 + 1].reshape(-1)).copy())
+
+    # perform calculation #
+
+    IP_begin_loc = 0
+    for group_id in range(group_begin, group_end):
+
+        # pack moRg_o #
+
+        moRg_o_unpacked = [moRg_o[atm_id] for atm_id in group[group_id]]
+        nIP_involved = sum(
+            [moRg.aoR.shape[1] for moRg in moRg_o_unpacked if moRg is not None]
+        )
+        assert nIP_involved == mydf.IP_segment[group_id + 1] - mydf.IP_segment[group_id]
+        nIP_i = nIP_involved
+
+        packed_buf_moRg = buffer.malloc(
+            (nmo_o, nIP_involved), dtype=FLOAT64, name="packed_buf_moRg_o"
+        )
+        CLEAN(packed_buf_moRg)
+        moRg_o_packed = _pack_aoR_holder(
+            moRg_o_unpacked, nmo_o, out_buf=packed_buf_moRg
+        )
+
+        # pack moRg_v #
+
+        moRg_v_unpacked = [moRg_v[atm_id] for atm_id in group[group_id]]
+        nIP_involved = sum(
+            [moRg.aoR.shape[1] for moRg in moRg_v_unpacked if moRg is not None]
+        )
+
+        packed_buf_moRg = buffer.malloc(
+            (nmo_v, nIP_involved), dtype=FLOAT64, name="packed_buf_moRg_v"
+        )
+        CLEAN(packed_buf_moRg)
+        moRg_v_packed = _pack_aoR_holder(
+            moRg_v_unpacked, nmo_v, out_buf=packed_buf_moRg
+        )
+
+        for p0, p1 in lib.prange(0, nIP_i, GRID_BUNCHIZE):
+            # build moPairRg #
+            moPairOVRgBra = buffer.malloc(
+                (nmo_o, nmo_v, p1 - p0),
+                dtype=FLOAT64,
+                name="moPairOVRgBra",
+            )
+            EINSUM_IK_JK_IJK(
+                moRg_o_packed.aoR[:, p0:p1],
+                moRg_v_packed.aoR[:, p0:p1],
+                out=moPairOVRgBra,
+            )
+            moPairOVRgBra = moPairOVRgBra.reshape(nmo_o * nmo_v, p1 - p0)
+            # build V and W #
+            if direct:
+                V_tmp = _build_V_local_bas_kernel(
+                    mydf.aux_basis,
+                    group_id,
+                    p0,
+                    p1,
+                    buffer,
+                    buffer_fft,
+                    mydf.partition_group_2_gridID,
+                    mydf.gridID_ordering,
+                    mydf.mesh,
+                    coul_G,
+                )  # V_tmp is stored in buffer_fft
+                W_tmp = buffer.malloc((p1 - p0, mydf.naux), dtype=FLOAT64, name="W_tmp")
+                W_tmp = _build_W_local_bas_kernel(V_tmp, mydf.aux_basis, W_tmp)
+            else:
+                if with_robust_fitting:
+                    V_tmp = mydf.V[IP_begin_loc + p0 : IP_begin_loc + p1, :]
+                else:
+                    V_tmp = None
+                W_tmp = mydf.W[IP_begin_loc + p0 : IP_begin_loc + p1, :]
+            # do the calculation #
+            ## V term
+            if with_robust_fitting:
+                moPairRVOVKet = buffer.malloc(
+                    (nmo_o * nmo_v, p1 - p0),
+                    dtype=FLOAT64,
+                    name="moPairRVOVKet",
+                )
+                CLEAN(moPairRVOVKet)
+                # build moPairRgKet #
+                for atmid, (_moR_o_, _moR_v_) in enumerate(zip(moR_o, moR_v)):
+                    ngrids_tmp = _moR_o_.aoR.shape[1]
+                    V_grid_begin_ID = _moR_o_.global_gridID_begin
+                    for q0, q1 in lib.prange(0, ngrids_tmp, GRID_BUNCHIZE):
+                        moPairROVKet1 = buffer.malloc(
+                            (nmo_o, nmo_v, q1 - q0),
+                            dtype=FLOAT64,
+                            name="moPairROVKet1",
+                        )
+                        EINSUM_IK_JK_IJK(
+                            _moR_o_.aoR[:, q0:q1],
+                            _moR_v_.aoR[:, q0:q1],
+                            out=moPairROVKet1,
+                        )
+                        moPairROVKet1 = moPairROVKet1.reshape(nmo_o * nmo_v, q1 - q0)
+                        DOT(
+                            moPairROVKet1,
+                            V_tmp[:, V_grid_begin_ID + q0 : V_grid_begin_ID + q1].T,
+                            c=moPairRVOVKet,
+                            beta=1,
+                        )
+                        buffer.free(count=1)
+                # do the final dot #
+                DOT(moPairOVRgBra, moPairRVOVKet.T, c=res_V, beta=1)
+                buffer.free(count=1)
+            ## W term
+            moPairRgWKet = buffer.malloc(
+                (nmo_o * nmo_v, p1 - p0),
+                dtype=FLOAT64,
+                name="moPairRgWKet",
+            )
+            CLEAN(moPairRgWKet)
+            # build moPairRgWKet #
+            # for atmid, _moRg_ in enumerate(moRg):
+            for atmid, (_moRg_o_, _moRg_v_) in enumerate(zip(moRg_o, moRg_v)):
+                ngrids_tmp = _moRg_o_.aoR.shape[1]
+                W_grid_begin_ID = _moRg_o_.global_gridID_begin
+                for q0, q1 in lib.prange(0, ngrids_tmp, GRID_BUNCHIZE):
+                    moPairRgOVKet1 = buffer.malloc(
+                        (nmo_o, nmo_v, q1 - q0),
+                        dtype=FLOAT64,
+                        name="moPairRgOVKet1",
+                    )
+                    EINSUM_IK_JK_IJK(
+                        _moRg_o_.aoR[:, q0:q1],
+                        _moRg_v_.aoR[:, q0:q1],
+                        out=moPairRgOVKet1,
+                    )
+                    moPairRgOVKet1 = moPairRgOVKet1.reshape(nmo_o * nmo_v, q1 - q0)
+                    DOT(
+                        moPairRgOVKet1,
+                        W_tmp[:, W_grid_begin_ID + q0 : W_grid_begin_ID + q1].T,
+                        c=moPairRgWKet,
+                        beta=1,
+                    )
+                    buffer.free(count=1)
+            # do the final dot #
+            DOT(moPairOVRgBra, moPairRgWKet.T, c=res, beta=1)
+            buffer.free(count=2)
+            if direct:
+                buffer.free(count=1)
+        IP_begin_loc += nIP_i
+
+        buffer.free(count=2)
+
+    if use_mpi:
+        res = ToTENSOR(mpi_reduce(res, root=0))
+        if with_robust_fitting:
+            res_V = ToTENSOR(mpi_reduce(res_V, root=0))
+
+    if with_robust_fitting:
+        if rank == 0:
+            ADD_TRANSPOSE_(res_V)
+            res = res_V - res
+
+    if use_mpi:
+        res = ToTENSOR(bcast(res, root=0))
+
+    t2 = (logger.process_clock(), logger.perf_counter())
+    misc._benchmark_time(t1, t2, "isdf_local_eri", mydf, mydf.rank)
+
+    del res_ddot_buf
+
+    return (
+        ToNUMPY(res).reshape(nmo_o, nmo_v, nmo_o, nmo_v) * mydf.ngrids / mydf.cell.vol
+    )
 
 
 def get_eri(
@@ -438,7 +710,7 @@ def get_eri(
     compact=getattr(__config__, "pbc_df_ao2mo_get_eri_compact", True),
     with_robust_fitting=None,
     use_mpi=None,
-    AOPAIR_BLKSIZE=2e9,
+    AOPAIR_BLKSIZE=AOPAIR_BLKSIZE,
 ):
     cell = mydf.cell
     nao = cell.nao_nr()
@@ -474,7 +746,7 @@ def general(
     kpts=None,
     compact=getattr(__config__, "pbc_df_ao2mo_general_compact", True),
     with_robust_fitting=None,
-    AOPAIR_BLKSIZE=2e9,
+    AOPAIR_BLKSIZE=AOPAIR_BLKSIZE,
 ):
     from pyscf.pbc.df.df_ao2mo import warn_pbc2d_eri
 
@@ -504,10 +776,10 @@ def general(
         ):
             ### MO-ERI ###
 
-            eri = isdf_eri(
+            eri = isdf_local_eri(
                 mydf,
                 ToNUMPY(mo_coeffs[0]).copy(),
-                with_robust_fitting=False,
+                with_robust_fitting=with_robust_fitting,
                 AOPAIR_BLKSIZE=AOPAIR_BLKSIZE,
             )
 
@@ -521,7 +793,7 @@ def general(
             if iden_coeffs(mo_coeffs[0], mo_coeffs[2]) and iden_coeffs(
                 mo_coeffs[1], mo_coeffs[3]
             ):
-                eri_ovov = isdf_eri_ovov(
+                eri_ovov = isdf_local_eri_ovov(
                     mydf,
                     ToNUMPY(mo_coeffs[0]).copy(),
                     ToNUMPY(mo_coeffs[1]).copy(),

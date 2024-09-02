@@ -108,3 +108,4 @@ for kmesh in kmeshes[:1]:
         print(eri1[0, :10])
         print(eri2[0, :10])
         print("diff:", diff)
+    comm.barrier()

@@ -48,11 +48,11 @@ kmeshes = [
     [1, 1, 2],
     [1, 1, 3],
     [1, 1, 4],
-    [1, 2, 2],
-    [2, 2, 2],
-    [2, 2, 3],
-    [2, 3, 3],
-    [3, 3, 3],
+    # [1, 2, 2],
+    # [2, 2, 2],
+    # [2, 2, 3],
+    # [2, 3, 3],
+    # [3, 3, 3],
 ]  # -44.20339674 and -88.67568935
 VERBOSE = 10
 
@@ -70,7 +70,7 @@ prim_group = [[0, 1], [2, 3], [4, 5], [6, 7]]
 
 prim_mesh = prim_cell.mesh
 
-for kmesh in kmeshes[:1]:
+for kmesh in kmeshes:
 
     mesh = [int(k * x) for k, x in zip(kmesh, prim_mesh)]
     print("kmesh:", kmesh, "mesh:", mesh)

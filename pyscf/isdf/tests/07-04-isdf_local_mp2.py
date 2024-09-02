@@ -24,6 +24,7 @@ from pyscf.pbc import df
 from pyscf.isdf.isdf_tools_Tsym import _kmesh_to_Kpoints, _1e_operator_gamma2k
 from pyscf.isdf import isdf_tools_cell
 from pyscf.isdf.isdf import ISDF
+from pyscf.isdf.isdf_local import ISDF_Local
 
 #############################
 
@@ -91,7 +92,7 @@ for kmesh in kmeshes:
     cell.max_memory = 2000
     print("group:", group)
 
-    isdf = ISDF(cell, with_robust_fitting=True)
+    isdf = ISDF_Local(cell, with_robust_fitting=True)
     isdf.build(c=30, m=5, rela_cutoff=1e-4)
     # isdf.force_translation_symmetry(kmesh)
 

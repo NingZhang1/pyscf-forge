@@ -1218,6 +1218,7 @@ class ISDF_Local(isdf.ISDF):
 
     get_jk = isdf_local_jk.get_jk_dm_local
 
-    from pyscf.isdf.isdf_local_ao2mo import get_eri
+    from pyscf.isdf.isdf_local_ao2mo import general, get_eri
 
     get_eri = get_ao_eri = get_eri
+    ao2mo = get_mo_eri = general

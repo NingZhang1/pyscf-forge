@@ -61,6 +61,10 @@ ADD_TRANSPOSE_ = BACKEND._add_transpose_
 import pyscf.isdf.misc as misc
 from pyscf.isdf.isdf_tools_local import aoR_Holder
 
+############ GLOBAL PARAMETER ############
+
+AOPAIR_BLKSIZE = 2e9
+
 # utils #
 
 
@@ -79,7 +83,7 @@ def _get_moR(aoR, mo_coeff):
             mo_coeff_packed = MALLOC(
                 (nao_involved, nmo), FLOAT64, buf=buffer, offset=0, gpu=USE_GPU
             )
-            TAKE(mo_coeff, _aoR_.ao_involved, 0, out=mo_coeff_packed)
+            TAKE(ToTENSOR(mo_coeff), _aoR_.ao_involved, 0, out=mo_coeff_packed)
 
             moR = DOT(mo_coeff_packed.T, _aoR_.aoR)
             res.append(
@@ -94,7 +98,9 @@ def _get_moR(aoR, mo_coeff):
         return res
 
 
-def isdf_eri(mydf, mo_coeff=None, with_robust_fitting=None, AOPAIR_BLKSIZE=2e9):
+def isdf_eri(
+    mydf, mo_coeff=None, with_robust_fitting=None, AOPAIR_BLKSIZE=AOPAIR_BLKSIZE
+):
     """
     Perform AO2MO transformation from ISDF with robust fitting with s4 symmetry
     """
@@ -216,7 +222,7 @@ def isdf_eri_ovov(
     mo_coeff_o: np.ndarray = None,
     mo_coeff_v: np.ndarray = None,
     with_robust_fitting=None,
-    AOPAIR_BLKSIZE=2e9,
+    AOPAIR_BLKSIZE=AOPAIR_BLKSIZE,
 ):
     """
     Perform AO2MO transformation from ISDF for specific orbital types (ovov), for MP2 calculation
@@ -324,7 +330,7 @@ def get_eri(
     kpts=None,
     compact=getattr(__config__, "pbc_df_ao2mo_get_eri_compact", True),
     with_robust_fitting=None,
-    AOPAIR_BLKSIZE=2e9,
+    AOPAIR_BLKSIZE=AOPAIR_BLKSIZE,
 ):
     cell = mydf.cell
     nao = cell.nao_nr()
@@ -357,7 +363,7 @@ def general(
     kpts=None,
     compact=getattr(__config__, "pbc_df_ao2mo_general_compact", True),
     with_robust_fitting=None,
-    AOPAIR_BLKSIZE=2e9,
+    AOPAIR_BLKSIZE=AOPAIR_BLKSIZE,
 ):
     from pyscf.pbc.df.df_ao2mo import warn_pbc2d_eri
 
@@ -390,7 +396,7 @@ def general(
             eri = isdf_eri(
                 mydf,
                 ToNUMPY(mo_coeffs[0]).copy(),
-                with_robust_fitting=False,
+                with_robust_fitting=with_robust_fitting,
                 AOPAIR_BLKSIZE=AOPAIR_BLKSIZE,
             )
 

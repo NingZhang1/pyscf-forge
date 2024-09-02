@@ -65,5 +65,46 @@ from pyscf.isdf.isdf_tools_local import (
 )
 from pyscf.isdf._isdf_local_K_kernel import (
     _build_V_local_bas_kernel,
-    _build_W_local_bas_kernel,
+    _build_W_local_bas_k_kernel,
 )
+
+from pyscf.isdf.isdf_ao2mo import AOPAIR_BLKSIZE
+
+
+def eri_restore(eri, symmetry, nemb):
+    """
+    Restore eri with given permutation symmetry.
+    """
+
+    t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
+
+    spin_pair = eri.shape[0]
+    if spin_pair == 1:
+        eri_res = ao2mo.restore(symmetry, eri[0].real, nemb)
+    else:
+        if symmetry == 4:
+            nemb_pair = nemb * (nemb + 1) // 2
+            if eri.size == spin_pair * nemb_pair * nemb_pair:
+                eri_res = eri.real.reshape(spin_pair, nemb_pair, nemb_pair)
+            else:
+                eri_res = np.empty((spin_pair, nemb_pair, nemb_pair))
+                for s in range(spin_pair):
+                    eri_res[s] = ao2mo.restore(symmetry, eri[s].real, nemb)
+        elif symmetry == 1:
+            if eri.size == spin_pair * nemb**4:
+                eri_res = eri.real.reshape(spin_pair, nemb, nemb, nemb, nemb)
+            else:
+                eri_res = np.empty((spin_pair, nemb, nemb, nemb, nemb))
+                for s in range(spin_pair):
+                    eri_res[s] = ao2mo.restore(symmetry, eri[s].real, nemb)
+        else:
+            raise ValueError("Spin unrestricted ERI does not support 8-fold symmetry.")
+    eri_res = np.asarray(eri_res, order="C")
+
+    t2 = (lib.logger.process_clock(), lib.logger.perf_counter())
+
+    global cputime_restore, walltime_restore
+    cputime_restore += t2[0] - t1[0]
+    walltime_restore += t2[1] - t1[1]
+
+    return eri_res
