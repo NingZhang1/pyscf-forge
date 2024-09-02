@@ -209,6 +209,36 @@ def reduce(sendbuf, op=MPI.SUM, root=0):
         return sendbuf
 
 
+def reduce2(sendbuf, op=MPI.SUM, root=0):
+    sendbuf = numpy.asarray(sendbuf, order="C")
+    shape, mpi_dtype = comm.bcast((sendbuf.shape, sendbuf.dtype.char), root=root)
+    _assert(
+        sendbuf.shape == shape and sendbuf.dtype.char == mpi_dtype and op == MPI.SUM
+    )
+
+    dtype = sendbuf.dtype.char
+    recvbuf = numpy.zeros_like(sendbuf)
+
+    send_seg = numpy.ndarray(sendbuf.size, dtype=sendbuf.dtype, buffer=sendbuf)
+    recv_seg = numpy.ndarray(recvbuf.size, dtype=recvbuf.dtype, buffer=recvbuf)
+
+    for p0, p1 in lib.prange(0, sendbuf.size, BLKSIZE):
+        if rank != root:
+            comm.Send([send_seg[p0:p1], dtype], dest=root)
+        else:
+            recv_seg[p0:p1] += send_seg[p0:p1]
+            temp_buf = numpy.zeros(p1 - p0, dtype=sendbuf.dtype)
+            for i in range(comm.size):
+                if i != root:
+                    comm.Recv([temp_buf, dtype], source=i)
+                    recv_seg[p0:p1] += temp_buf
+
+    if rank == root:
+        return recvbuf
+    else:
+        return sendbuf
+
+
 def scatter(sendbuf, root=0):
     if rank == root:
         mpi_dtype = numpy.result_type(*sendbuf).char

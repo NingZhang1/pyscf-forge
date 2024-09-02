@@ -117,7 +117,7 @@ def _get_j_dm_k_local(mydf, dm, use_mpi=False):
 
     if use_mpi:
         from pyscf.isdf.isdf_tools_mpi import rank, comm, comm_size, bcast
-        from pyscf.isdf.isdf_tools_mpi import reduce as mpi_reduce
+        from pyscf.isdf.isdf_tools_mpi import reduce2 as mpi_reduce
 
         dm = ToTENSOR(bcast(dm, root=0))
     else:
@@ -360,7 +360,7 @@ def _get_k_dm_k_local(mydf, dm, direct=None, with_robust_fitting=None, use_mpi=F
 
     if use_mpi:
         from pyscf.isdf.isdf_tools_mpi import rank, comm, comm_size, bcast
-        from pyscf.isdf.isdf_tools_mpi import reduce as mpi_reduce
+        from pyscf.isdf.isdf_tools_mpi import reduce2 as mpi_reduce
 
         dm = ToTENSOR(bcast(dm, root=0))
     else:
@@ -562,7 +562,16 @@ def _get_k_dm_k_local(mydf, dm, direct=None, with_robust_fitting=None, use_mpi=F
                     K_V[i] = K_V[i] + K_V[i].T
                 K = K_V - K
             # K = _1e_operator_gamma2k(mydf.cell.nao_nr(), mydf.kmesh, K)
-            K = ToTENSOR(ToNUMPY([ToNUMPY(_1e_operator_gamma2k(mydf.cell.nao_nr(), mydf.kmesh, K[i])) for i in range(nset)]))
+            K = ToTENSOR(
+                ToNUMPY(
+                    [
+                        ToNUMPY(
+                            _1e_operator_gamma2k(mydf.cell.nao_nr(), mydf.kmesh, K[i])
+                        )
+                        for i in range(nset)
+                    ]
+                )
+            )
             K = CAST_TO_COMPLEX(K)
         comm.barrier()
         K = bcast(K, root=0)
@@ -579,7 +588,14 @@ def _get_k_dm_k_local(mydf, dm, direct=None, with_robust_fitting=None, use_mpi=F
                 K_V[i] = K_V[i] + K_V[i].T
             K = K_V - K
         # K = _1e_operator_gamma2k(mydf.cell.nao_nr(), mydf.kmesh, K)
-        K = ToTENSOR(ToNUMPY([ToNUMPY(_1e_operator_gamma2k(mydf.cell.nao_nr(), mydf.kmesh, K[i])) for i in range(nset)]))
+        K = ToTENSOR(
+            ToNUMPY(
+                [
+                    ToNUMPY(_1e_operator_gamma2k(mydf.cell.nao_nr(), mydf.kmesh, K[i]))
+                    for i in range(nset)
+                ]
+            )
+        )
         K = CAST_TO_COMPLEX(K)
 
     t2 = (logger.process_clock(), logger.perf_counter())

@@ -91,7 +91,7 @@ def _half_J(mydf, dm, use_mpi=False):
 
     if use_mpi:
         from pyscf.isdf.isdf_tools_mpi import rank, comm, comm_size, bcast
-        from pyscf.isdf.isdf_tools_mpi import reduce as mpi_reduce
+        from pyscf.isdf.isdf_tools_mpi import reduce2 as mpi_reduce
     else:
         comm_size = 1
 
@@ -196,7 +196,7 @@ def _get_j_dm_local(mydf, dm, use_mpi=False):
 
     if use_mpi:
         from pyscf.isdf.isdf_tools_mpi import rank, comm, comm_size, bcast
-        from pyscf.isdf.isdf_tools_mpi import reduce as mpi_reduce
+        from pyscf.isdf.isdf_tools_mpi import reduce2 as mpi_reduce
     else:
         comm_size = 1
 
@@ -297,7 +297,7 @@ def _get_k_dm_local(mydf, dm, direct=None, with_robust_fitting=None, use_mpi=Fal
 
     if use_mpi:
         from pyscf.isdf.isdf_tools_mpi import rank, comm, comm_size, bcast
-        from pyscf.isdf.isdf_tools_mpi import reduce as mpi_reduce
+        from pyscf.isdf.isdf_tools_mpi import reduce2 as mpi_reduce
     else:
         comm_size = 1
 

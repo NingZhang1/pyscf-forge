@@ -88,9 +88,9 @@ for kmesh in kmeshes:
     )
     isdf.build(c=30, m=5, rela_cutoff=1e-4, group=prim_group)
 
-    from pyscf.pbc.scf.khf import KRHF
+    from pyscf.pbc.scf import KRHF, KUHF
 
-    mf = KRHF(prim_cell, kpts=kpts)
+    mf = KUHF(prim_cell, kpts=kpts)
     mf.with_df = isdf
     mf.max_cycle = 100
     mf.conv_tol = 1e-8
