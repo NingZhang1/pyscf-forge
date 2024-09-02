@@ -1217,3 +1217,7 @@ class ISDF_Local(isdf.ISDF):
     ########## other funcs ##########
 
     get_jk = isdf_local_jk.get_jk_dm_local
+
+    from pyscf.isdf.isdf_local_ao2mo import get_eri
+
+    get_eri = get_ao_eri = get_eri

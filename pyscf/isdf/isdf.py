@@ -745,3 +745,8 @@ class ISDF(df.fft.FFTDF):
     ##### functions defined in isdf_jk.py #####
 
     get_jk = isdf_jk.get_jk_dm
+
+    from pyscf.isdf.isdf_ao2mo import general, get_eri
+
+    get_eri = get_ao_eri = get_eri
+    ao2mo = get_mo_eri = general
