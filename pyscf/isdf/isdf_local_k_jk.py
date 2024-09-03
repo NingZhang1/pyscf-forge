@@ -91,7 +91,6 @@ from pyscf.isdf.isdf_tools_Tsym import (
 
 
 def _preprocess_dm(mydf, _dm):
-
     dm = copy.deepcopy(_dm)
 
     # transform dm to gamma-space #
@@ -106,7 +105,6 @@ def _preprocess_dm(mydf, _dm):
 
 
 def _get_j_dm_k_local(mydf, dm, use_mpi=False):
-
     t1 = (logger.process_clock(), logger.perf_counter())
 
     #### preprocess ####
@@ -160,7 +158,6 @@ def _get_j_dm_k_local(mydf, dm, use_mpi=False):
     for atm_id in range(
         atm_id_begin, atm_id_end
     ):  # only the potential within the ref cell is needed
-
         aoR_holder = mydf.aoR[atm_id]
         ngrids_involved = aoR_holder.aoR.shape[1]
         nao_involved = aoR_holder.aoR.shape[0]
@@ -200,7 +197,6 @@ def _get_j_dm_k_local(mydf, dm, use_mpi=False):
     #### step 2. construct the potential ####
 
     if mydf.rank == 0:
-
         meshPrim = tuple(mydf.meshPrim)
 
         # coulGPrim #
@@ -313,7 +309,6 @@ def _get_j_dm_k_local(mydf, dm, use_mpi=False):
 
 
 def _get_ref_cell_aoR_indices(ao_involved, kmesh, naoPrim):
-
     from itertools import product
 
     res = {}
@@ -349,7 +344,6 @@ def _get_ref_cell_aoR_indices(ao_involved, kmesh, naoPrim):
 
 
 def _get_k_dm_k_local(mydf, dm, direct=None, with_robust_fitting=None, use_mpi=False):
-
     t1 = (logger.process_clock(), logger.perf_counter())
 
     ####### preprocess #######
@@ -426,7 +420,6 @@ def _get_k_dm_k_local(mydf, dm, direct=None, with_robust_fitting=None, use_mpi=F
 
     IP_begin_id = 0
     for group_id in range(group_begin, group_end):
-
         # pack aoRg #
 
         aoRg_unpacked = [mydf.aoRg[atm_id] for atm_id in group[group_id]]
@@ -615,7 +608,6 @@ def get_jk_dm_k_local(
     omega=None,
     exxdiv=None,
 ):
-
     from copy import deepcopy
 
     dm = deepcopy(_dm)
@@ -658,7 +650,6 @@ def get_jk_dm_k_local(
     ### post process J and K ###
 
     if not self.use_mpi or (self.use_mpi and rank == 0):
-
         kpts = np.asarray(kpts)
         dm_kpts = lib.asarray(dm, order="C")
         assert dm_kpts.ndim == 4
@@ -687,7 +678,6 @@ def get_jk_dm_k_local(
             vj = _format_jks(vj_kpts, dm_kpts, input_band, kpts)
 
         if nset == 1:
-
             vj = vj[0]
             vk = vk[0]
 
@@ -702,7 +692,6 @@ def get_jk_dm_k_local(
             logger.warn(self, "K has imaginary part of size %s", MAX(ABS(imag_k)))
 
     if self.use_mpi:
-
         vj = bcast(vj, root=0)
         vk = bcast(vk, root=0)
 

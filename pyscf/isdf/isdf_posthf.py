@@ -52,7 +52,6 @@ from pyscf.isdf.isdf import ISDF
 
 
 def _make_isdf_eris_incore(mycc, my_isdf: ISDF_Local, mo_coeff=None):
-
     cput0 = (logger.process_clock(), logger.perf_counter())
     eris = _ChemistsERIs()
     eris._common_init_(mycc, mo_coeff)

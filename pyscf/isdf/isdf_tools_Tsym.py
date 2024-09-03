@@ -76,13 +76,11 @@ def symmetrize_mat(dm: TENSORTy, Ls):
         return i * Ls[1] * Ls[2] + j * Ls[2] + k
 
     for i, j, k in product(range(Ls[0]), range(Ls[1]), range(Ls[2])):
-
         dm_symmetrized_buf = ZEROS(
             (nset, nao_prim, nao_prim), dtype=dm.dtype, like=dm, cpu=True
         )
 
         for i_row, j_row, k_row in product(range(Ls[0]), range(Ls[1]), range(Ls[2])):
-
             loc_row = _loc(i_row, j_row, k_row)
             loc_col = _loc(
                 (i + i_row) % Ls[0], (j + j_row) % Ls[1], (k + k_row) % Ls[2]
@@ -99,7 +97,6 @@ def symmetrize_mat(dm: TENSORTy, Ls):
         dm_symmetrized_buf /= ncell
 
         for i_row, j_row, k_row in product(range(Ls[0]), range(Ls[1]), range(Ls[2])):
-
             loc_row = _loc(i_row, j_row, k_row)
             loc_col = _loc(
                 (i + i_row) % Ls[0], (j + j_row) % Ls[1], (k + k_row) % Ls[2]
@@ -145,14 +142,12 @@ def pack_JK(input_mat: TENSORTy, Ls, nao_prim, output=None):
         return i * Ls[1] * Ls[2] + j * Ls[2] + k
 
     for ix_row, iy_row, iz_row in product(range(Ls[0]), range(Ls[1]), range(Ls[2])):
-
         loc_row = _loc(ix_row, iy_row, iz_row)
 
         b_begin = loc_row * nao_prim
         b_end = (loc_row + 1) * nao_prim
 
         for ix_col, iy_col, iz_col in product(range(Ls[0]), range(Ls[1]), range(Ls[2])):
-
             loc_col = _loc(ix_col, iy_col, iz_col)
 
             k_begin = loc_col * nao_prim
@@ -227,7 +222,6 @@ def pack_JK_in_FFT_space(input_mat: TENSORTy, kmesh, nao_prim, output=None):
 
 
 def _kmesh_to_Kpoints(cell, kmesh):
-
     kpts = cell.make_kpts(kmesh)
 
     return KPoints(cell, kpts)
@@ -238,7 +232,6 @@ def _make_kpts_kmesh(cell, kpts=None, kmesh=None):
         kmesh = np.asarray([1, 1, 1])
         kpts = _kmesh_to_Kpoints(cell, kmesh)
     elif kpts is not None:
-
         if not isinstance(kpts, KPoints):
             kpts = KPoints(cell, kpts)
         nkpts = kpts.nkpts
@@ -259,7 +252,6 @@ def _make_kpts_kmesh(cell, kpts=None, kmesh=None):
 
 
 def _1e_operator_gamma2k(nao, kmesh, operator_gamma: TENSORTy):
-
     IsNumpy = isinstance(operator_gamma, np.ndarray)
 
     nao_prim = nao // PROD(kmesh)
@@ -295,7 +287,6 @@ def _1e_operator_gamma2k(nao, kmesh, operator_gamma: TENSORTy):
 
 
 def _1e_operator_k2gamma(nao, kmesh, operator_k: TENSORTy):
-
     IsNumpy = isinstance(operator_k, np.ndarray)
 
     operator_k = ToTensor(operator_k)

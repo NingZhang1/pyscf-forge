@@ -88,7 +88,6 @@ J_MAX_GRID_BUNCHSIZE = 8192
 
 
 def _half_J(mydf, dm, use_mpi=False):
-
     if use_mpi:
         from pyscf.isdf.isdf_tools_mpi import rank, comm, comm_size, bcast
         from pyscf.isdf.isdf_tools_mpi import reduce2 as mpi_reduce
@@ -120,7 +119,6 @@ def _half_J(mydf, dm, use_mpi=False):
     # get the rhoR #
 
     for atmID in range(atmID_begin, atmID_end):
-
         aoR = mydf.aoR[atmID].aoR
         gridID_begin = mydf.aoR[atmID].global_gridID_begin
         ngrids_involved = aoR.shape[1]
@@ -191,7 +189,6 @@ def _half_J(mydf, dm, use_mpi=False):
 
 
 def _get_j_dm_local(mydf, dm, use_mpi=False):
-
     ####### preprocess #######
 
     if use_mpi:
@@ -245,7 +242,6 @@ def _get_j_dm_local(mydf, dm, use_mpi=False):
     # (2) get the full J #
 
     for atmID in range(atmID_begin, atmID_end):
-
         aoR = mydf.aoR[atmID].aoR
         gridID_begin = mydf.aoR[atmID].global_gridID_begin
         ngrids_involved = aoR.shape[1]
@@ -258,7 +254,6 @@ def _get_j_dm_local(mydf, dm, use_mpi=False):
         CLEAN(J_local)
 
         for p0, p1 in lib.prange(0, ngrids_involved, J_MAX_GRID_BUNCHSIZE):
-
             tmp1 = buffer.malloc((nao_involved, p1 - p0), dtype=FLOAT64, name="tmp1")
 
             EINSUM_IJ_J_IJ(
@@ -292,7 +287,6 @@ def _get_j_dm_local(mydf, dm, use_mpi=False):
 
 
 def _get_k_dm_local(mydf, dm, direct=None, with_robust_fitting=None, use_mpi=False):
-
     ####### preprocess #######
 
     if use_mpi:
@@ -358,7 +352,6 @@ def _get_k_dm_local(mydf, dm, direct=None, with_robust_fitting=None, use_mpi=Fal
 
     IP_begin_id = 0
     for group_id in range(group_begin, group_end):
-
         # pack aoRg #
 
         aoRg_unpacked = [mydf.aoRg[atm_id] for atm_id in group[group_id]]
@@ -600,7 +593,6 @@ def get_jk_dm_local(
     dm = ToNUMPY(dm)
 
     if (not use_mpi or (use_mpi and rank == 0)) and vk is not None:
-
         kpts = kpt.reshape(1, 3)
         kpts = np.asarray(kpts)
         dm_kpts = dm.reshape(-1, dm.shape[0], dm.shape[1]).copy()

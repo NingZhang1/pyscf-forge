@@ -77,7 +77,6 @@ from pyscf.isdf.isdf_local_k_jk import get_jk_dm_k_local
 
 
 def _canonicalize_partition_prim(mydf, partition_prim):
-
     DISTANCE = BACKEND._distance_translation
     mesh, kmesh = mydf.mesh, mydf.kmesh
     meshPrim = np.array(mesh) // np.array(kmesh)
@@ -101,7 +100,6 @@ def _canonicalize_partition_prim(mydf, partition_prim):
     lattice_vector = ToTENSOR(lattice_vector)
 
     for i in range(mydf.first_natm):
-
         partition_i = partition_prim[i]
         atm_coord = ToTENSOR(np.array([cell.atom_coord(i)]))
 
@@ -176,7 +174,6 @@ def _get_grid_ordering_k(_input, kmesh, mesh):
 
 
 def build_V_W_local_k(mydf, use_mpi=False):
-
     assert not mydf.direct
 
     if use_mpi:
@@ -233,11 +230,9 @@ def build_V_W_local_k(mydf, use_mpi=False):
 
     V_loc = 0
     for group_id in range(group_begin_id, group_end_id):
-
         naux_tmp = mydf.IP_segment[group_id + 1] - mydf.IP_segment[group_id]
 
         for p0, p1 in lib.prange(0, naux_tmp, bucnhsize):
-
             V_tmp = _build_V_local_bas_kernel(
                 mydf.aux_basis,
                 group_id,
@@ -278,7 +273,6 @@ def build_V_W_local_k(mydf, use_mpi=False):
 
 
 class ISDF_Local_K(ISDF_Local):
-
     def __init__(
         self,
         cell: Cell,
@@ -394,7 +388,6 @@ class ISDF_Local_K(ISDF_Local):
         self._build_V_W()
 
     def _build_cell_info(self):
-
         #### information relating primitive cell and supercell
 
         self.meshPrim = np.array(self.mesh) // np.array(self.kmesh)
@@ -434,7 +427,6 @@ class ISDF_Local_K(ISDF_Local):
         )  # COLs
 
     def _build_aoR(self, group):
-
         from pyscf.isdf.isdf_eval_gto import ISDF_eval_gto
 
         ##### build partition #####

@@ -29,6 +29,9 @@ class SimpleMemoryAllocator:
 
         # Check if there's enough memory
         if self.offset + size > self.total_size:
+            print("offnow  = ", self.offset)
+            print("size    = ", size)
+            print("totsize = ", self.total_size)
             raise MemoryError("Not enough memory in the allocator")
 
         arr = MALLOC(
@@ -38,7 +41,6 @@ class SimpleMemoryAllocator:
             buf=self.buffer,
             offset=self.offset * self._itemsize,
         )
-
         # Update offset and allocation records
         self.offset += size
         self.allocations.append((name, size, arr))

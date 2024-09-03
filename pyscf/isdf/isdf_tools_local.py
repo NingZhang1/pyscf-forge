@@ -209,7 +209,6 @@ def _pack_aoR_holder(aoR_holders: list[aoR_Holder], nao, out_buf=None):
 
 
 def _atm_to_bas(cell: Cell):
-
     shl_atm = []
 
     natm = cell.natm
@@ -365,7 +364,6 @@ def _get_grid_ordering(atmid_to_gridID, group):
 
 
 def _get_grid_partition(atmid_to_gridID, group, use_mpi=False):
-
     if use_mpi:
         from pyscf.isdf.isdf_tools_mpi import comm_size
 
@@ -392,7 +390,6 @@ def _get_grid_partition(atmid_to_gridID, group, use_mpi=False):
 
 
 def _get_atm_2_grid_segment(atmid_to_gridID, group):
-
     natm = len(atmid_to_gridID)
     assert (
         sum([len(x) for x in group]) == natm
@@ -419,7 +416,6 @@ def _get_atm_2_grid_segment(atmid_to_gridID, group):
 
 
 def _sync_list(list_data, ngroup):
-
     from pyscf.isdf.isdf_tools_mpi import rank, comm_size, bcast
 
     if len(list_data) != ngroup:
@@ -490,7 +486,6 @@ def _sync_aoR(aoR_holders, natm):
 
 
 def _build_submol(cell: Cell, atm_invovled):
-
     # import pyscf.pbc.gto as pbcgto
 
     subcell = pbcgto.Cell()
@@ -527,7 +522,6 @@ def get_partition(
     kmesh=None,
     use_mpi=False,
 ):
-
     #### funcs ####
 
     from pyscf.isdf.BackEnd._isdf_numpy import distance_translation as DISTANCE_NUMPY
@@ -604,7 +598,6 @@ def get_partition(
     partition = [[] for _ in range(natm_tmp)]
 
     if not use_mpi or (use_mpi and rank == 0):
-
         # get a rough partition #
 
         partition_rough = [[] for _ in range(natm_tmp)]
@@ -750,7 +743,6 @@ def get_aoR(
     atm_begin, atm_end = _range_partition(first_npartition, rank, comm_size, use_mpi)
 
     for atm_id in range(atm_begin, atm_end):
-
         grid_ID = partition[atm_id]
         if len(grid_ID) == 0:
             # aoR_holder[atm_id] = aoR_Holder(

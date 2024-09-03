@@ -110,7 +110,6 @@ def _get_j_dm(mydf, dm, use_mpi=False):
 
 
 def _get_k_dm(mydf, dm, use_mpi=False):
-
     # if mydf.with_robust_fitting:
     #     misc._warn(
     #         mydf,
@@ -158,7 +157,6 @@ def _get_k_dm(mydf, dm, use_mpi=False):
 
 
 def _get_k_dm_wrf(mydf, dm, use_mpi=False):
-
     assert (
         mydf.with_robust_fitting
     ), "ISDF without robust fitting is constructed but get_k_wrf is called"
@@ -271,7 +269,6 @@ def get_jk_dm(
     log.debug1("max_memory = %d MB (%d in use)", max_memory, mem_now)
 
     for iset in range(nset):
-
         if with_j:
             vj[iset] = ToNUMPY(_get_j_dm(mydf, dm[iset], use_mpi))
         if with_k:

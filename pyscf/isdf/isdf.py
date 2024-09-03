@@ -153,7 +153,6 @@ def select_IP(
     # loop over atms #
 
     for atm_id in range(mydf.natm):
-
         # get the involved ao values #
 
         grid_ID = ToTENSOR(
@@ -252,7 +251,6 @@ def select_IP(
     results = ToTENSOR(results, cpu=not USE_GPU)
 
     if global_IP_selection:
-
         nao = mydf.nao
 
         aoRg = buffer.malloc((mydf.nao, results.shape[0]), dtype=FLOAT64, name="aoRg")
@@ -361,7 +359,6 @@ def build_aux_basis(mydf, use_mpi=False):
 
 
 def construct_V(mydf, use_mpi=False):
-
     assert not use_mpi
 
     # func #
@@ -411,7 +408,6 @@ class ISDF(df.fft.FFTDF):
         verbose=None,
         use_mpi=False,
     ):
-
         # deal with kmesh and kpts
 
         from pyscf.isdf.isdf_tools_Tsym import _make_kpts_kmesh
@@ -486,7 +482,6 @@ class ISDF(df.fft.FFTDF):
     ### build ###
 
     def build(self, c=None, m=5, rela_cutoff=None, global_IP_selection=True):
-
         if c is None:
             c = 15
 
@@ -499,7 +494,6 @@ class ISDF(df.fft.FFTDF):
         self._build_V_W()
 
     def _build_cell_info(self):
-
         ao2atomID = np.zeros(self.nao, dtype=np.int32)
         ao_loc = 0
         for i in range(self.cell._bas.shape[0]):
@@ -518,7 +512,6 @@ class ISDF(df.fft.FFTDF):
         self.atmID2nao = ToTENSOR(atmID2nao)
 
     def _build_aoR(self):
-
         # NOTE: currently, do not consider k-sampling case #
 
         from pyscf.isdf.isdf_eval_gto import ISDF_eval_gto
@@ -655,7 +648,6 @@ class ISDF(df.fft.FFTDF):
         if hasattr(self, "PP") and self.PP is not None:
             return self.PP
         else:
-
             use_super_pp = False
 
             if self._use_super_pp:
@@ -690,7 +682,6 @@ class ISDF(df.fft.FFTDF):
             #### kpts ####
 
             if kpts is not None:
-
                 nkpts = kpts.shape[0]
                 kmesh = np.asarray(self.kmesh, dtype=np.int32)
                 assert (

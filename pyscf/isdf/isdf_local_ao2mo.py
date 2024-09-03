@@ -219,7 +219,6 @@ def isdf_local_eri(
 
     IP_begin_loc = 0
     for group_id in range(group_begin, group_end):
-
         # pack moRg #
 
         moRg_unpacked = [moRg[atm_id] for atm_id in group[group_id]]
@@ -538,7 +537,6 @@ def isdf_local_eri_ovov(
 
     IP_begin_loc = 0
     for group_id in range(group_begin, group_end):
-
         # pack moRg_o #
 
         moRg_o_unpacked = [moRg_o[atm_id] for atm_id in group[group_id]]
@@ -724,7 +722,6 @@ def get_eri(
         return numpy.zeros((nao, nao, nao, nao))
 
     if gamma_point(kptijkl):
-
         eri = isdf_local_eri(
             mydf,
             with_robust_fitting=with_robust_fitting,

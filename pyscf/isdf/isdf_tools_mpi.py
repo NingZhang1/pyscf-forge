@@ -139,7 +139,6 @@ def allgather(sendbuf, split_recvbuf=False):
 
 
 def allgather_list(sendbuf):
-
     assert isinstance(sendbuf, list)
     for _data_ in sendbuf:
         assert isinstance(_data_, numpy.ndarray)
@@ -290,7 +289,6 @@ def bcast_pickel(buf, root=0):
 
 
 def gather(sendbuf, root=0, split_recvbuf=False):
-
     sendbuf = numpy.asarray(sendbuf, order="C")
     shape = sendbuf.shape
     size_dtype = comm.allgather((shape, sendbuf.dtype.char))

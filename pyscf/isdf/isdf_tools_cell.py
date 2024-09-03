@@ -43,7 +43,6 @@ def build_supercell(
     use_particle_mesh_ewald=True,
     verbose=4,
 ):
-
     Cell = pbcgto.Cell()
 
     assert prim_a[0, 1] == 0.0
@@ -90,7 +89,6 @@ def build_supercell(
 
 
 def build_primitive_cell(supercell: Cell, kmesh):
-
     Cell = pbcgto.Cell()
 
     prim_a = np.array(
@@ -139,7 +137,6 @@ def build_supercell_with_partition(
     use_particle_mesh_ewald=True,
     verbose=4,
 ):
-
     cell = build_supercell(
         prim_atm,
         prim_a,

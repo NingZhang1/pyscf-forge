@@ -344,7 +344,6 @@ def get_eri(
         return numpy.zeros((nao, nao, nao, nao))
 
     if gamma_point(kptijkl):
-
         eri = isdf_eri(
             mydf, with_robust_fitting=with_robust_fitting, AOPAIR_BLKSIZE=AOPAIR_BLKSIZE
         )

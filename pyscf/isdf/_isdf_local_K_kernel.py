@@ -161,7 +161,6 @@ def _get_dm_RgR(
     # buffer #
     buffer,
 ):
-
     # check the input #
 
     assert dm_RgR.shape[0] == dm_RgAO.shape[0]
@@ -173,7 +172,6 @@ def _get_dm_RgR(
     ngrids = 0
 
     for _aoR_holder in aoR_holders:
-
         aoR = _aoR_holder.aoR
         gridID_begin = _aoR_holder.global_gridID_begin
         nao_involved = aoR.shape[0]
@@ -191,7 +189,6 @@ def _get_dm_RgR(
             )
 
         else:
-
             tmp = buffer.malloc((nIP_involved, nao_involved), dtype=FLOAT64, name="tmp")
             TAKE(dm_RgAO, ao_involved, 1, out=tmp)
             DOT(
@@ -218,7 +215,6 @@ def _get_dm_RgR_k(
     # buffer #
     buffer,
 ):
-
     # check the input #
 
     assert dm_RgR.shape[0] == dm_RgAO.shape[0]
@@ -228,7 +224,6 @@ def _get_dm_RgR_k(
     ngrids = 0
     ibox = 0
     for ix, iy, iz in product(range(kmesh[0]), range(kmesh[1]), range(kmesh[2])):
-
         # get permutation #
 
         if build_RgRg:
@@ -239,7 +234,6 @@ def _get_dm_RgR_k(
             grid_shift = mydf.ngridPrim
 
         for atmPrim_id, _aoR_holder in enumerate(aoR_holders):
-
             aoR = _aoR_holder.aoR
             gridID_begin = _aoR_holder.global_gridID_begin + ibox * grid_shift
             nao_involved = aoR.shape[0]
@@ -275,7 +269,6 @@ def _get_half_K(
     # buffer #
     buffer,
 ):
-
     CLEAN(half_K)
 
     # check the input #
@@ -287,7 +280,6 @@ def _get_half_K(
     nao = half_K.shape[1]
 
     for _aoR_holder in aoR_holders:
-
         aoR = _aoR_holder.aoR
         gridID_begin = _aoR_holder.global_gridID_begin
         ngrids_involved = aoR.shape[1]
@@ -303,7 +295,6 @@ def _get_half_K(
             )
 
         else:
-
             tmp = buffer.malloc((nIP_involved, nao_involved), dtype=FLOAT64, name="tmp")
             DOT(
                 dm_RgR[:, gridID_begin : gridID_begin + ngrids_involved],
@@ -327,7 +318,6 @@ def _get_half_K_k(
     # buffer #
     buffer,
 ):
-
     CLEAN(half_K)
 
     # check the input #
@@ -338,7 +328,6 @@ def _get_half_K_k(
 
     ibox = 0
     for ix, iy, iz in product(range(kmesh[0]), range(kmesh[1]), range(kmesh[2])):
-
         # get permutation #
 
         if build_RgRg:
@@ -349,7 +338,6 @@ def _get_half_K_k(
             grid_shift = mydf.ngridPrim
 
         for atmPrim_id, _aoR_holder in enumerate(aoR_holders):
-
             aoR = _aoR_holder.aoR
             gridID_begin = _aoR_holder.global_gridID_begin + ibox * grid_shift
             nao_involved = aoR.shape[0]

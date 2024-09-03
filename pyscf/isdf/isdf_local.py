@@ -132,7 +132,6 @@ def select_IP_local_step1(
     )
 
     for atm_id in range(atm_begin, atm_end):
-
         aoR = mydf.aoR[atm_id]
         if aoR is None:
             continue
@@ -345,7 +344,6 @@ def select_IP_local_step2(
 
     if len(group) < mydf.first_natm:
         if global_IP_selection:
-
             # split tasks #
 
             group_begin, group_end = _range_partition(
@@ -396,7 +394,6 @@ def select_IP_local_step2(
 
 
 def select_IP_local_step3(mydf, group, use_mpi=False):
-
     from itertools import accumulate
 
     #### build indices info related to IP_group ####
@@ -449,7 +446,6 @@ def _find_common_elements_positions(arr1, arr2):
 
 
 def build_aux_basis_local(mydf, group, IP_group, use_mpi=False):
-
     t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
 
     if use_mpi:
@@ -481,7 +477,6 @@ def build_aux_basis_local(mydf, group, IP_group, use_mpi=False):
     mydf.aux_basis = [None] * len(group)
 
     for i in range(group_begin, group_end):
-
         aoRg_unpacked = [mydf.aoRg[atm_id] for atm_id in group[i]]
         aoR_unpacked = [mydf.aoR[atm_id] for atm_id in group[i]]
 
@@ -558,7 +553,6 @@ def build_aux_basis_local(mydf, group, IP_group, use_mpi=False):
 
 
 def build_V_W_local(mydf, use_mpi=False):
-
     assert not mydf.direct
 
     if use_mpi:
@@ -615,11 +609,9 @@ def build_V_W_local(mydf, use_mpi=False):
 
     V_loc = 0
     for group_id in range(group_begin_id, group_end_id):
-
         naux_tmp = mydf.IP_segment[group_id + 1] - mydf.IP_segment[group_id]
 
         for p0, p1 in lib.prange(0, naux_tmp, bucnhsize):
-
             V_tmp = _build_V_local_bas_kernel(
                 mydf.aux_basis,
                 group_id,
@@ -680,7 +672,6 @@ class ISDF_Local(isdf.ISDF):
         verbose=None,
         use_mpi=False,
     ):
-
         super().__init__(
             cell,
             with_robust_fitting,
@@ -779,7 +770,6 @@ class ISDF_Local(isdf.ISDF):
         super()._build_cell_info()
 
     def _build_aoR(self, group):
-
         from pyscf.isdf.isdf_eval_gto import ISDF_eval_gto
 
         ##### build partition #####
@@ -908,7 +898,9 @@ class ISDF_Local(isdf.ISDF):
             + nao_max_atm * min(ngrid_max_atm, J_MAX_GRID_BUNCHSIZE)
         )
         size51 += self.ngrids
-        size52 = nao_max_atm**2 + nao_max_atm * min(ngrid_max_atm, J_MAX_GRID_BUNCHSIZE)
+        size52 = nao_max_atm**2 + nao_max_atm * min(
+            ngrid_max_atm, J_MAX_GRID_BUNCHSIZE
+        )
         size5 = max(size51, size52)
         # 6. get K #
         size6 = self.nao * max_naux_group + 4 * nao_max_atm * nao  # pack aoRg and dm
@@ -945,7 +937,6 @@ class ISDF_Local(isdf.ISDF):
             )
 
     def _build_IP(self, c, m, rela_cutoff, group, global_IP_selection):
-
         # step1 selection around each atm #
 
         t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
