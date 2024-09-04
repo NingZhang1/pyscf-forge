@@ -69,6 +69,9 @@ from pyscf.isdf.isdf_tools_local import (
 from pyscf.isdf._isdf_local_K_kernel import (
     _build_V_local_bas_kernel,
     _build_W_local_bas_kernel,
+    _get_V_W,
+    _build_moPairR,
+    _build_V_product_moPairR,
 )
 
 from pyscf.isdf.isdf_ao2mo import AOPAIR_BLKSIZE
@@ -143,11 +146,11 @@ def isdf_local_eri(
             "please increase the AOPAIR_BLKSIZE"
         )
     size0 = nnmo  # store moPairRgBra
-    size1 = nmo**2  # construct moPairRgBra
+    # size1 = nmo**2  # construct moPairRgBra
     size2 = 0  # build V and W
     if direct:
-        if with_robust_fitting:
-            size2 += mydf.ngrids
+        # if with_robust_fitting:
+        size2 += mydf.ngrids
         size2 += mydf.naux
     size3 = nmo * (nmo + 1) // 2  # store moPairRVKet
     size4 = nmo * (nmo + 1) // 2  # store moPairRgKet
@@ -248,92 +251,38 @@ def isdf_local_eri(
         for p0, p1 in lib.prange(0, nIP_i, GRID_BUNCHIZE):
             # print("p0, p1 = ", p0, p1)
             # build moPairRg #
-            moPairRgBra = buffer.malloc(
-                (nmo_tmp * (nmo_tmp + 1) // 2, p1 - p0),
-                dtype=FLOAT64,
-                name="moPairRgBra",
+            moPairRgBra = _build_moPairR(
+                moRg_packed, p0, p1, indices_take, buffer, name="moPairRgBra"
             )
-            moPairRgBra2 = buffer.malloc(
-                (nmo_tmp, nmo_tmp, p1 - p0),
-                dtype=FLOAT64,
-                name="moPairRgBra2",
-            )
-            EINSUM_IK_JK_IJK(
-                moRg_packed.aoR[:, p0:p1], moRg_packed.aoR[:, p0:p1], out=moPairRgBra2
-            )
-            moPairRgBra2 = moPairRgBra2.reshape(nmo_tmp * nmo_tmp, p1 - p0)
-            TAKE(moPairRgBra2, indices_take, 0, out=moPairRgBra)
-            buffer.free(count=1)
             # build V and W #
-            if direct:
-                V_tmp = _build_V_local_bas_kernel(
-                    mydf.aux_basis,
-                    group_id,
-                    p0,
-                    p1,
-                    buffer,
-                    buffer_fft,
-                    mydf.partition_group_2_gridID,
-                    mydf.gridID_ordering,
-                    mydf.mesh,
-                    coul_G,
-                )  # V_tmp is stored in buffer_fft
-                W_tmp = buffer.malloc((p1 - p0, mydf.naux), dtype=FLOAT64, name="W_tmp")
-                W_tmp = _build_W_local_bas_kernel(V_tmp, mydf.aux_basis, W_tmp)
-            else:
-                if with_robust_fitting:
-                    V_tmp = mydf.V[IP_begin_loc + p0 : IP_begin_loc + p1, :]
-                else:
-                    V_tmp = None
-                W_tmp = mydf.W[IP_begin_loc + p0 : IP_begin_loc + p1, :]
+            V_tmp, W_tmp = _get_V_W(
+                # mydf.aux_basis,
+                mydf,
+                group_id,
+                p0,
+                p1,
+                coul_G,
+                IP_begin_loc,
+                direct,
+                with_robust_fitting,
+                buffer,
+                buffer_fft,
+            )
             # do the calculation #
             ## V term
             if with_robust_fitting:
-                moPairRVKet = buffer.malloc(
-                    (nmo * (nmo + 1) // 2, p1 - p0),
-                    dtype=FLOAT64,
+                moPairRVKet = _build_V_product_moPairR(
+                    moR,
+                    p0,
+                    p1,
+                    nmo,
+                    V_tmp,
+                    indices_take_cached,
+                    moPairRInd,
+                    GRID_BUNCHIZE,
+                    buffer,
                     name="moPairRVKet",
                 )
-                CLEAN(moPairRVKet)
-                # build moPairRgKet #
-                for atmid, _moR_ in enumerate(moR):
-                    nmo_R_tmp = _moR_.nao_involved
-                    indices_take_Ket = _find_indices_take(nmo_R_tmp)
-                    moPairRKet = buffer.malloc(
-                        (nmo_R_tmp * (nmo_R_tmp + 1) // 2, p1 - p0),
-                        dtype=FLOAT64,
-                        name="moPairRKet",
-                    )
-                    CLEAN(moPairRKet)
-                    ngrids_tmp = _moR_.aoR.shape[1]
-                    V_grid_begin_ID = _moR_.global_gridID_begin
-                    for q0, q1 in lib.prange(0, ngrids_tmp, GRID_BUNCHIZE):
-                        moPairRKet1 = buffer.malloc(
-                            (nmo_R_tmp * (nmo_R_tmp + 1) // 2, q1 - q0),
-                            dtype=FLOAT64,
-                            name="moPairRKet2",
-                        )
-                        moPairRKet2 = buffer.malloc(
-                            (nmo_R_tmp, nmo_R_tmp, q1 - q0),
-                            dtype=FLOAT64,
-                            name="moPairRKet2",
-                        )
-                        EINSUM_IK_JK_IJK(
-                            _moR_.aoR[:, q0:q1], _moR_.aoR[:, q0:q1], out=moPairRKet2
-                        )
-                        moPairRKet2 = moPairRKet2.reshape(
-                            nmo_R_tmp * nmo_R_tmp, q1 - q0
-                        )
-                        TAKE(moPairRKet2, indices_take_Ket, 0, out=moPairRKet1)
-                        DOT(
-                            moPairRKet1,
-                            V_tmp[:, V_grid_begin_ID + q0 : V_grid_begin_ID + q1].T,
-                            c=moPairRKet,
-                            beta=1,
-                        )
-                        buffer.free(count=2)
-                    INDEX_ADD(moPairRVKet, 0, moPairRInd[atmid], moPairRKet)
-                    buffer.free(count=1)
                 # do the final dot #
                 if nmo_tmp == nmo:
                     DOT(moPairRgBra, moPairRVKet.T, c=res_V, beta=1)
@@ -351,53 +300,19 @@ def isdf_local_eri(
                     INDEX_ADD(res_V, 0, indcies_add, ddot_res)
                 buffer.free(count=1)
             ## W term
-            moPairRgWKet = buffer.malloc(
-                (nmo * (nmo + 1) // 2, p1 - p0),
-                dtype=FLOAT64,
+
+            moPairRgWKet = _build_V_product_moPairR(
+                moRg,
+                p0,
+                p1,
+                nmo,
+                W_tmp,
+                indices_take_cached,
+                moPairRgInd,
+                GRID_BUNCHIZE,
+                buffer,
                 name="moPairRgWKet",
             )
-            CLEAN(moPairRgWKet)
-            # build moPairRgWKet #
-            for atmid, _moRg_ in enumerate(moRg):
-                nmo_R_tmp = _moRg_.nao_involved
-                indices_take_Ket = _find_indices_take(nmo_R_tmp)
-                moPairRgKet = buffer.malloc(
-                    (nmo_R_tmp * (nmo_R_tmp + 1) // 2, p1 - p0),
-                    dtype=FLOAT64,
-                    name="moPairRgKet",
-                )
-                CLEAN(moPairRgKet)
-                ngrids_tmp = _moRg_.aoR.shape[1]
-                W_grid_begin_ID = _moRg_.global_gridID_begin
-                for q0, q1 in lib.prange(0, ngrids_tmp, GRID_BUNCHIZE):
-                    # print("q0, q1 = ", q0, q1)
-                    moPairRgKet1 = buffer.malloc(
-                        (nmo_R_tmp * (nmo_R_tmp + 1) // 2, q1 - q0),
-                        dtype=FLOAT64,
-                        name="moPairRgKet1",
-                    )
-                    moPairRgKet2 = buffer.malloc(
-                        (nmo_R_tmp, nmo_R_tmp, q1 - q0),
-                        dtype=FLOAT64,
-                        name="moPairRgKet2",
-                    )
-                    EINSUM_IK_JK_IJK(
-                        _moRg_.aoR[:, q0:q1], _moRg_.aoR[:, q0:q1], out=moPairRgKet2
-                    )
-                    moPairRgKet2 = moPairRgKet2.reshape(nmo_R_tmp * nmo_R_tmp, q1 - q0)
-                    TAKE(moPairRgKet2, indices_take_Ket, 0, out=moPairRgKet1)
-                    DOT(
-                        moPairRgKet1,
-                        W_tmp[:, W_grid_begin_ID + q0 : W_grid_begin_ID + q1].T,
-                        c=moPairRgKet,
-                        beta=1,
-                    )
-                    buffer.free(count=2)
-                if nmo_R_tmp == nmo:
-                    moPairRgWKet += moPairRgKet
-                else:
-                    INDEX_ADD(moPairRgWKet, 0, moPairRgInd[atmid], moPairRgKet)
-                buffer.free(count=1)
             # do the final dot #
             if nmo_tmp == nmo:
                 DOT(moPairRgBra, moPairRgWKet.T, c=res, beta=1)
@@ -411,9 +326,9 @@ def isdf_local_eri(
                 )
                 DOT(moPairRgBra, moPairRgWKet.T, c=ddot_res)
                 INDEX_ADD(res, 0, indcies_add, ddot_res)
-            buffer.free(count=2)
+            buffer.free(count=1)
             if direct:
-                buffer.free(count=1)
+                buffer.free(count=2)
         IP_begin_loc += nIP_i
 
         buffer.free(count=1)
@@ -500,7 +415,7 @@ def isdf_local_eri_ovov(
             "please increase the AOPAIR_BLKSIZE"
         )
     size0 = nmo_ov  # store moPairRgBra
-    size1 = 0  # construct moPairRgBra
+    # size1 = 0  # construct moPairRgBra
     size2 = 0  # build V and W
     if direct:
         if with_robust_fitting:

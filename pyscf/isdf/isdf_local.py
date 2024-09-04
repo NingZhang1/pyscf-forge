@@ -34,13 +34,16 @@ from pyscf.pbc import tools
 
 import pyscf.isdf.BackEnd.isdf_backend as BACKEND
 from pyscf.isdf.BackEnd.isdf_memory_allocator import SimpleMemoryAllocator
-from pyscf.isdf.BackEnd.isdf_fft_cache import DynamicCached3DRFFT
 
 USE_GPU = BACKEND.USE_GPU
 NUM_THREADS = BACKEND.NUM_THREADS
 
 if USE_GPU == 1:
-    from pyscf.isdf.BackEnd.isdf_fft_cache import DynamicCached3DRFFT_GPU
+    from pyscf.isdf.BackEnd.isdf_fft_cache import (
+        DynamicCached3DRFFT_GPU as DynamicCached3DRFFT,
+    )
+else:
+    from pyscf.isdf.BackEnd.isdf_fft_cache import DynamicCached3DRFFT
 
 assert (USE_GPU == 0) or (not USE_GPU), "ISDF_Local does not support GPU backend!"
 
@@ -580,7 +583,6 @@ def build_V_W_local(mydf, use_mpi=False):
     ngrids = mydf.ngrids
     bucnhsize = mydf._build_V_K_bunchsize
 
-    # print("naux_involved = ", naux_involved)
     mydf.W = ZEROS((naux_involved, naux_tot), dtype=FLOAT64, cpu=True)
     if mydf.with_robust_fitting:
         mydf.V = ZEROS((naux_involved, ngrids), dtype=FLOAT64, cpu=True)
@@ -814,10 +816,6 @@ class ISDF_Local(isdf.ISDF):
 
         t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
 
-        # sync_aoR = False
-        # if self.direct:
-        #     sync_aoR = True
-
         first_natm = self.first_natm
 
         self.aoR = get_aoR(
@@ -885,8 +883,6 @@ class ISDF_Local(isdf.ISDF):
             size4 = 0
         else:
             _size_4_1 = self._build_V_K_bunchsize * np.prod(self.mesh)
-            # _size_4_2 = self._build_V_K_bunchsize * max_naux_group
-            # size4 = max(_size_4_1, _size_4_2)
             size4 = _size_4_1
         # 5. get J #
         from pyscf.isdf.isdf_local_jk import J_MAX_GRID_BUNCHSIZE
@@ -898,9 +894,7 @@ class ISDF_Local(isdf.ISDF):
             + nao_max_atm * min(ngrid_max_atm, J_MAX_GRID_BUNCHSIZE)
         )
         size51 += self.ngrids
-        size52 = nao_max_atm**2 + nao_max_atm * min(
-            ngrid_max_atm, J_MAX_GRID_BUNCHSIZE
-        )
+        size52 = nao_max_atm**2 + nao_max_atm * min(ngrid_max_atm, J_MAX_GRID_BUNCHSIZE)
         size5 = max(size51, size52)
         # 6. get K #
         size6 = self.nao * max_naux_group + 4 * nao_max_atm * nao  # pack aoRg and dm
@@ -927,14 +921,12 @@ class ISDF_Local(isdf.ISDF):
         self.buffer = self.buffer_cpu
 
     def _build_fft_buffer(self):
-        if USE_GPU == 0:
-            self.buffer_fft = DynamicCached3DRFFT(
-                (self._build_V_K_bunchsize, *self.mesh)
-            )
-        else:
-            self.buffer_fft = DynamicCached3DRFFT_GPU(
-                (self._build_V_K_bunchsize, *self.mesh)
-            )
+        # if USE_GPU == 0:
+        self.buffer_fft = DynamicCached3DRFFT((self._build_V_K_bunchsize, *self.mesh))
+        # else:
+        #     self.buffer_fft = DynamicCached3DRFFT_GPU(
+        #         (self._build_V_K_bunchsize, *self.mesh)
+        #     )
 
     def _build_IP(self, c, m, rela_cutoff, group, global_IP_selection):
         # step1 selection around each atm #

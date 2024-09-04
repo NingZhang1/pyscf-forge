@@ -70,6 +70,7 @@ from pyscf.isdf.isdf_tools_local import (
 from pyscf.isdf._isdf_local_K_kernel import (
     _build_V_local_bas_kernel,
     _build_W_local_bas_k_kernel,
+    _get_V_W_k,
     _get_dm_RgR_k,
     _get_half_K_k,
     _final_contraction_k,
@@ -455,29 +456,9 @@ def _get_k_dm_k_local(mydf, dm, direct=None, with_robust_fitting=None, use_mpi=F
 
         for p0, p1 in lib.prange(0, nIP_involved, bunchsize):
             # if direct build W first #
-            if direct:
-                V_tmp = _build_V_local_bas_kernel(
-                    mydf.aux_basis,
-                    group_id,
-                    p0,
-                    p1,
-                    buffer,
-                    buffer_fft,
-                    group_gridID,
-                    grid_ordering,
-                    mesh,
-                    coul_G,
-                )
-                W_tmp = buffer.malloc((p1 - p0, mydf.naux), dtype=FLOAT64, name="W_tmp")
-                W_tmp = _build_W_local_bas_k_kernel(
-                    V_tmp, mydf.aux_basis, mydf.kmesh, W_tmp
-                )
-            else:
-                if with_robust_fitting:
-                    V_tmp = mydf.V[IP_begin_id + p0 : IP_begin_id + p1, :]
-                else:
-                    V_tmp = None
-                W_tmp = mydf.W[IP_begin_id + p0 : IP_begin_id + p1, :]
+            V_tmp, W_tmp = _get_V_W_k(
+                mydf, group_id, p0, p1, coul_G, IP_begin_id, direct, with_robust_fitting
+            )
             for i in range(nset):
                 ## build dm_RgRg ##
                 ## (1) build dm_RgAO ##
