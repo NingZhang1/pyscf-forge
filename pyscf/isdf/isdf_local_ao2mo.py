@@ -296,7 +296,7 @@ def isdf_local_eri(
                         dtype=FLOAT64,
                         buf=res_ddot_buf,
                     )
-                    DOT(moPairRgBra, moPairRVKet.T, out=ddot_res)
+                    DOT(moPairRgBra, moPairRVKet.T, c=ddot_res)
                     INDEX_ADD(res_V, 0, indcies_add, ddot_res)
                 buffer.free(count=1)
             ## W term
