@@ -79,7 +79,7 @@ def _get_moR(aoR, mo_coeff):
         res = []
         for _aoR_ in aoR:
             nao_involved = _aoR_.aoR.shape[0]
-            ngrids_involved = _aoR_.aoR.shape[1]
+            # ngrids_involved = _aoR_.aoR.shape[1]
             mo_coeff_packed = MALLOC(
                 (nao_involved, nmo), FLOAT64, buf=buffer, offset=0, gpu=USE_GPU
             )

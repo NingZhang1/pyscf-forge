@@ -530,3 +530,66 @@ def _build_V_product_moPairR(
         INDEX_ADD(moPairRV, 0, moPairRInd[atmid], moPairR)
         buffer.free(count=1)
     return moPairRV
+
+
+def _build_V_product_moPairR_k(
+    moR,
+    p0,
+    p1,
+    nmo,
+    VW,  # V or W
+    natmPrim,
+    ngridPrim,
+    kmesh,
+    permutation,  # kspace info
+    indices_take_cached,
+    moPairRInd,
+    GRID_BUNCHIZE,
+    buffer,
+    name,
+):
+    def _find_indices_take(indices_take_cached, nmo):
+        if nmo not in indices_take_cached:
+            row_indices, col_indices = np.tril_indices(nmo)
+            indices_take = ToTENSOR(row_indices * nmo + col_indices)
+            indices_take_cached[nmo] = indices_take
+        return indices_take_cached[nmo]
+
+    moPairRV = buffer.malloc((nmo * (nmo + 1) // 2, p1 - p0), dtype=FLOAT64, name=name)
+    CLEAN(moPairRV)
+    for ket_x, ket_y, ket_z in product(
+        range(kmesh[0]), range(kmesh[1]), range(kmesh[2])
+    ):
+        ket_box_id = ket_x * kmesh[1] * kmesh[2] + ket_y * kmesh[2] + ket_z
+        pert_W = permutation[ket_box_id]
+        for atmid, _moR_ in enumerate(
+            moR[ket_box_id * natmPrim : (ket_box_id + 1) * natmPrim]
+        ):
+            nmo_R_tmp = _moR_.nao_involved
+            indices_take = _find_indices_take(indices_take_cached, nmo_R_tmp)
+            moPairR = buffer.malloc(
+                (nmo_R_tmp * (nmo_R_tmp + 1) // 2, p1 - p0),
+                dtype=FLOAT64,
+            )
+            CLEAN(moPairR)
+            ngrids_tmp = _moR_.aoR.shape[1]
+            grid_begin_ID = _moR_.global_gridID_begin
+            for q0, q1 in lib.prange(0, ngrids_tmp, GRID_BUNCHIZE):
+                moPairR2 = _build_moPairR(_moR_, q0, q1, indices_take, buffer)
+                DOT(
+                    moPairR2,
+                    VW[
+                        :,
+                        pert_W * ngridPrim
+                        + grid_begin_ID
+                        + q0 : pert_W * ngridPrim
+                        + grid_begin_ID
+                        + q1,
+                    ].T,
+                    c=moPairR,
+                    beta=1,
+                )
+                buffer.free(count=1)
+            INDEX_ADD(moPairRV, 0, moPairRInd[atmid], moPairR)
+            buffer.free(count=1)
+    return moPairRV

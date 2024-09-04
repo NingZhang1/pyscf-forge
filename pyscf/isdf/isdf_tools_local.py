@@ -796,8 +796,6 @@ def get_aoR(
                 bas_id = ToTENSOR([x])
             else:
                 bas_id = ToTENSOR(np.array(bas_id)[where])
-            
-                
 
         global_gridID_begin = atm_2_grid_segment[atm_id][0]
         aoR_holder[atm_id] = aoR_Holder(

@@ -164,7 +164,7 @@ def isdf_local_eri(
         size * GRID_BUNCHIZE + size_aoRg_packed, FLOAT64, gpu=USE_GPU
     )
     if direct:
-        buffer_fft = DynamicCached3DRFFT((GRID_BUNCHIZE, *mydf.mesh), mydf.mesh)
+        buffer_fft = DynamicCached3DRFFT((GRID_BUNCHIZE, *mydf.mesh))
     else:
         buffer_fft = None
 
@@ -244,7 +244,9 @@ def isdf_local_eri(
         row_indices, col_indices = np.tril_indices(nmo_tmp)
         indices_take = _find_indices_take(nmo_tmp)
         indcies_add = ToTENSOR(
-            moRg_packed.ao_involved[row_indices] * nmo
+            moRg_packed.ao_involved[row_indices]
+            * (moRg_packed.ao_involved[row_indices] + 1)
+            // 2
             + moRg_packed.ao_involved[col_indices]
         )
 
@@ -288,11 +290,9 @@ def isdf_local_eri(
                     DOT(moPairRgBra, moPairRVKet.T, c=res_V, beta=1)
                 else:
                     if res_ddot_buf is None:
-                        res_ddot_buf = MALLOC(
-                            (nnmo, nnmo), dtype=FLOAT64, gpu=USE_GPU
-                        )
+                        res_ddot_buf = MALLOC((nnmo, nnmo), dtype=FLOAT64, gpu=USE_GPU)
                     ddot_res = MALLOC(
-                        (nmo_tmp * (nmo_tmp + 1) // 2, nmo * (nmo + 1) // 2),
+                        (nmo_tmp * (nmo_tmp + 1) // 2, nnmo),
                         dtype=FLOAT64,
                         buf=res_ddot_buf,
                     )
@@ -320,7 +320,7 @@ def isdf_local_eri(
                 if res_ddot_buf is None:
                     res_ddot_buf = MALLOC((nnmo, nnmo), dtype=FLOAT64, gpu=USE_GPU)
                 ddot_res = MALLOC(
-                    (nmo_tmp * (nmo_tmp + 1) // 2, nmo * (nmo + 1) // 2),
+                    (nmo_tmp * (nmo_tmp + 1) // 2, nnmo),
                     dtype=FLOAT64,
                     buf=res_ddot_buf,
                 )
@@ -433,7 +433,7 @@ def isdf_local_eri_ovov(
         size * GRID_BUNCHIZE + size_aoRg_packed, FLOAT64, gpu=USE_GPU
     )
     if direct:
-        buffer_fft = DynamicCached3DRFFT((GRID_BUNCHIZE, *mydf.mesh), mydf.mesh)
+        buffer_fft = DynamicCached3DRFFT((GRID_BUNCHIZE, *mydf.mesh))
     else:
         buffer_fft = None
 

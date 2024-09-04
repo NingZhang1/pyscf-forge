@@ -66,6 +66,9 @@ from pyscf.isdf.isdf_tools_local import _range_partition, aoR_Holder, _pack_aoR_
 from pyscf.isdf._isdf_local_K_kernel import (
     _build_V_local_bas_kernel,
     _build_W_local_bas_k_kernel,
+    _get_V_W_k,
+    _build_moPairR,
+    _build_V_product_moPairR_k,
 )
 
 from pyscf.isdf.isdf_ao2mo import AOPAIR_BLKSIZE
@@ -79,7 +82,7 @@ def eri_restore(eri, symmetry, nemb):
     Restore eri with given permutation symmetry.
     """
 
-    t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
+    # t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
 
     spin_pair = eri.shape[0]
     if spin_pair == 1:
@@ -104,11 +107,11 @@ def eri_restore(eri, symmetry, nemb):
             raise ValueError("Spin unrestricted ERI does not support 8-fold symmetry.")
     eri_res = np.asarray(eri_res, order="C")
 
-    t2 = (lib.logger.process_clock(), lib.logger.perf_counter())
+    # t2 = (lib.logger.process_clock(), lib.logger.perf_counter())
 
-    global cputime_restore, walltime_restore
-    cputime_restore += t2[0] - t1[0]
-    walltime_restore += t2[1] - t1[1]
+    # global cputime_restore, walltime_restore
+    # cputime_restore += t2[0] - t1[0]
+    # walltime_restore += t2[1] - t1[1]
 
     return eri_res
 
@@ -161,7 +164,7 @@ def _get_embR_box(
         ngrid_i = aoR_i.aoR.shape[1]
         nao_involved_i = aoR_i.aoR.shape[0]
 
-        for j in nspin:
+        for j in range(nspin):
             mocoeff_packed = buffer.malloc(
                 (nao_involved_i, nemb), dtype=FLOAT64, name="mocoeff_packed"
             )
@@ -173,8 +176,17 @@ def _get_embR_box(
             # cutoff #
             embR_max = np.max(np.abs(embR), axis=1)
             embR_row_max_id = np.where(embR_max > aoR_cutoff)[0]
-            embR_cutoff = ToTENSOR(embR[embR_row_max_id].copy())
-            embR_rowid = ToTENSOR(np.array(embR_row_max_id, dtype=np.int64))
+            if len(embR_row_max_id) == 0:
+                buffer.free(count=2)
+                res[j].append(None)
+                continue
+            else:
+                if len(embR_row_max_id) == 1:
+                    embR_cutoff = ToTENSOR(embR[embR_row_max_id].reshape(1, -1).copy())
+                    embR_rowid = ToTENSOR(np.array(embR_row_max_id, dtype=np.int64))
+                else:
+                    embR_cutoff = ToTENSOR(embR[embR_row_max_id].copy())
+                    embR_rowid = ToTENSOR(np.array(embR_row_max_id, dtype=np.int64))
             res[j].append(
                 aoR_Holder(
                     embR_cutoff,
@@ -252,11 +264,23 @@ def get_emb_eri_isdf(
         * np.prod(mydf.kmesh)
         * nspin
     )
-    if (size_aoRg_packed + np.prod(C_ao_emb.shape)) * 8 > AOPAIR_BLKSIZE:
+    if (size_aoRg_packed) * 8 > AOPAIR_BLKSIZE:
         raise ValueError(
             "The AOPAIR_BLKSIZE is too small for the current system, "
             "please increase the AOPAIR_BLKSIZE"
         )
+    if with_robust_fitting:
+        if (C_ao_emb.size + nemb * mydf.max_ngrid_involved) * 8 > AOPAIR_BLKSIZE:
+            raise ValueError(
+                "The AOPAIR_BLKSIZE is too small for the current system, "
+                "please increase the AOPAIR_BLKSIZE"
+            )
+    else:
+        if (C_ao_emb.size + nemb * mydf.max_nIP_involved) * 8 > AOPAIR_BLKSIZE:
+            raise ValueError(
+                "The AOPAIR_BLKSIZE is too small for the current system, "
+                "please increase the AOPAIR_BLKSIZE"
+            )
     size0 = nnmo  # store moPairRgBra
     # size1 = nemb**2  # construct moPairRgBra
     size2 = 0  # build V and W
@@ -275,7 +299,7 @@ def get_emb_eri_isdf(
         size * GRID_BUNCHIZE + size_aoRg_packed, FLOAT64, gpu=USE_GPU
     )
     if direct:
-        buffer_fft = DynamicCached3DRFFT((GRID_BUNCHIZE, *mydf.mesh), mydf.mesh)
+        buffer_fft = DynamicCached3DRFFT((GRID_BUNCHIZE, *mydf.mesh))
     else:
         buffer_fft = None
 
@@ -380,6 +404,7 @@ def get_emb_eri_isdf(
         moPairRInd = None
     moPairRgInd = []
     for ispin in range(nspin):
+        moPairRgInd.append([])
         for _moRg_ in emb_Rg[ispin]:
             row_indices, col_indices = np.tril_indices(_moRg_.nao_involved)
             row_indices = ToTENSOR(np.array(row_indices, dtype=np.int64))
@@ -407,9 +432,9 @@ def get_emb_eri_isdf(
 
     assert nspin <= 2
     if nspin == 1:
-        spin_lst = [[0, 0]]
+        spin_lst = [[0, 0]]  # spin restricted
     else:
-        spin_lst = [[0, 0], [1, 1], [0, 1]]
+        spin_lst = [[0, 0], [1, 1], [0, 1]]  # spin unrestricted, aa, bb, ab
     IP_begin_loc = 0
 
     for group_id in range(group_begin, group_end):
@@ -460,8 +485,10 @@ def get_emb_eri_isdf(
                 indices_take[ispin].append(_find_indices_take(nmo_tmp))
                 indices_add[ispin].append(
                     ToTENSOR(
-                        moRg_packed.ao_involved[row_indices] * nemb
-                        + moRg_packed.ao_involved[col_indices]
+                        moRg_packed_tmp.ao_involved[row_indices]
+                        * (moRg_packed_tmp.ao_involved[row_indices] + 1)
+                        // 2
+                        + moRg_packed_tmp.ao_involved[col_indices]
                     )
                 )
 
@@ -469,29 +496,18 @@ def get_emb_eri_isdf(
 
         for p0, p1 in lib.prange(0, nIP_i, GRID_BUNCHIZE):
             # (1) build V and W #
-            if direct:
-                V_tmp = _build_V_local_bas_kernel(
-                    mydf.aux_basis,
-                    group_id,
-                    p0,
-                    p1,
-                    buffer,
-                    buffer_fft,
-                    mydf.partition_group_2_gridID,
-                    mydf.gridID_ordering,
-                    mydf.mesh,
-                    coulG,
-                )  # V_tmp is stored in buffer_fft
-                W_tmp = buffer.malloc((p1 - p0, mydf.naux), dtype=FLOAT64, name="W_tmp")
-                W_tmp = _build_W_local_bas_k_kernel(
-                    V_tmp, mydf.aux_basis, mydf.kmesh, W_tmp
-                )
-            else:
-                if with_robust_fitting:
-                    V_tmp = mydf.V[IP_begin_loc + p0 : IP_begin_loc + p1, :]
-                else:
-                    V_tmp = None
-                W_tmp = mydf.W[IP_begin_loc + p0 : IP_begin_loc + p1, :]
+            V_tmp, W_tmp = _get_V_W_k(
+                mydf,
+                group_id,
+                p0,
+                p1,
+                coulG,
+                IP_begin_loc,
+                direct,
+                with_robust_fitting,
+                buffer,
+                buffer_fft,
+            )
             ## first loop over all boxes ##
             for bra_x, bra_y, bra_z in product(
                 range(mydf.kmesh[0]), range(mydf.kmesh[1]), range(mydf.kmesh[2])
@@ -506,72 +522,68 @@ def get_emb_eri_isdf(
                 for iERI, (spin_bra, spin_ket) in enumerate(spin_lst):
                     # build moPairRg #
                     bra_nemb = moRg_packed[spin_bra][bra_box_id].nao_involved
-                    indices_take_bra = indices_take[spin_bra][bra_box_id]
                     indices_add_bra = indices_add[spin_bra][bra_box_id]
-                    moPairRgBra = buffer.malloc(
-                        (bra_nemb * (bra_nemb + 1) // 2, p1 - p0),
-                        dtype=FLOAT64,
+                    moPairRgBra = _build_moPairR(
+                        moRg_packed[spin_bra][bra_box_id],
+                        p0,
+                        p1,
+                        indices_take[spin_bra][bra_box_id],
+                        buffer,
                         name="moPairRgBra",
                     )
-                    moPairRgBra2 = buffer.malloc(
-                        (bra_nemb * bra_nemb, p1 - p0),
-                        dtype=FLOAT64,
-                        name="moPairRgBra2",
-                    )
-                    EINSUM_IK_JK_IJK(
-                        moRg_packed[spin_bra][bra_box_id].aoR[:, p0:p1],
-                        moRg_packed[spin_bra][bra_box_id].aoR[:, p0:p1],
-                        out=moPairRgBra2,
-                    )
-                    moPairRgBra2 = moPairRgBra2.reshape(nmo_tmp * nmo_tmp, p1 - p0)
-                    TAKE(moPairRgBra2, indices_take_bra, 0, out=moPairRgBra)
-                    buffer.free(count=1)
                     # do the calculation #
                     ## V W must be permutated ##
                     ## V term
                     if with_robust_fitting:
-                        pass
+                        moPairRVKet = _build_V_product_moPairR_k(
+                            emb_R[spin_ket],
+                            p0,
+                            p1,
+                            nemb,
+                            V_tmp,
+                            natmPrim,
+                            mydf.ngridPrim,
+                            mydf.kmesh,
+                            pert_VW,
+                            indices_take_cached,
+                            moPairRgInd[spin_ket],
+                            GRID_BUNCHIZE,
+                            buffer,
+                            name="moPairRVKet",
+                        )
+                        ## do the final dot ##
+                        if bra_nemb == nemb:
+                            DOT(moPairRgBra, moPairRVKet.T, c=res_V[iERI], beta=1)
+                        else:
+                            if res_ddot_buf is None:
+                                res_ddot_buf = MALLOC(
+                                    (nnmo, nnmo), dtype=FLOAT64, gpu=not USE_GPU
+                                )
+                            ddot_res = buffer.malloc(
+                                (bra_nemb * (bra_nemb + 1) // 2, nnmo),
+                                dtype=FLOAT64,
+                                buf=res_ddot_buf,
+                            )
+                            DOT(moPairRgBra, moPairRVKet.T, c=ddot_res)
+                            INDEX_ADD(res_V[iERI], 0, indices_add_bra, ddot_res)
+                        buffer.free(count=1)
                     ## W term
-                    moPairRgWKet = buffer.malloc(
-                        (nemb * (nemb + 1) // 2, p1 - p0),
-                        dtype=FLOAT64,
+                    moPairRgWKet = _build_V_product_moPairR_k(
+                        emb_Rg[spin_ket],
+                        p0,
+                        p1,
+                        nemb,
+                        W_tmp,
+                        natmPrim,
+                        mydf.nauxPrim,
+                        mydf.kmesh,
+                        pert_VW,
+                        indices_take_cached,
+                        moPairRgInd[spin_ket],
+                        GRID_BUNCHIZE,
+                        buffer,
                         name="moPairRgWKet",
                     )
-                    CLEAN(moPairRgWKet)
-                    for ket_x, ket_y, ket_z in product(
-                        range(mydf.kmesh[0]), range(mydf.kmesh[1]), range(mydf.kmesh[2])
-                    ):
-                        ket_box_id = (
-                            ket_x * mydf.kmesh[1] * mydf.kmesh[2]
-                            + ket_y * mydf.kmesh[2]
-                            + ket_z
-                        )
-                        pert_W = pert_VW[ket_box_id]
-                        for atmid, _moRg_ in enumerate(
-                            emb_Rg[spin_ket][
-                                ket_box_id * natmPrim : ket_box_id * (natmPrim + 1)
-                            ]
-                        ):
-                            ket_nemb = _moRg_.nao_involved
-                            ngrids_ket = _moRg_.aoR.shape[1]
-                            W_grid_begin_ID = _moRg_.global_gridID_begin
-                            indices_take_ket = _find_indices_take(ket_nemb)
-                            indices_add_ket = moPairRgInd[spin_ket][
-                                ket_box_id * natmPrim + atmid
-                            ]
-                            moPairRgKet = buffer.malloc(
-                                (ket_nemb * (ket_nemb + 1) // 2, p1 - p0),
-                                dtype=FLOAT64,
-                                name="moPairRgKet",
-                            )
-                            CLEAN(moPairRgKet)
-                            # do the contraction #
-                            # add it back #
-                            if ket_nemb == nemb:
-                                moPairRgWKet += moPairRgKet
-                            else:
-                                INDEX_ADD(moPairRgWKet, 0, indices_add_ket, moPairRgKet)
-                            buffer.free(count=1)
                     ## do the final dot ##
                     if bra_nemb == nemb:
                         DOT(moPairRgBra, moPairRgWKet.T, c=res[iERI], beta=1)
@@ -586,8 +598,8 @@ def get_emb_eri_isdf(
                             buf=res_ddot_buf,
                         )
                         DOT(moPairRgBra, moPairRgWKet.T, c=ddot_res)
-                        INDEX_ADD(res[iERI], ddot_res, indices_add_bra, ddot_res)
-                    buffer.free(count=1)
+                        INDEX_ADD(res[iERI], 0, indices_add_bra, ddot_res)
+                    buffer.free(count=2)
 
             if direct:
                 buffer.free(count=2)
@@ -608,7 +620,8 @@ def get_emb_eri_isdf(
 
     if with_robust_fitting:
         if rank == 0:
-            ADD_TRANSPOSE_(res_V)
+            for i in range(nnspin):
+                ADD_TRANSPOSE_(res_V[i])
             res = res_V - res
 
     if use_mpi:
@@ -619,4 +632,4 @@ def get_emb_eri_isdf(
 
     del res_ddot_buf
 
-    return ToNUMPY(res) * mydf.ngrids / mydf.cell.vol
+    return eri_restore(ToNUMPY(res), symmetry, nemb) * mydf.ngrids / mydf.cell.vol
