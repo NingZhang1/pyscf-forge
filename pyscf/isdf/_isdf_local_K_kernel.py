@@ -48,6 +48,7 @@ MAX = BACKEND._maximum
 ABS = BACKEND._absolute
 DOT = BACKEND._dot
 TAKE = BACKEND._take
+EINSUM_IK_JK_IJK = BACKEND._einsum_ik_jk_ijk
 CLEAN = BACKEND._clean
 INDEX_COPY = BACKEND._index_copy
 INDEX_ADD = BACKEND._index_add
@@ -166,7 +167,6 @@ def _get_dm_RgR(
     assert dm_RgR.shape[0] == dm_RgAO.shape[0]
 
     nIP_involved = dm_RgR.shape[0]
-    # ngrids_tot = dm_RgR.shape[1]
     nao = dm_RgAO.shape[1]
 
     ngrids = 0
@@ -395,3 +395,138 @@ def _final_contraction_k(K, aoRg_packed, p0, p1, half_K, box_2_segment, kmesh, b
             buffer.free(count=1)
         else:
             buffer.free(count=2)
+
+
+############ kernel functions used in ao2mo ############
+
+
+def _get_V_W(
+    mydf,
+    group_id,
+    p0,
+    p1,
+    coul_G,
+    IP_begin_loc,
+    direct,
+    with_robust_fitting,
+    buffer=None,
+    buffer_fft=None,
+):
+    if buffer is None:
+        buffer = mydf.buffer_cpu
+    if buffer_fft is None:
+        buffer_fft = mydf.buffer_fft
+    if direct:
+        V_tmp = _build_V_local_bas_kernel(
+            mydf.aux_basis,
+            group_id,
+            p0,
+            p1,
+            buffer,
+            buffer_fft,
+            mydf.partition_group_2_gridID,
+            mydf.gridID_ordering,
+            mydf.mesh,
+            coul_G,
+        )  # V_tmp is stored in buffer_fft
+        W_tmp = buffer.malloc((p1 - p0, mydf.naux), dtype=FLOAT64, name="W_tmp")
+        W_tmp = _build_W_local_bas_kernel(V_tmp, mydf.aux_basis, W_tmp)
+    else:
+        if with_robust_fitting:
+            V_tmp = mydf.V[IP_begin_loc + p0 : IP_begin_loc + p1, :]
+        else:
+            V_tmp = None
+        W_tmp = mydf.W[IP_begin_loc + p0 : IP_begin_loc + p1, :]
+    return V_tmp, W_tmp
+
+
+def _get_V_W_k(
+    mydf,
+    group_id,
+    p0,
+    p1,
+    coul_G,
+    IP_begin_loc,
+    direct,
+    with_robust_fitting,
+    buffer=None,
+    buffer_fft=None,
+):
+    if buffer is None:
+        buffer = mydf.buffer_cpu
+    if buffer_fft is None:
+        buffer_fft = mydf.buffer_fft
+    if direct:
+        V_tmp = _build_V_local_bas_kernel(
+            mydf.aux_basis,
+            group_id,
+            p0,
+            p1,
+            buffer,
+            buffer_fft,
+            mydf.partition_group_2_gridID,
+            mydf.gridID_ordering,
+            mydf.mesh,
+            coul_G,
+        )  # V_tmp is stored in buffer_fft
+        W_tmp = buffer.malloc((p1 - p0, mydf.naux), dtype=FLOAT64, name="W_tmp")
+        W_tmp = _build_W_local_bas_k_kernel(V_tmp, mydf.aux_basis, mydf.kmesh, W_tmp)
+    else:
+        if with_robust_fitting:
+            V_tmp = mydf.V[IP_begin_loc + p0 : IP_begin_loc + p1, :]
+        else:
+            V_tmp = None
+        W_tmp = mydf.W[IP_begin_loc + p0 : IP_begin_loc + p1, :]
+    return V_tmp, W_tmp
+
+
+def _build_moPairR(moRg, p0, p1, indices_take, buffer, name=None):
+    nmo_tmp = moRg.aoR.shape[0]
+    moPairRg = buffer.malloc(
+        (nmo_tmp * (nmo_tmp + 1) // 2, p1 - p0),
+        dtype=FLOAT64,
+        name=name,
+    )
+    moPairRg2 = buffer.malloc((nmo_tmp, nmo_tmp, p1 - p0), dtype=FLOAT64)
+    EINSUM_IK_JK_IJK(moRg.aoR[:, p0:p1], moRg.aoR[:, p0:p1], moPairRg2)
+    moPairRg2 = moPairRg2.reshape(nmo_tmp * nmo_tmp, p1 - p0)
+    TAKE(moPairRg2, indices_take, 0, out=moPairRg)
+    buffer.free(count=1)
+    return moPairRg
+
+
+def _build_V_product_moPairR(
+    moR, p0, p1, nmo, VW, indices_take_cached, moPairRInd, GRID_BUNCHIZE, buffer, name
+):
+
+    def _find_indices_take(indices_take_cached, nmo):
+        if nmo not in indices_take_cached:
+            row_indices, col_indices = np.tril_indices(nmo)
+            indices_take = ToTENSOR(row_indices * nmo + col_indices)
+            indices_take_cached[nmo] = indices_take
+        return indices_take_cached[nmo]
+
+    moPairRV = buffer.malloc((nmo * (nmo + 1) // 2, p1 - p0), dtype=FLOAT64, name=name)
+    CLEAN(moPairRV)
+    for atmid, _moR_ in enumerate(moR):
+        nmo_R_tmp = _moR_.nao_involved
+        indices_take = _find_indices_take(indices_take_cached, nmo_R_tmp)
+        moPairR = buffer.malloc(
+            (nmo_R_tmp * (nmo_R_tmp + 1) // 2, p1 - p0),
+            dtype=FLOAT64,
+        )
+        CLEAN(moPairR)
+        ngrids_tmp = _moR_.aoR.shape[1]
+        grid_begin_ID = _moR_.global_gridID_begin
+        for q0, q1 in lib.prange(0, ngrids_tmp, GRID_BUNCHIZE):
+            moPairR2 = _build_moPairR(_moR_, q0, q1, indices_take, buffer)
+            DOT(
+                moPairR2,
+                VW[:, grid_begin_ID + q0 : grid_begin_ID + q1].T,
+                c=moPairR,
+                beta=1,
+            )
+            buffer.free(count=1)
+        INDEX_ADD(moPairRV, 0, moPairRInd[atmid], moPairR)
+        buffer.free(count=1)
+    return moPairRV

@@ -617,18 +617,18 @@ class ISDF_Local_K(ISDF_Local):
 
         # NOTE: the following code if for debugging #
 
-        self.aoRg1 = get_aoR(
-            self.cell,
-            self.AtmConnectionInfo,
-            self.coords,
-            self.partition_IP_global,
-            # first_natm,
-            None,
-            self.first_natm,
-            self.group_global,
-            self.use_mpi,
-            self.use_mpi,
-        )
+        # self.aoRg1 = get_aoR(
+        #     self.cell,
+        #     self.AtmConnectionInfo,
+        #     self.coords,
+        #     self.partition_IP_global,
+        #     # first_natm,
+        #     None,
+        #     self.first_natm,
+        #     self.group_global,
+        #     self.use_mpi,
+        #     self.use_mpi,
+        # )
 
     def _build_V_W(self):
         self.coul_G = tools.get_coulG(self.cell, mesh=self.mesh)
