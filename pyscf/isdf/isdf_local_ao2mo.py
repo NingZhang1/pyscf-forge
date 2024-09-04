@@ -289,7 +289,7 @@ def isdf_local_eri(
                 else:
                     if res_ddot_buf is None:
                         res_ddot_buf = MALLOC(
-                            (nnmo, nnmo), dtype=FLOAT64, gpu=not USE_GPU
+                            (nnmo, nnmo), dtype=FLOAT64, gpu=USE_GPU
                         )
                     ddot_res = MALLOC(
                         (nmo_tmp * (nmo_tmp + 1) // 2, nmo * (nmo + 1) // 2),
@@ -318,7 +318,7 @@ def isdf_local_eri(
                 DOT(moPairRgBra, moPairRgWKet.T, c=res, beta=1)
             else:
                 if res_ddot_buf is None:
-                    res_ddot_buf = MALLOC((nnmo, nnmo), dtype=FLOAT64, gpu=not USE_GPU)
+                    res_ddot_buf = MALLOC((nnmo, nnmo), dtype=FLOAT64, gpu=USE_GPU)
                 ddot_res = MALLOC(
                     (nmo_tmp * (nmo_tmp + 1) // 2, nmo * (nmo + 1) // 2),
                     dtype=FLOAT64,
