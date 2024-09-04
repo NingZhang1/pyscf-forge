@@ -785,10 +785,19 @@ def get_aoR(
 
         max_row = ToNUMPY(MAX(ABS(aoR), axis=1))
         where = np.where(max_row > precision)[0]
+        if len(where) == 0:
+            aoR_holder[atm_id] = None
+            continue
         if len(where) < aoR.shape[0] * 0.9:
             where = ToTENSOR(where)
             aoR = TAKE(aoR, where, axis=0)
-            bas_id = ToTENSOR(np.array(bas_id)[where])
+            if len(where) == 1:
+                x = np.array(bas_id)[where]
+                bas_id = ToTENSOR([x])
+            else:
+                bas_id = ToTENSOR(np.array(bas_id)[where])
+            
+                
 
         global_gridID_begin = atm_2_grid_segment[atm_id][0]
         aoR_holder[atm_id] = aoR_Holder(
