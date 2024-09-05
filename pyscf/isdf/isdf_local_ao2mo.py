@@ -251,7 +251,7 @@ def isdf_local_eri(
         )
 
         for p0, p1 in lib.prange(0, nIP_i, GRID_BUNCHIZE):
-            # print("p0, p1 = ", p0, p1)
+            print("p0, p1 = ", p0, p1)
             # build moPairRg #
             moPairRgBra = _build_moPairR(
                 moRg_packed, p0, p1, indices_take, buffer, name="moPairRgBra"
@@ -326,7 +326,7 @@ def isdf_local_eri(
                 )
                 DOT(moPairRgBra, moPairRgWKet.T, c=ddot_res)
                 INDEX_ADD(res, 0, indcies_add, ddot_res)
-            buffer.free(count=1)
+            buffer.free(count=2)
             if direct:
                 buffer.free(count=2)
         IP_begin_loc += nIP_i
