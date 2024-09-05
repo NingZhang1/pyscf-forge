@@ -41,7 +41,7 @@ class SimpleMemoryAllocator:
             buf=self.buffer,
             offset=self.offset * self._itemsize,
         )
-        print("malloc %d at %d with name %s" % (size, self.offset, name))
+        # print("malloc %d at %d with name %s" % (size, self.offset, name))
         # Update offset and allocation records
         self.offset += size
         self.allocations.append((name, size, arr))
@@ -55,7 +55,7 @@ class SimpleMemoryAllocator:
                 if self.allocations:
                     name, size, _ = self.allocations.pop()
                     self.offset -= size
-                    print("free   %d at %d with name %s" % (size, self.offset, name))
+                    # print("free   %d at %d with name %s" % (size, self.offset, name))
                 else:
                     raise ValueError("No allocations to free")
         else:
