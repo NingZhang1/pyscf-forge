@@ -326,7 +326,7 @@ def isdf_local_eri(
                 )
                 DOT(moPairRgBra, moPairRgWKet.T, c=ddot_res)
                 INDEX_ADD(res, 0, indcies_add, ddot_res)
-            buffer.free(count=1)
+            buffer.free(count=2)
             if direct:
                 buffer.free(count=2)
         IP_begin_loc += nIP_i

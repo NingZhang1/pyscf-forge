@@ -519,6 +519,7 @@ def _build_V_product_moPairR(
         ngrids_tmp = _moR_.aoR.shape[1]
         grid_begin_ID = _moR_.global_gridID_begin
         for q0, q1 in lib.prange(0, ngrids_tmp, GRID_BUNCHIZE):
+            # print("q0, q1 = ", q0, q1)
             moPairR2 = _build_moPairR(_moR_, q0, q1, indices_take, buffer)
             DOT(
                 moPairR2,
