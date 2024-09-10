@@ -606,6 +606,8 @@ def get_jk_dm_k_local(
 
     from pyscf.pbc.df.aft import _check_kpts
 
+    if kpts.ndim == 2 and kpts.shape[0] == 1: # a single kpts!
+        kpts = kpts.reshape(-1)
     kpts, is_single_kpt = _check_kpts(self, kpts)
 
     if is_single_kpt:
@@ -663,6 +665,8 @@ def get_jk_dm_k_local(
             vk = vk[0]
 
     if is_single_kpt:
+        vj = ToTENSOR(vj)
+        vk = ToTENSOR(vk)
         imag_j = IMAG(vj)
         vj = REAL(vj)
         imag_k = IMAG(vk)
@@ -671,6 +675,8 @@ def get_jk_dm_k_local(
             logger.warn(self, "J has imaginary part of size %s", MAX(ABS(imag_j)))
         if MAX(ABS(imag_k)) > 1e-9:
             logger.warn(self, "K has imaginary part of size %s", MAX(ABS(imag_k)))
+        vj = ToNUMPY(vj)
+        vk = ToNUMPY(vk)
 
     if self.use_mpi:
         vj = bcast(vj, root=0)

@@ -526,16 +526,6 @@ def build_aux_basis_local(mydf, group, IP_group, use_mpi=False):
         # build aux basis, AX=B #
 
         mydf.aux_basis[i] = CHO_SOLVE(A, B, overwrite_b=False)
-        # from scipy.linalg import lapack
-        # c, info = lapack.dpotrf(ToNUMPY(A).copy(), lower=1)
-        # if info > 0:
-        #     print("A is not positive definite!")
-        #     exit()
-        # x, info = lapack.dpotrs(c, ToNUMPY(B).copy(), lower=1)
-        # if info != 0:
-        #     print("error")
-        #     exit()
-        # mydf.aux_basis[i] = ToTENSOR(x.copy())
 
         buffer.free_all()
 
