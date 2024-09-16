@@ -55,10 +55,11 @@ MAX = BACKEND._maximum
 ABS = BACKEND._absolute
 DOT = BACKEND._dot
 TAKE = BACKEND._take
+MALLOC = BACKEND._malloc
 
 ############ isdf utils ############
 
-from pyscf.isdf.isdf_local import ISDF_Local
+from pyscf.isdf.isdf_local import ISDF_Local, _create_h5file, generate_string
 import pyscf.isdf.misc as misc
 from pyscf.isdf.isdf_tools_local import (
     aoR_Holder,
@@ -268,6 +269,126 @@ def build_V_W_local_k(mydf, use_mpi=False):
 
     if use_mpi:
         comm.barrier()
+
+    return mydf.V, mydf.W
+
+
+def build_V_W_local_k_outcore(mydf, use_mpi=False):
+    assert not (mydf.direct is False)
+
+    if use_mpi:
+        from pyscf.isdf.isdf_tools_mpi import rank, comm, comm_size
+    else:
+        rank = 0
+        # comm_size = 1
+
+    misc._debug4(
+        mydf, rank, " ---------- In pyscf.isdf.isdf_local.build_V_W_local ----------"
+    )
+
+    t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
+
+    # buffer #
+
+    buffer = mydf.buffer_cpu
+    buffer_fft = mydf.buffer_fft
+
+    # task info #
+
+    group_begin_id, group_end_id = mydf.group_begin, mydf.group_end
+    naux_involved = mydf.IP_segment[group_end_id] - mydf.IP_segment[group_begin_id]
+    naux_tot = mydf.naux  ## NOTE: the meaning of mydf.naux
+    # ngrids = mydf.ngrids
+    bunchsize = mydf._build_V_K_bunchsize
+
+    mydf.W = _create_h5file(generate_string() + "_%d" % (rank), "W")
+    h5d_eri = mydf.W.create_dataset("W", (naux_involved, naux_tot), "f8")
+    if mydf.with_robust_fitting:
+        raise NotImplementedError("outcore mode does not support robust fitting!")
+    else:
+        mydf.V = None
+
+    ## print memory info ##
+
+    # memory_V = mydf.V.nbytes if mydf.V is not None else 0
+    # memory_W = mydf.W.nbytes
+    # misc._info(mydf, rank, "Memory usage for V: %10.3f MB", memory_V / 1024 / 1024)
+    # misc._info(mydf, rank, "Memory usage for W: %10.3f MB", memory_W / 1024 / 1024)
+
+    ## do the work ##
+
+    from pyscf.isdf._isdf_local_K_kernel import (
+        _build_V_local_bas_kernel,
+        _build_W_local_bas_k_kernel,
+    )
+
+    # coul_G = tools.get_coulG(mydf.cell, mesh=mydf.mesh)
+    coul_G = mydf.coul_G
+    coul_G = ToTENSOR(coul_G, cpu=True).reshape(*mydf.mesh)
+    coul_G = ToTENSOR(ToNUMPY(coul_G[:, :, : mydf.mesh[2] // 2 + 1].reshape(-1)).copy())
+
+    buf1 = buffer.malloc((bunchsize, naux_tot), dtype=FLOAT64, name="buf1")
+    buf2 = buffer.malloc((bunchsize, naux_tot), dtype=FLOAT64, name="buf2")
+
+    log = logger.Logger(mydf.stdout, mydf.verbose)
+    time1 = (logger.process_clock(), logger.perf_counter())
+
+    W_loc = 0
+    ISTEP = 0
+    for group_id in range(group_begin_id, group_end_id):
+        naux_tmp = mydf.IP_segment[group_id + 1] - mydf.IP_segment[group_id]
+
+        def process(bunch_range):
+            nonlocal buf1, buf2
+            buf2, buf1 = buf1, buf2
+            istep, (p0, p1) = bunch_range
+            W_tmp = MALLOC((p1 - p0, naux_tot), dtype=FLOAT64, buf=buf1, offset=0)
+            V_tmp = _build_V_local_bas_kernel(
+                mydf.aux_basis,
+                group_id,
+                p0,
+                p1,
+                buffer,
+                buffer_fft,
+                mydf.partition_group_2_gridID,
+                mydf.gridID_ordering,
+                mydf.mesh,
+                coul_G,
+            )
+            _build_W_local_bas_k_kernel(V_tmp, mydf.aux_basis, mydf.kmesh, W_tmp)
+            buffer.free(count=1)
+            return W_tmp
+
+        bunch_range = list(enumerate(lib.prange(0, naux_tmp, bunchsize)))
+
+        for istep, W_tmp in enumerate(lib.map_with_prefetch(process, bunch_range)):
+            p0, p1 = bunch_range[istep][1]
+            # label = "%s/%d" % ("W", ISTEP)
+            # mydf.W[label] = W_tmp
+            h5d_eri[W_loc : W_loc + (p1 - p0), :] = W_tmp
+            W_tmp = None
+            W_loc += p1 - p0
+            ISTEP += 1
+            # log.debug(
+            #     "gen W [%4d|[%4d:%4d] with naux_tmp = %4d", ISTEP, p0, p1, naux_tmp
+            # )
+            time1 = log.timer("gen W [%4d|[%4d:%4d]" % (ISTEP, p0, p1), *time1)
+
+        mydf.W.flush()
+    mydf.W.flush()
+
+    filename = mydf.W.filename
+    mydf.W.close()
+    mydf.W = filename
+
+    t2 = (lib.logger.process_clock(), lib.logger.perf_counter())
+
+    misc._benchmark_time(t1, t2, "build_V_W_local", mydf, rank)
+
+    if use_mpi:
+        comm.barrier()
+
+    buffer.free(count=2)
 
     return mydf.V, mydf.W
 
@@ -634,6 +755,9 @@ class ISDF_Local_K(ISDF_Local):
         self.coul_G = tools.get_coulG(self.cell, mesh=self.mesh)
         if not self.direct:
             self.V, self.W = build_V_W_local_k(self, self.use_mpi)
+        else:
+            if self.outcore:
+                self.V, self.W = build_V_W_local_k_outcore(self, self.use_mpi)
 
     def rebuild(self, direct=True, with_robust_fitting=True):
         self.direct = direct
