@@ -21,6 +21,7 @@
 import copy, sys
 import ctypes
 import numpy as np
+import h5py
 from functools import partial
 
 ############ pyscf module ############
@@ -47,6 +48,7 @@ MAX = BACKEND._maximum
 ABS = BACKEND._absolute
 DOT = BACKEND._dot
 CLEAN = BACKEND._clean
+MALLOC = BACKEND._malloc
 TAKE = BACKEND._take
 CWISE_MUL = BACKEND._cwise_mul
 
@@ -317,20 +319,20 @@ def _get_k_dm_local(mydf, dm, direct=None, with_robust_fitting=None, use_mpi=Fal
 
     buffer = mydf.buffer_cpu  ## only valid for CPU now ##
     buffer.free_all()
-    buffer_fft = mydf.buffer_fft
+    # buffer_fft = mydf.buffer_fft
 
     # info used in direct mode #
 
     if direct:
-        group_gridID = mydf.partition_group_2_gridID
-        grid_ordering = mydf.gridID_ordering
+        # group_gridID = mydf.partition_group_2_gridID
+        # grid_ordering = mydf.gridID_ordering
         mesh = mydf.mesh
         coul_G = mydf.coul_G
         coul_G = ToTENSOR(coul_G, cpu=True).reshape(*mesh)
         coul_G = ToTENSOR(ToNUMPY(coul_G[:, :, : mesh[2] // 2 + 1].reshape(-1)).copy())
     else:
-        group_gridID = None
-        grid_ordering = None
+        # group_gridID = None
+        # grid_ordering = None
         mesh = None
         coul_G = None
 
@@ -495,6 +497,193 @@ def _get_k_dm_local(mydf, dm, direct=None, with_robust_fitting=None, use_mpi=Fal
     return K * mydf.ngrids / mydf.cell.vol
 
 
+def _get_k_dm_local_outcore(
+    mydf, dm, direct=None, with_robust_fitting=None, use_mpi=False
+):
+    ####### preprocess #######
+
+    if use_mpi:
+        from pyscf.isdf.isdf_tools_mpi import rank, comm, comm_size, bcast
+        from pyscf.isdf.isdf_tools_mpi import reduce2 as mpi_reduce
+    else:
+        comm_size = 1
+
+    assert isinstance(mydf.aoRg, list)
+    if mydf.aoR is not None:
+        assert isinstance(mydf.aoR, list)
+
+    if len(dm.shape) == 3:
+        assert dm.shape[0] <= 4  # at most 4!
+    else:
+        assert len(dm.shape) == 2
+        dm = dm.reshape(1, *dm.shape)
+
+    nset, nao = dm.shape[:2]
+
+    if with_robust_fitting is None:
+        with_robust_fitting = mydf.with_robust_fitting
+    if direct is None:
+        direct = mydf.direct
+    assert not with_robust_fitting
+    assert direct
+
+    ####### buffer #######
+
+    buffer = mydf.buffer_cpu  ## only valid for CPU now ##
+    buffer.free_all()
+
+    # info used in direct mode #
+
+    if direct:
+        mesh = mydf.mesh
+        coul_G = mydf.coul_G
+        coul_G = ToTENSOR(coul_G, cpu=True).reshape(*mesh)
+        coul_G = ToTENSOR(ToNUMPY(coul_G[:, :, : mesh[2] // 2 + 1].reshape(-1)).copy())
+    else:
+        mesh = None
+        coul_G = None
+
+    # funcs #
+
+    # (1) split the tasks #
+
+    group = mydf.group
+    group_begin, group_end = _range_partition(len(group), mydf.rank, comm_size, use_mpi)
+
+    # (2) build K #
+
+    K = ZEROS((nset, nao, nao), dtype=FLOAT64)
+    if with_robust_fitting:
+        K_V = ZEROS((nset, nao, nao), dtype=FLOAT64)
+    else:
+        K_V = None
+
+    bunchsize = mydf._build_V_K_bunchsize
+
+    W_file_handle = h5py.File(mydf.W, "r")
+
+    IP_begin_id = 0
+    # ISTEP = 0
+    for group_id in range(group_begin, group_end):
+
+        # buf for load W #
+
+        buf1 = buffer.malloc((bunchsize, mydf.naux), dtype=FLOAT64, name="buf1")
+        buf2 = buffer.malloc((bunchsize, mydf.naux), dtype=FLOAT64, name="buf2")
+
+        # pack aoRg #
+
+        aoRg_unpacked = [mydf.aoRg[atm_id] for atm_id in group[group_id]]
+        nIP_involved = sum(
+            [aoRg.aoR.shape[1] for aoRg in aoRg_unpacked if aoRg is not None]
+        )
+        assert nIP_involved == mydf.IP_segment[group_id + 1] - mydf.IP_segment[group_id]
+        # IP_begin_id = mydf.IP_segment[group_id]
+
+        packed_buf_aoRg = buffer.malloc(
+            (mydf.nao, nIP_involved), dtype=FLOAT64, name="packed_buf_aoRg"
+        )
+        CLEAN(packed_buf_aoRg)
+        aoRg_packed = _pack_aoR_holder(aoRg_unpacked, mydf.nao, out_buf=packed_buf_aoRg)
+
+        ## pack dm ##
+
+        ao_involved = aoRg_packed.ao_involved
+        nao_involved = ao_involved.shape[0]
+
+        if nao_involved == mydf.nao:
+            dm_packed = dm
+        else:
+            dm_packed = buffer.malloc(
+                (nset, nao_involved, mydf.nao), dtype=FLOAT64, name="dm_packed"
+            )
+            for i in range(nset):
+                TAKE(dm[i], ao_involved, 0, out=dm_packed[i])
+
+        def load(bunch_range):
+            nonlocal buf1, buf2
+            istep, (p0, p1) = bunch_range
+            buf2, buf1 = buf1, buf2
+            W_tmp = MALLOC((p1 - p0, mydf.naux), dtype=FLOAT64, buf=buf1, offset=0)
+
+            W_file_handle["W"].read_direct(
+                ToNUMPY(W_tmp),
+                dest_sel=np.s_[:, :],
+                source_sel=np.s_[p0 + IP_begin_id : p1 + IP_begin_id],
+            )
+            return W_tmp
+
+        bunch_range = list(enumerate(lib.prange(0, nIP_involved, bunchsize)))
+
+        # for p0, p1 in lib.prange(0, nIP_involved, bunchsize):
+        for istep, W_tmp in enumerate(lib.map_with_prefetch(load, bunch_range)):
+            p0, p1 = bunch_range[istep][1]
+            for i in range(nset):
+                ## build dm_RgRg ##
+                ## (1) build dm_RgAO ##
+                dm_RgAO = buffer.malloc((p1 - p0, nao), dtype=FLOAT64, name="dm_RgAO")
+                DOT(aoRg_packed.aoR[:, p0:p1].T, dm_packed[i], c=dm_RgAO)
+                ## (2) contract with aoRg ##
+                dm_RgRg = buffer.malloc(
+                    (p1 - p0, mydf.naux), dtype=FLOAT64, name="dm_RgRg"
+                )
+                dm_RgRg = _get_dm_RgR(
+                    dm_RgRg,
+                    dm_RgAO,
+                    mydf.aoRg,
+                    buffer,
+                )
+                # cwise dot #
+                CWISE_MUL(W_tmp, dm_RgRg, out=dm_RgRg)
+                # contract with aoRg ket #
+                half_K = buffer.malloc((p1 - p0, nao), dtype=FLOAT64, name="half_K")
+                half_K = _get_half_K(
+                    half_K,
+                    dm_RgRg,
+                    mydf.aoRg,
+                    buffer,
+                )
+                # final contraction #
+                if nao_involved == mydf.nao:
+                    DOT(aoRg_packed.aoR[:, p0:p1], half_K, c=K[i], beta=1)
+                else:
+                    tmp_ddot_res = buffer.malloc(
+                        (nao_involved, nao), dtype=FLOAT64, name="tmp_ddot_res"
+                    )
+                    DOT(aoRg_packed.aoR[:, p0:p1], half_K, c=tmp_ddot_res)
+                    INDEX_ADD(K[i], 0, ao_involved, tmp_ddot_res)
+                    buffer.free(count=1)
+                buffer.free(count=3)
+        buffer.free_all()
+        IP_begin_id += nIP_involved
+
+    if use_mpi:
+        K = mpi_reduce(K, root=0)
+        if with_robust_fitting:
+            K_V = mpi_reduce(K_V, root=0)
+        if rank == 0:
+            for i in range(nset):
+                K[i] = (K[i] + K[i].T) / 2.0
+            if with_robust_fitting:
+                for i in range(nset):
+                    K_V[i] = K_V[i] + K_V[i].T
+                K = K_V - K
+        comm.barrier()
+        K = bcast(K, root=0)
+        K = ToTENSOR(K)
+    else:
+        for i in range(nset):
+            K[i] = (K[i] + K[i].T) / 2.0  # make it symmetric
+        if with_robust_fitting:
+            for i in range(nset):
+                K_V[i] = K_V[i] + K_V[i].T
+            K = K_V - K
+
+    W_file_handle.close()
+
+    return K * mydf.ngrids / mydf.cell.vol
+
+
 #### driver ####
 
 
@@ -577,7 +766,10 @@ def get_jk_dm_local(
         for iset in range(nset):
             vj[iset] = ToNUMPY(_get_j_dm_local(mydf, dm[iset], use_mpi=use_mpi))
     if with_k:
-        vk = ToNUMPY(_get_k_dm_local(mydf, dm, use_mpi=use_mpi))
+        if not mydf.outcore:
+            vk = ToNUMPY(_get_k_dm_local(mydf, dm, use_mpi=use_mpi))
+        else:
+            vk = ToNUMPY(_get_k_dm_local_outcore(mydf, dm, use_mpi=use_mpi))
         # vk = np.zeros_like(vj)
 
     dm = ToNUMPY(dm)

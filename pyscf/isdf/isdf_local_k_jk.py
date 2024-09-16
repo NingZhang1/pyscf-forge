@@ -382,21 +382,21 @@ def _get_k_dm_k_local(mydf, dm, direct=None, with_robust_fitting=None, use_mpi=F
 
     buffer = mydf.buffer_cpu  ## only valid for CPU now ##
     buffer.free_all()
-    buffer_fft = mydf.buffer_fft
+    # buffer_fft = mydf.buffer_fft
     # buffer.clean()
 
     # info used in direct mode #
 
     if direct:
-        group_gridID = mydf.partition_group_2_gridID
-        grid_ordering = mydf.gridID_ordering
+        # group_gridID = mydf.partition_group_2_gridID
+        # grid_ordering = mydf.gridID_ordering
         mesh = mydf.mesh
         coul_G = mydf.coul_G
         coul_G = ToTENSOR(coul_G, cpu=True).reshape(*mesh)
         coul_G = ToTENSOR(ToNUMPY(coul_G[:, :, : mesh[2] // 2 + 1].reshape(-1)).copy())
     else:
-        group_gridID = None
-        grid_ordering = None
+        # group_gridID = None
+        # grid_ordering = None
         mesh = None
         coul_G = None
 
@@ -606,7 +606,7 @@ def get_jk_dm_k_local(
 
     from pyscf.pbc.df.aft import _check_kpts
 
-    if kpts.ndim == 2 and kpts.shape[0] == 1: # a single kpts!
+    if kpts.ndim == 2 and kpts.shape[0] == 1:  # a single kpts!
         kpts = kpts.reshape(-1)
     kpts, is_single_kpt = _check_kpts(self, kpts)
 

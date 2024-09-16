@@ -15,7 +15,7 @@ import numpy as np
 from pyscf import lib
 
 from pyscf.lib.parameters import BOHR
-from pyscf.pbc import df, dft
+from pyscf.pbc import df
 
 # isdf util #
 
@@ -23,7 +23,6 @@ from pyscf.isdf.isdf_tools_Tsym import _kmesh_to_Kpoints, _1e_operator_gamma2k
 from pyscf.isdf import isdf_tools_cell
 from pyscf.isdf.isdf import ISDF
 from pyscf.isdf.isdf_local import ISDF_Local
-from pyscf.isdf.isdf_local_k import ISDF_Local_K
 
 #############################
 
@@ -50,9 +49,10 @@ kmeshes = [
     [1, 1, 4],
     [1, 2, 2],
     [2, 2, 2],
+    [2, 2, 3],
+    [2, 3, 3],
     [3, 3, 3],
-    [4, 4, 4],
-]
+]  # -44.20339674 and -88.67568935
 VERBOSE = 10
 
 prim_cell = isdf_tools_cell.build_supercell(
@@ -69,35 +69,40 @@ prim_group = [[0, 1], [2, 3], [4, 5], [6, 7]]
 
 prim_mesh = prim_cell.mesh
 
-for kmesh in kmeshes:
+for kmesh in kmeshes[:1]:
 
     mesh = [int(k * x) for k, x in zip(kmesh, prim_mesh)]
     print("kmesh:", kmesh, "mesh:", mesh)
-    kpts = prim_cell.make_kpts(kmesh)
-    print(kpts)
-    prim_cell.max_memory = 200
 
-    isdf = ISDF_Local_K(
-        prim_cell,
-        kmesh=kmesh,
-        direct=True,
+    kpts = prim_cell.make_kpts(kmesh)
+
+    cell, group = isdf_tools_cell.build_supercell_with_partition(
+        atm,
+        prim_a,
+        Ls=kmesh,
+        ke_cutoff=ke_cutoff,
+        partition=prim_group,
+        mesh=mesh,
+        basis=basis,
+        pseudo="gth-pade",
+        verbose=VERBOSE,
+    )
+    cell.max_memory = 200
+    print("group:", group)
+
+    isdf = ISDF_Local(
+        cell,
         with_robust_fitting=False,
         limited_memory=True,
-        build_V_K_bunchsize=128,
-        aoR_cutoff=1e-10,  # NOTE: for k points it seems that we need a much smaller aoR_cutoff
+        build_V_K_bunchsize=56,
+        direct="outcore",
     )
-    isdf.build(c=30, m=5, rela_cutoff=1e-4, group=prim_group)
+    isdf.build(c=40, m=5, rela_cutoff=1e-4, group=group)
 
-    from pyscf.pbc.scf import KRHF, KUHF
+    from pyscf.pbc import scf
 
-    # mf = KUHF(prim_cell, kpts=kpts)
-    mf = dft.KUKS(prim_cell, kpts)
-    mf.xc = "pbe0"
-    mf.grids.level = 5
-    mf.exxdiv = None
-    mf.init_guess_breaksym = False
+    mf = scf.RHF(cell)
     mf.with_df = isdf
-    mf.max_cycle = 100
-    mf.conv_tol = 1e-8
-    mf.conv_tol_grad = 1e-3
     mf.kernel()
+
+    isdf = None

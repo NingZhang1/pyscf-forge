@@ -21,7 +21,10 @@
 import copy
 import numpy as np
 import scipy, numpy
-import ctypes, sys
+import h5py
+import ctypes, sys, os
+import random
+import string
 
 ############ pyscf module ############
 
@@ -56,6 +59,7 @@ ABS = BACKEND._absolute
 DOT = BACKEND._dot
 TAKE = BACKEND._take
 CLEAN = BACKEND._clean
+MALLOC = BACKEND._malloc
 
 ############ isdf utils ############
 
@@ -73,6 +77,12 @@ from pyscf.isdf.isdf_tools_local import (
     _get_aoR_holders_memory,
 )
 import pyscf.isdf.isdf_local_jk as isdf_local_jk
+
+
+def generate_string():
+    chars = string.ascii_letters + string.digits
+    return "tmp_" + "".join(random.choice(chars) for _ in range(12 - len("tmp_")))
+
 
 ############ subroutines --- select IP ############
 
@@ -571,7 +581,7 @@ def build_V_W_local(mydf, use_mpi=False):
     naux_involved = mydf.IP_segment[group_end_id] - mydf.IP_segment[group_begin_id]
     naux_tot = mydf.naux  ## NOTE: the meaning of mydf.naux
     ngrids = mydf.ngrids
-    bucnhsize = mydf._build_V_K_bunchsize
+    bunchsize = mydf._build_V_K_bunchsize
 
     mydf.W = ZEROS((naux_involved, naux_tot), dtype=FLOAT64, cpu=True)
     if mydf.with_robust_fitting:
@@ -603,7 +613,7 @@ def build_V_W_local(mydf, use_mpi=False):
     for group_id in range(group_begin_id, group_end_id):
         naux_tmp = mydf.IP_segment[group_id + 1] - mydf.IP_segment[group_id]
 
-        for p0, p1 in lib.prange(0, naux_tmp, bucnhsize):
+        for p0, p1 in lib.prange(0, naux_tmp, bunchsize):
             V_tmp = _build_V_local_bas_kernel(
                 mydf.aux_basis,
                 group_id,
@@ -640,6 +650,138 @@ def build_V_W_local(mydf, use_mpi=False):
     return mydf.V, mydf.W
 
 
+def _create_h5file(W_file, dataname):
+    assert isinstance(W_file, str)
+
+    if h5py.is_hdf5(W_file):
+        feri = lib.H5FileWrap(W_file, "a")
+        if dataname in feri:
+            del feri[dataname]
+    else:
+        feri = lib.H5FileWrap(W_file, "w")
+    return feri
+
+
+def build_V_W_local_outcore(mydf, use_mpi=False):
+    assert not (mydf.direct is False)
+
+    if use_mpi:
+        from pyscf.isdf.isdf_tools_mpi import rank, comm, comm_size
+    else:
+        rank = 0
+        # comm_size = 1
+
+    misc._debug4(
+        mydf, rank, " ---------- In pyscf.isdf.isdf_local.build_V_W_local ----------"
+    )
+
+    t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
+
+    # buffer #
+
+    buffer = mydf.buffer_cpu
+    buffer_fft = mydf.buffer_fft
+
+    # task info #
+
+    group_begin_id, group_end_id = mydf.group_begin, mydf.group_end
+    naux_involved = mydf.IP_segment[group_end_id] - mydf.IP_segment[group_begin_id]
+    naux_tot = mydf.naux  ## NOTE: the meaning of mydf.naux
+    # ngrids = mydf.ngrids
+    bunchsize = mydf._build_V_K_bunchsize
+
+    mydf.W = _create_h5file(generate_string() + "_%d" % (rank), "W")
+    h5d_eri = mydf.W.create_dataset("W", (naux_involved, naux_tot), "f8")
+    if mydf.with_robust_fitting:
+        raise NotImplementedError("outcore mode does not support robust fitting!")
+    else:
+        mydf.V = None
+
+    ## print memory info ##
+
+    # memory_V = mydf.V.nbytes if mydf.V is not None else 0
+    # memory_W = mydf.W.nbytes
+    # misc._info(mydf, rank, "Memory usage for V: %10.3f MB", memory_V / 1024 / 1024)
+    # misc._info(mydf, rank, "Memory usage for W: %10.3f MB", memory_W / 1024 / 1024)
+
+    ## do the work ##
+
+    from pyscf.isdf._isdf_local_K_kernel import (
+        _build_V_local_bas_kernel,
+        _build_W_local_bas_kernel,
+    )
+
+    # coul_G = tools.get_coulG(mydf.cell, mesh=mydf.mesh)
+    coul_G = mydf.coul_G
+    coul_G = ToTENSOR(coul_G, cpu=True).reshape(*mydf.mesh)
+    coul_G = ToTENSOR(ToNUMPY(coul_G[:, :, : mydf.mesh[2] // 2 + 1].reshape(-1)).copy())
+
+    buf1 = buffer.malloc((bunchsize, naux_tot), dtype=FLOAT64, name="buf1")
+    buf2 = buffer.malloc((bunchsize, naux_tot), dtype=FLOAT64, name="buf2")
+
+    log = logger.Logger(mydf.stdout, mydf.verbose)
+    time1 = (logger.process_clock(), logger.perf_counter())
+
+    W_loc = 0
+    ISTEP = 0
+    for group_id in range(group_begin_id, group_end_id):
+        naux_tmp = mydf.IP_segment[group_id + 1] - mydf.IP_segment[group_id]
+
+        def process(bunch_range):
+            nonlocal buf1, buf2
+            buf2, buf1 = buf1, buf2
+            istep, (p0, p1) = bunch_range
+            W_tmp = MALLOC((p1 - p0, naux_tot), dtype=FLOAT64, buf=buf1, offset=0)
+            V_tmp = _build_V_local_bas_kernel(
+                mydf.aux_basis,
+                group_id,
+                p0,
+                p1,
+                buffer,
+                buffer_fft,
+                mydf.partition_group_2_gridID,
+                mydf.gridID_ordering,
+                mydf.mesh,
+                coul_G,
+            )
+            _build_W_local_bas_kernel(V_tmp, mydf.aux_basis, W_tmp)
+            buffer.free(count=1)
+            return W_tmp
+
+        bunch_range = list(enumerate(lib.prange(0, naux_tmp, bunchsize)))
+
+        for istep, W_tmp in enumerate(lib.map_with_prefetch(process, bunch_range)):
+            p0, p1 = bunch_range[istep][1]
+            # label = "%s/%d" % ("W", ISTEP)
+            # mydf.W[label] = W_tmp
+            h5d_eri[W_loc : W_loc + (p1 - p0), :] = W_tmp
+            W_tmp = None
+            W_loc += p1 - p0
+            ISTEP += 1
+            # log.debug(
+            #     "gen W [%4d|[%4d:%4d] with naux_tmp = %4d", ISTEP, p0, p1, naux_tmp
+            # )
+            time1 = log.timer("gen W [%4d|[%4d:%4d]" % (ISTEP, p0, p1), *time1)
+
+        mydf.W.flush()
+    mydf.W.flush()
+
+    filename = mydf.W.filename
+    mydf.W.close()
+    mydf.W = filename
+
+    t2 = (lib.logger.process_clock(), lib.logger.perf_counter())
+
+    misc._benchmark_time(t1, t2, "build_V_W_local", mydf, rank)
+
+    if use_mpi:
+        comm.barrier()
+
+    buffer.free(count=2)
+
+    return mydf.V, mydf.W
+
+
 class ISDF_Local(isdf.ISDF):
     """Interpolative separable density fitting (ISDF) for periodic systems.
     The locality is explored!
@@ -658,7 +800,7 @@ class ISDF_Local(isdf.ISDF):
         kmesh=None,
         kpts=None,
         aoR_cutoff=1e-8,
-        direct=False,
+        direct=False,  # should be one of [True, False, "outcore"]
         limited_memory=False,
         build_V_K_bunchsize=None,
         verbose=None,
@@ -675,6 +817,13 @@ class ISDF_Local(isdf.ISDF):
 
         self.aoR_cutoff = aoR_cutoff
         self.direct = direct
+        if direct not in [True, False]:
+            assert isinstance(direct, str)
+            assert direct.lower() == "outcore"
+            self.direct = True
+            self.outcore = True
+        else:
+            self.outcore = False
 
         if not self.with_robust_fitting:
             if self.direct:
@@ -714,6 +863,14 @@ class ISDF_Local(isdf.ISDF):
             from pyscf.isdf._isdf_local_K_kernel import K_DIRECT_NAUX_BUNCHSIZE
 
             self._build_V_K_bunchsize = K_DIRECT_NAUX_BUNCHSIZE
+
+    def __del__(self):
+        if hasattr(self, "W"):
+            # del self.W
+            if isinstance(self.W, str):
+                import os
+
+                os.remove(self.W)  # known issue: cannot delete this file
 
     ### build ###
 
@@ -871,6 +1028,10 @@ class ISDF_Local(isdf.ISDF):
         self._build_V_K_bunchsize = min(max_naux_group, self._build_V_K_bunchsize)
         if self.direct:
             size4 = 0
+            if self.outcore:
+                size4 = self._build_V_K_bunchsize * (
+                    np.prod(self.mesh) + self.naux_max(c, m)
+                )
         else:
             _size_4_1 = self._build_V_K_bunchsize * np.prod(self.mesh)
             size4 = _size_4_1
@@ -892,6 +1053,8 @@ class ISDF_Local(isdf.ISDF):
         if self.direct:
             size6 += self._build_V_K_bunchsize * self.ngrids
             size6 += self._build_V_K_bunchsize * self.naux_max(c, m)
+            if self.outcore:
+                size6 += self._build_V_K_bunchsize * self.naux_max(c, m) * 2
         size6 += self._build_V_K_bunchsize * self.nao
         if self.with_robust_fitting:
             size6 += self._build_V_K_bunchsize * self.ngrids
@@ -1049,6 +1212,9 @@ class ISDF_Local(isdf.ISDF):
         self.coul_G = tools.get_coulG(self.cell, mesh=self.mesh)
         if not self.direct:
             self.V, self.W = build_V_W_local(self, self.use_mpi)
+        else:
+            if self.outcore:
+                self.V, self.W = build_V_W_local_outcore(self, self.use_mpi)
 
     def rebuild(self, direct=True, with_robust_fitting=True):
         self.direct = direct
