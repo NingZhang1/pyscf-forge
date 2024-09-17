@@ -657,7 +657,7 @@ def _get_k_dm_k_local_outcore(
 
     IP_begin_id = 0
     for group_id in range(group_begin, group_end):
-        
+
         # buf for load W #
 
         buf1 = buffer.malloc((bunchsize, mydf.naux), dtype=FLOAT64, name="buf1")

@@ -1353,6 +1353,13 @@ class ISDF_Local(isdf.ISDF):
             res = ToNUMPY(symmetrize_mat(ToTENSOR(res), self._T_mesh))
         return res
 
+    def aoRg_full(self):
+        group_begin, group_end = 0, len(self.group)
+        aoRg_to_pack = []
+        for i in range(group_begin, group_end):
+            aoRg_to_pack.extend([self.aoRg[atm_id] for atm_id in self.group[i]])
+        return _pack_aoR_holder(aoRg_to_pack, self.nao)
+
     ########## other funcs ##########
 
     get_jk = isdf_local_jk.get_jk_dm_local

@@ -731,6 +731,9 @@ class ISDF(df.fft.FFTDF):
 
             return self.PP
 
+    def aoRg_full(self):
+        return self.aoRg
+
     ##### functions defined in isdf_ao2mo.py #####
 
     ##### functions defined in isdf_jk.py #####

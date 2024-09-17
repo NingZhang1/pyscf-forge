@@ -52,7 +52,6 @@ EINSUM_IK_JK_IJK = BACKEND._einsum_ik_jk_ijk
 CLEAN = BACKEND._clean
 INDEX_COPY = BACKEND._index_copy
 INDEX_ADD = BACKEND._index_add
-TAKE = BACKEND._take
 
 ############ ISDF utils ############
 
