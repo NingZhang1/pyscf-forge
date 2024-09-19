@@ -18,6 +18,7 @@
 
 ############ sys module ############
 
+import tempfile
 import copy
 import numpy as np
 import scipy, numpy
@@ -651,7 +652,10 @@ def build_V_W_local(mydf, use_mpi=False):
 
 
 def _create_h5file(W_file, dataname):
-    assert isinstance(W_file, str)
+    #assert isinstance(W_file, str)
+    if isinstance(getattr(W_file, 'name', None), str):
+        # The TemporaryFile and H5Tmpfile
+        W_file = W_file.name
 
     if h5py.is_hdf5(W_file):
         feri = lib.H5FileWrap(W_file, "a")
@@ -690,7 +694,10 @@ def build_V_W_local_outcore(mydf, use_mpi=False):
     # ngrids = mydf.ngrids
     bunchsize = mydf._build_V_K_bunchsize
 
-    mydf.W = _create_h5file(generate_string() + "_%d" % (rank), "W")
+    tmpdir = lib.param.TMPDIR
+    swapfile = tempfile.NamedTemporaryFile(dir=tmpdir)
+    mydf._swapfile = swapfile # one must create sth to hold swapfile, so that it will not be wrongly deleted
+    mydf.W = _create_h5file(swapfile, "W")
     h5d_eri = mydf.W.create_dataset("W", (naux_involved, naux_tot), "f8")
     if mydf.with_robust_fitting:
         raise NotImplementedError("outcore mode does not support robust fitting!")
@@ -864,13 +871,12 @@ class ISDF_Local(isdf.ISDF):
 
             self._build_V_K_bunchsize = K_DIRECT_NAUX_BUNCHSIZE
 
-    def __del__(self):
-        if hasattr(self, "W"):
-            # del self.W
-            if isinstance(self.W, str):
-                import os
-
-                os.remove(self.W)  # known issue: cannot delete this file
+    # def __del__(self):
+    #     if hasattr(self, "W"):
+    #         # del self.W
+    #         if isinstance(self.W, str):
+    #             import os
+    #             os.remove(self.W)  # known issue: cannot delete this file
 
     ### build ###
 

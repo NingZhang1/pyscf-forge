@@ -18,6 +18,7 @@
 
 ############ sys module ############
 
+import tempfile
 import copy
 import numpy as np
 import scipy, numpy
@@ -301,7 +302,10 @@ def build_V_W_local_k_outcore(mydf, use_mpi=False):
     # ngrids = mydf.ngrids
     bunchsize = mydf._build_V_K_bunchsize
 
-    mydf.W = _create_h5file(generate_string() + "_%d" % (rank), "W")
+    tmpdir = lib.param.TMPDIR
+    swapfile = tempfile.NamedTemporaryFile(dir=tmpdir)
+    mydf._swapfile = swapfile
+    mydf.W = _create_h5file(swapfile, "W")
     h5d_eri = mydf.W.create_dataset("W", (naux_involved, naux_tot), "f8")
     if mydf.with_robust_fitting:
         raise NotImplementedError("outcore mode does not support robust fitting!")
