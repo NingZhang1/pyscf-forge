@@ -81,8 +81,8 @@ def cholesky_eri(mydf, lindep=LINEAR_DEP_THR, verbose=0, fauxe2=aux_e2):
 
     j3c = j3c.reshape(-1, naux)
 
-    print(j2c.shape)
-    print(j2c.shape)
+    # print(j2c.shape)
+    # print(j2c.shape)
 
     try:
         low = scipy.linalg.cholesky(j2c, lower=True)

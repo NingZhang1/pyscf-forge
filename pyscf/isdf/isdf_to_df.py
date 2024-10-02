@@ -42,7 +42,7 @@ class DF_ISDF(DF):
         # self._aoRg = ToNUMPY(self._aoRg)
         # add a common factor #
         factor = (isdf_obj.ngrids / isdf_obj.cell.vol) ** 0.25
-        print("factor = ", factor)
+        # print("factor = ", factor)
         self._aoRg *= factor
         # print some warning #
         if hasattr(isdf_obj, "outcore") and isdf_obj.outcore:

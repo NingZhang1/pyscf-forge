@@ -106,3 +106,22 @@ for kmesh in kmeshes:
     assert eri0.shape == eri1.shape
     diff_max = MAX(ABS(eri0 - eri1))
     print("diff_max:", diff_max)
+
+    # test ao2mo #
+    
+    from pyscf.pbc import scf
+
+    mf = scf.RHF(cell)
+    mf.with_df = isdf
+    mf.kernel()
+
+    mo_coeff = mf.mo_coeff
+    
+    moint0 = mf.with_df.ao2mo(mo_coeff)
+    moint1 = df.ao2mo(mo_coeff)
+    moint0 = ToTENSOR(moint0)
+    moint1 = ToTENSOR(moint1)
+    print(moint0.__class__)
+    print(moint1.__class__)
+    diff = MAX(ABS(moint0 - moint1))
+    print("diff:", diff)
