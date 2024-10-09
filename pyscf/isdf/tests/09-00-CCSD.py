@@ -96,16 +96,15 @@ for kmesh in kmeshes:
     df.build()
 
     # test ao2mo #
-    
+
     from pyscf.pbc import scf
 
     mf = scf.RHF(cell)
     mf.with_df = df
     mf.kernel()
-    
+
     from pyscf.cc.dfccsd import RCCSD
-    
+
     # mf.with_df = df
     mycc = RCCSD(mf, mo_coeff=mf.mo_coeff, mo_occ=mf.mo_occ)
     mycc.kernel()
-

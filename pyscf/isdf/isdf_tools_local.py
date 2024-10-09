@@ -775,7 +775,7 @@ def get_aoR(
         if len(bas_id) == 0:
             aoR_holder[atm_id] = None
             continue
-
+        
         subcell = _build_submol(cell, atm_involved)
         aoR = ISDF_eval_gto(subcell, coords=coords[grid_ID]) * weight
 

@@ -108,7 +108,7 @@ for kmesh in kmeshes:
     print("diff_max:", diff_max)
 
     # test ao2mo #
-    
+
     from pyscf.pbc import scf
 
     mf = scf.RHF(cell)
@@ -116,7 +116,7 @@ for kmesh in kmeshes:
     mf.kernel()
 
     mo_coeff = mf.mo_coeff
-    
+
     moint0 = mf.with_df.ao2mo(mo_coeff)
     moint1 = df.ao2mo(mo_coeff)
     moint0 = ToTENSOR(moint0)
