@@ -98,11 +98,12 @@ def _contract_vvvv_t2(
         )
 
     W = myisdf.W
-    nvir = vir_moRg.shape[0]
+    nocc = t2.shape[0]
+    nvir = t2.shape[2]
     naux = W.shape[0]
 
     if out is None:
-        Ht2 = ZEROS((nvir, nvir, nvir, nvir), dtype=FLOAT64)
+        Ht2 = ZEROS((nocc, nocc, nvir, nvir), dtype=FLOAT64)
     else:
         Ht2 = ToTENSOR(out)
 
@@ -110,6 +111,7 @@ def _contract_vvvv_t2(
 
     Ht2 = Ht2.reshape(-1, nvir, nvir)
     t2 = t2.reshape(-1, nvir, nvir)
+    t2 = ToTENSOR(t2)
 
     # loop over ij #
 
@@ -129,7 +131,9 @@ def _contract_vvvv_t2(
 
     misc._benchmark_time(time1, time2, "_contract_vvvv_t2", myisdf, myisdf.rank)
 
-    return Ht2.reshape(nvir, nvir, nvir, nvir)
+    return (
+        ToNUMPY(Ht2.reshape(nocc, nocc, nvir, nvir)) * myisdf.ngrids / myisdf.cell.vol
+    )
 
 
 class _ISDFChemistsERIs(_ChemistsERIs):
@@ -156,6 +160,8 @@ def _isdf_ao2mo(
     assert moeri_type in ["oooo", "ovoo", "ovov", "ovvo", "oovv", "ovvv"]
 
     EINSUM_IK_JK_IJK = BACKEND._einsum_ik_jk_ijk
+
+    from pyscf.isdf.isdf_tools_local import _pack_aoR_holder
 
     # buffer #
 
@@ -205,6 +211,11 @@ def _isdf_ao2mo(
     size_rs = size_r * size_s
     if moeri_type == "ovvv":
         size_rs = nvir * (nvir + 1) // 2
+    if out is None:
+        if moeri_type == "ovvv":
+            out = ZEROS((size_p, size_q, size_rs), dtype=FLOAT64)
+        else:
+            out = ZEROS((size_p, size_q, size_r, size_s), dtype=FLOAT64)
     for p0, p1 in lib.prange(0, myisdf.naux, GRID_BUNCHIZE):
         # construct W * ket #
         moPairRgWKet = buffer.malloc((size_rs, p1 - p0), name="moPairRgWKet")
@@ -226,18 +237,44 @@ def _isdf_ao2mo(
         # construct bra * W * ket #
         for pp0, pp1 in lib.prange(0, size_p, LOOP_SIZE):
             moPairRgBra = buffer.malloc(
-                (pp1 - pp0, size_q, p0 - p1), name="moPairRgBra"
+                (pp1 - pp0, size_q, p1 - p0), name="moPairRgBra"
             )
             EINSUM_IK_JK_IJK(moRg_p[pp0:pp1, p0:p1], moRg_q[:, p0:p1], out=moPairRgBra)
             moPairRgBra = moPairRgBra.reshape(((pp1 - pp0) * size_q, p1 - p0))
             out_buffer = buffer.malloc((pp1 - pp0, size_q, size_rs), name="out_buffer")
             DOT(moPairRgBra, moPairRgWKet.T, c=out_buffer)
-            if moeri_type == "ovvv":
-                out[pp0:pp1] += out_buffer.reshape((pp1 - pp0, size_q, size_rs))
-            else:
-                out[pp0:pp1] += out_buffer.reshape((pp1 - pp0, size_q, size_r, size_s))
+            try:
+                if moeri_type == "ovvv":
+                    out[pp0:pp1] += (
+                        out_buffer.reshape((pp1 - pp0, size_q, size_rs))
+                        * myisdf.ngrids
+                        / myisdf.cell.vol
+                    )
+                else:
+                    out[pp0:pp1] += (
+                        out_buffer.reshape((pp1 - pp0, size_q, size_r, size_s))
+                        * myisdf.ngrids
+                        / myisdf.cell.vol
+                    )
+            except TypeError:
+                if moeri_type == "ovvv":
+                    out[pp0:pp1] += (
+                        ToNUMPY(out_buffer).reshape((pp1 - pp0, size_q, size_rs))
+                        * myisdf.ngrids
+                        / myisdf.cell.vol
+                    )
+                else:
+                    out[pp0:pp1] += (
+                        ToNUMPY(out_buffer).reshape((pp1 - pp0, size_q, size_r, size_s))
+                        * myisdf.ngrids
+                        / myisdf.cell.vol
+                    )
             buffer.free(count=2)
         buffer.free(count=1)
+
+    return out
+
+    # return ToNUMPY(out) * myisdf.ngrids / myisdf.cell.vol
 
 
 class MODIFIED_ISDFCCSD(dfccsd.RCCSD):
@@ -266,8 +303,12 @@ def _make_isdf_eris(cc, myisdf: ISDF_Local, mo_coeff=None):
     nmo = mo_coeff2.shape[1]
     nvir = nmo - nocc
 
+    from pyscf.isdf.isdf_tools_local import _pack_aoR_holder
+
     occ_moRg = _get_moR(myisdf.aoRg, mo_coeff2[:, :nocc])
+    occ_moRg = _pack_aoR_holder(occ_moRg, nocc).aoR
     vir_moRg = _get_moR(myisdf.aoRg, mo_coeff2[:, nocc:])
+    vir_moRg = _pack_aoR_holder(vir_moRg, nvir).aoR
 
     ## the original init ##
 
@@ -320,7 +361,8 @@ def _make_isdf_eris(cc, myisdf: ISDF_Local, mo_coeff=None):
     _isdf_ao2mo(myisdf, "oooo", occ_moRg, vir_moRg, eris.oooo, AOPAIR_BLKSIZE)
     _isdf_ao2mo(myisdf, "ovoo", occ_moRg, vir_moRg, eris.ovoo, AOPAIR_BLKSIZE)
     _isdf_ao2mo(myisdf, "ovov", occ_moRg, vir_moRg, eris.ovov, AOPAIR_BLKSIZE)
-    eris.ovvo[:] = eris.ovov.transpose(0, 1, 3, 2)
+    ovov = np.array(eris.ovov)
+    eris.ovvo[:] = ovov.transpose(0, 1, 3, 2)
     _isdf_ao2mo(myisdf, "oovv", occ_moRg, vir_moRg, eris.oovv, AOPAIR_BLKSIZE)
     _isdf_ao2mo(myisdf, "ovvv", occ_moRg, vir_moRg, eris.ovvv, AOPAIR_BLKSIZE)
 
@@ -356,6 +398,7 @@ def CCSD(mf, frozen=None, mo_coeff=None, mo_occ=None):
         nvir = np.count_nonzero(~maskocc & maskact)
         nvir_pair = nvir * (nvir + 1) // 2
         if isinstance(mf.with_df, ISDF_Local):
+            print("use ISDF as DF object")
             return MODIFIED_ISDFCCSD(mf, frozen, mo_coeff, mo_occ)
         if naux > nvir_pair:
             log.debug1("naux= %d > nvir_pair= %d -> using DFCCSD", naux, nvir_pair)
@@ -488,7 +531,9 @@ def impurity_solve(
 
     return frag_msg, (elcorr_pt2, elcorr_cc, elcorr_cc_t)
 
+
 from lno.cc.ccsd import LNOCCSD
+
 
 class LNOCCSD_ISDF(LNOCCSD):
     def impurity_solve(self, mf, mo_coeff, lo_coeff, eris=None, frozen=None, log=None):

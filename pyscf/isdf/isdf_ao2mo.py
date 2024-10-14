@@ -422,6 +422,8 @@ def general(
                 else:
                     return eri_ovov
             else:
-                raise NotImplementedError
+                raise NotImplementedError(
+                    "general with different mo_coeffs is not implemented yet"
+                )
     else:
         raise NotImplementedError("k-point dependent ISDF AO2MO is not implemented yet")

@@ -86,6 +86,7 @@ thresh = 0.0
 params = {"lo_type": "pm", "no_type": "cim", "frag_lolist": "1o"}
 mfcc = run1(mf, thresh, None, params=params)
 
+
 def run2(mf, thresh, frozen, params=None):
     mfcc = LNOCCSD_ISDF(mf, thresh=thresh, frozen=frozen)
     if isinstance(params, dict):
@@ -93,6 +94,8 @@ def run2(mf, thresh, frozen, params=None):
     mfcc.kernel()
     return mfcc
 
+
 thresh = 0.0
+mf.with_df = isdf
 params = {"lo_type": "pm", "no_type": "cim", "frag_lolist": "1o"}
 mfcc2 = run2(mf, thresh, None, params=params)

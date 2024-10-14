@@ -652,6 +652,103 @@ def get_eri(
         raise NotImplementedError("k-point dependent ISDF AO2MO is not implemented yet")
 
 
+############# the most general ao2mo, with only s1 symmetry #############
+
+
+def _general(
+    mydf,
+    mo_coeff=None,
+    with_robust_fitting=None,
+    AOPAIR_BLKSIZE=AOPAIR_BLKSIZE,
+    debug=False,
+):
+    assert mo_coeff is not None and len(mo_coeff) == 4
+
+    # log = logger.Logger(mydf.stdout, mydf.verbose)
+    # time1 = (logger.process_clock(), logger.perf_counter())
+
+    if with_robust_fitting is None:
+        with_robust_fitting = mydf.with_robust_fitting
+    if with_robust_fitting:
+        logger.warn(
+            mydf,
+            "Robust fitting used in _general, since only W matrix is used, larger error may be introduced!",
+        )
+
+    from pyscf.isdf.isdf_tools_local import _pack_aoR_holder
+
+    moRgP = _get_moR(mydf.aoRg, mo_coeff[0])
+    moRgP = _pack_aoR_holder(moRgP, mo_coeff[0].shape[1]).aoR
+    moRgQ = _get_moR(mydf.aoRg, mo_coeff[1])
+    moRgQ = _pack_aoR_holder(moRgQ, mo_coeff[1].shape[1]).aoR
+    moRgR = _get_moR(mydf.aoRg, mo_coeff[2])
+    moRgR = _pack_aoR_holder(moRgR, mo_coeff[2].shape[1]).aoR
+    moRgS = _get_moR(mydf.aoRg, mo_coeff[3])
+    moRgS = _pack_aoR_holder(moRgS, mo_coeff[3].shape[1]).aoR
+
+    sizeP = mo_coeff[0].shape[1]
+    sizeQ = mo_coeff[1].shape[1]
+    sizeR = mo_coeff[2].shape[1]
+    sizeS = mo_coeff[3].shape[1]
+
+    if debug:
+        moRgP = ToNUMPY(moRgP)
+        moRgQ = ToNUMPY(moRgQ)
+        moRgR = ToNUMPY(moRgR)
+        moRgS = ToNUMPY(moRgS)
+        out = numpy.einsum(
+            "pP,qP,rQ,sQ,PQ->pqrs", moRgP, moRgQ, moRgR, moRgS, mydf.W, optimize=True
+        )
+        return out * mydf.ngrids / mydf.cell.vol
+
+    # memory requires is size_rs * (GRID_BUNCHSIZE) + size_rs * 2 * (GRID_BUNCHSIZE)
+    # memory requires is size_qrs * (LOOP_SIZE) + GRID_BUNCHSIZE * sizeQ * (GRID_BUNCHSIZE)
+
+    GRID_BUNCHIZE = int(AOPAIR_BLKSIZE // (sizeR * sizeS + sizeP * sizeQ) // 5 * 8)
+    GRID_BUNCHIZE = min(GRID_BUNCHIZE, mydf.naux)
+    LOOP_SIZE = int(AOPAIR_BLKSIZE // (sizeQ * sizeR * sizeS))
+    LOOP_SIZE = min(LOOP_SIZE, sizeP)
+
+    size_max = sizeR * sizeS * GRID_BUNCHIZE + sizeR * sizeS * 2 * GRID_BUNCHIZE
+    size_max2 = (
+        sizeR * sizeS * GRID_BUNCHIZE
+        + LOOP_SIZE * sizeQ * GRID_BUNCHIZE
+        + LOOP_SIZE * sizeQ * sizeR * sizeS
+    )
+    size_max = max(size_max, size_max2)
+
+    buffer = SimpleMemoryAllocator(size_max, FLOAT64)
+
+    # loop over blocks #
+
+    W = mydf.W
+    sizeRS = sizeR * sizeS
+    out = ZEROS((sizeP, sizeQ, sizeR, sizeS), cpu=not USE_GPU, dtype=FLOAT64)
+
+    for p0, p1 in lib.prange(0, mydf.naux, GRID_BUNCHIZE):
+        # construct W * ket #
+        moPairRgWKet = buffer.malloc((sizeRS, p1 - p0), name="moPairRgWKet")
+        CLEAN(moPairRgWKet)
+        for q0, q1 in lib.prange(0, mydf.naux, GRID_BUNCHIZE):
+            moPairRg2 = buffer.malloc((sizeR, sizeS, q1 - q0), name="moPairRg2")
+            EINSUM_IK_JK_IJK(moRgR[:, q0:q1], moRgS[:, q0:q1], out=moPairRg2)
+            moPairRgKet = moPairRg2.reshape((sizeRS, q1 - q0))
+            DOT(moPairRgKet, W[p0:p1, q0:q1].T, c=moPairRgWKet, beta=1)
+            buffer.free(count=1)
+        # construct bra * W * ket #
+        for pp0, pp1 in lib.prange(0, sizeP, LOOP_SIZE):
+            moPairRgBra = buffer.malloc((pp1 - pp0, sizeQ, p1 - p0), name="moPairRgBra")
+            EINSUM_IK_JK_IJK(moRgP[pp0:pp1, p0:p1], moRgQ[:, p0:p1], out=moPairRgBra)
+            moPairRgBra = moPairRgBra.reshape(((pp1 - pp0) * sizeQ, p1 - p0))
+            out_buffer = buffer.malloc((pp1 - pp0, sizeQ, sizeRS), name="out_buffer")
+            DOT(moPairRgBra, moPairRgWKet.T, c=out_buffer)
+            out[pp0:pp1] += out_buffer.reshape((pp1 - pp0, sizeQ, sizeR, sizeS))
+            buffer.free(count=2)
+        buffer.free(count=1)
+
+    return ToNUMPY(out) * mydf.ngrids / mydf.cell.vol
+
+
 def general(
     mydf,
     mo_coeffs,
@@ -664,7 +761,7 @@ def general(
 
     warn_pbc2d_eri(mydf)
     cell = mydf.cell
-    nao = cell.nao_nr()
+    # nao = cell.nao_nr()
     kptijkl = _format_kpts(kpts)
     kpti, kptj, kptk, kptl = kptijkl
     if isinstance(mo_coeffs, numpy.ndarray) and mo_coeffs.ndim == 2:
@@ -698,7 +795,7 @@ def general(
             if compact:
                 return eri
             else:
-                return ao2mo.restore(1, eri, nao)
+                return ao2mo.restore(1, eri, mo_coeffs[0].shape[1])
         else:
             #### ovov MO-ERI ####
 
@@ -718,6 +815,15 @@ def general(
                 else:
                     return eri_ovov
             else:
-                raise NotImplementedError
+                if compact:
+                    raise NotImplementedError(
+                        "compact mode is not supported in general with different mo_coeffs"
+                    )
+                return _general(
+                    mydf,
+                    mo_coeffs,
+                    with_robust_fitting=with_robust_fitting,
+                    AOPAIR_BLKSIZE=AOPAIR_BLKSIZE,
+                )
     else:
         raise NotImplementedError("k-point dependent ISDF AO2MO is not implemented yet")
