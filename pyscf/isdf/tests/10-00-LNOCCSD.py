@@ -17,6 +17,7 @@ from pyscf.pbc.tools import super_cell
 from pyscf import lib
 
 from lno.cc import LNOCCSD
+from pyscf.isdf.isdf_lno_cc import LNOCCSD_ISDF
 from lno.tools import guess_frozen
 
 # isdf util #
@@ -84,3 +85,14 @@ def run1(mf, thresh, frozen, params=None):
 thresh = 0.0
 params = {"lo_type": "pm", "no_type": "cim", "frag_lolist": "1o"}
 mfcc = run1(mf, thresh, None, params=params)
+
+def run2(mf, thresh, frozen, params=None):
+    mfcc = LNOCCSD_ISDF(mf, thresh=thresh, frozen=frozen)
+    if isinstance(params, dict):
+        mfcc.set(**params)
+    mfcc.kernel()
+    return mfcc
+
+thresh = 0.0
+params = {"lo_type": "pm", "no_type": "cim", "frag_lolist": "1o"}
+mfcc2 = run2(mf, thresh, None, params=params)

@@ -652,8 +652,8 @@ def build_V_W_local(mydf, use_mpi=False):
 
 
 def _create_h5file(W_file, dataname):
-    #assert isinstance(W_file, str)
-    if isinstance(getattr(W_file, 'name', None), str):
+    # assert isinstance(W_file, str)
+    if isinstance(getattr(W_file, "name", None), str):
         # The TemporaryFile and H5Tmpfile
         W_file = W_file.name
 
@@ -696,7 +696,7 @@ def build_V_W_local_outcore(mydf, use_mpi=False):
 
     tmpdir = lib.param.TMPDIR
     swapfile = tempfile.NamedTemporaryFile(dir=tmpdir)
-    mydf._swapfile = swapfile # one must create sth to hold swapfile, so that it will not be wrongly deleted
+    mydf._swapfile = swapfile  # one must create sth to hold swapfile, so that it will not be wrongly deleted
     mydf.W = _create_h5file(swapfile, "W")
     h5d_eri = mydf.W.create_dataset("W", (naux_involved, naux_tot), "f8")
     if mydf.with_robust_fitting:

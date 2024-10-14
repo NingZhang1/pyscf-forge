@@ -70,6 +70,7 @@ class DF_ISDF(DF):
     def range_coulomb(self, omega):
         raise NotImplementedError
 
+
 class GDF_ISDF(GDF):
     r"""
     the density fitting object adapted from (local) ISDF without robust fitting
@@ -112,17 +113,25 @@ class GDF_ISDF(GDF):
     @contextlib.contextmanager
     def range_coulomb(self, omega):
         raise NotImplementedError
-    
-    def sr_loop(self, kpti_kptj=numpy.zeros((2,3)), max_memory=2000,
-                compact=True, blksize=None, aux_slice=None):
-        assert numpy.allclose(kpti_kptj, numpy.zeros((2,3)))
+
+    def sr_loop(
+        self,
+        kpti_kptj=numpy.zeros((2, 3)),
+        max_memory=2000,
+        compact=True,
+        blksize=None,
+        aux_slice=None,
+    ):
+        assert numpy.allclose(kpti_kptj, numpy.zeros((2, 3)))
         # assert compact
         cell = self.cell
         nao = cell.nao_nr()
-        if cell.dimension == 2 and cell.low_dim_ft_type != 'inf_vacuum':
-            raise RuntimeError('ERIs of PBC-2D systems are not positive '
-                               'definite. Current API only supports positive '
-                               'definite ERIs.')
+        if cell.dimension == 2 and cell.low_dim_ft_type != "inf_vacuum":
+            raise RuntimeError(
+                "ERIs of PBC-2D systems are not positive "
+                "definite. Current API only supports positive "
+                "definite ERIs."
+            )
         if blksize is None:
             blksize = self.blockdim
 
@@ -134,7 +143,7 @@ class GDF_ISDF(GDF):
                 naux = LpqR.shape[0]
                 LpqR = lib.unpack_tril(LpqR).reshape(naux, nao**2)
                 yield LpqR, numpy.zeros_like(LpqR), 1
-    
+
     def loop(self, blksize=None):
         if self._cderi is None:
             self.build()
@@ -144,24 +153,27 @@ class GDF_ISDF(GDF):
         from pyscf.df import addons
         import h5py
         from pyscf.ao2mo.outcore import _load_from_h5g
-        
+
         with addons.load(self._cderi, self._dataname) as feri:
             if isinstance(feri, numpy.ndarray):
                 naoaux = feri.shape[1]
                 for b0, b1 in self.prange(0, naoaux, blksize):
-                    yield numpy.asarray(feri[0, b0:b1], order='C')
+                    yield numpy.asarray(feri[0, b0:b1], order="C")
 
             else:
                 raise NotImplementedError
                 if isinstance(feri, h5py.Group):
                     # starting from pyscf-1.7, DF tensor may be stored in
                     # block format
-                    naoaux = feri['0'].shape[0]
+                    naoaux = feri["0"].shape[0]
+
                     def load(aux_slice):
                         b0, b1 = aux_slice
                         return _load_from_h5g(feri, b0, b1)
+
                 else:
                     naoaux = feri.shape[0]
+
                     def load(aux_slice):
                         b0, b1 = aux_slice
                         return numpy.asarray(feri[b0:b1])
