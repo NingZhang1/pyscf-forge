@@ -651,18 +651,22 @@ def build_V_W_local(mydf, use_mpi=False):
     return mydf.V, mydf.W
 
 
-def _create_h5file(W_file, dataname):
-    # assert isinstance(W_file, str)
-    if isinstance(getattr(W_file, "name", None), str):
-        # The TemporaryFile and H5Tmpfile
-        W_file = W_file.name
+def _create_h5file(filename, dataname, mydf=None):
+    filename = filename.name if hasattr(filename, "name") else filename
+    if isinstance(getattr(filename, "name", None), str):
+        filename = filename.name
 
-    if h5py.is_hdf5(W_file):
-        feri = lib.H5FileWrap(W_file, "a")
+    if h5py.is_hdf5(filename):
+        feri = lib.H5FileWrap(filename, "a")
+        misc._debug4(mydf, mydf.rank, "file already exists: %s" % filename)
+
         if dataname in feri:
+            misc._debug4(mydf, mydf.rank, "delete %s" % dataname)
             del feri[dataname]
     else:
-        feri = lib.H5FileWrap(W_file, "w")
+        misc._debug4(mydf, mydf.rank, "create new file: %s" % filename)
+        feri = lib.H5FileWrap(filename, "w")
+
     return feri
 
 
@@ -694,8 +698,8 @@ def build_V_W_local_outcore(mydf, use_mpi=False):
     # ngrids = mydf.ngrids
     bunchsize = mydf._build_V_K_bunchsize
 
-    tmpdir = lib.param.TMPDIR
-    swapfile = tempfile.NamedTemporaryFile(dir=tmpdir)
+    # use the file specified by mydf._isdf_to_save
+    swapfile = mydf._isdf_to_save
     mydf._swapfile = swapfile  # one must create sth to hold swapfile, so that it will not be wrongly deleted
     mydf.W = _create_h5file(swapfile, "W")
     h5d_eri = mydf.W.create_dataset("W", (naux_involved, naux_tot), "f8")
@@ -823,23 +827,19 @@ class ISDF_Local(isdf.ISDF):
         )
 
         self.aoR_cutoff = aoR_cutoff
-        self.direct = direct
-        if direct not in [True, False]:
-            assert isinstance(direct, str)
-            assert direct.lower() == "outcore"
+        if isinstance(direct, str):
+            assert self.direct.lower() == "outcore"
             self.direct = True
             self.outcore = True
-        else:
-            self.outcore = False
 
-        if not self.with_robust_fitting:
-            if self.direct:
-                misc._warn(
-                    self,
-                    self.rank,
-                    "without robust fitting, direct mode is not that useful!",
-                )
-                # self.direct = False
+        else:
+            assert isinstance(self.direct, bool)
+            self.outcore = False
+            self.direct = direct
+
+            if direct and (not self.with_robust_fitting):
+                warn = "Without robust fitting, direct fitting is not useful!"
+                misc._warn(self, self.rank, warn)
 
         nkpts = np.prod(self.kmesh)
         if nkpts > 1:
@@ -848,7 +848,6 @@ class ISDF_Local(isdf.ISDF):
             self.with_translation_symmetry = False
 
         ### some new members ###
-
         self.shl_atm = None
         self.aoloc_atm = None
         self.partition_group_2_gridID = None
@@ -868,8 +867,13 @@ class ISDF_Local(isdf.ISDF):
         self._build_V_K_bunchsize = build_V_K_bunchsize
         if build_V_K_bunchsize is None:
             from pyscf.isdf._isdf_local_K_kernel import K_DIRECT_NAUX_BUNCHSIZE
-
             self._build_V_K_bunchsize = K_DIRECT_NAUX_BUNCHSIZE
+
+        # if _isdf_to_save is specified, useful information will be saved to this file
+        self._isdf_to_save = tempfile.TemporaryFile(dir=lib.param.TMPDIR)
+
+        # if _isdf is specified, will read from the file
+        self._isdf = None
 
     # def __del__(self):
     #     if hasattr(self, "W"):
@@ -880,11 +884,22 @@ class ISDF_Local(isdf.ISDF):
 
     ### build ###
 
+    __getstate__, __setstate__ = lib.get_pickle(
+        exclude=["_isdf_to_save", "_isdf"], reset_state=True
+    )
+
     def build(
         self, c=None, m=5, rela_cutoff=None, group=None, global_IP_selection=True
-    ):
-        # preprocess #
+    ): 
+        if self._isdf is not None:
+            assert isinstance(self._isdf, str)
+            assert os.path.exists(self._isdf)
+            assert h5py.is_hdf5(self._isdf)
+            misc._debug4(self, self.rank, "try to read results from %s" % self._isdf)
+            misc._debug4(self, self.rank, "_isdf_to_save will be ignored")
+            self._isdf_to_save = None
 
+        # preprocess #
         rela_cutoff = abs(rela_cutoff)
 
         if group is None:
@@ -911,7 +926,6 @@ class ISDF_Local(isdf.ISDF):
         self._build_aoR(group)
 
         # some info update #
-
         self._build_buffer(c, m, group)
         self._build_IP(c, m, rela_cutoff, group, global_IP_selection)
         self._build_fft_buffer()
@@ -925,6 +939,11 @@ class ISDF_Local(isdf.ISDF):
         super()._build_cell_info()
 
     def _build_aoR(self, group):
+        if self._isdf is not None:
+            assert isinstance(self._isdf, str)
+            assert os.path.exists(self._isdf)
+            assert h5py.is_hdf5(self._isdf)
+
         from pyscf.isdf.isdf_eval_gto import ISDF_eval_gto
 
         ##### build partition #####
@@ -1011,6 +1030,8 @@ class ISDF_Local(isdf.ISDF):
         self.gridID_ordering = _get_grid_ordering(self.partition, group)
 
     def _build_buffer(self, c, m, group):
+        t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
+
         # 1. atm selection #
         naux_atm_sqrt = self.nauxMaxPerAtm_sqrt(c, m)
         naux_atm = naux_atm_sqrt**2
@@ -1078,6 +1099,9 @@ class ISDF_Local(isdf.ISDF):
         )
         self.buffer_cpu = SimpleMemoryAllocator(total_size=size, gpu=False)
         self.buffer = self.buffer_cpu
+
+        t2 = (lib.logger.process_clock(), lib.logger.perf_counter())
+        misc._benchmark_time(t1, t2, "_build_buffer", self, self.rank)
 
     def _build_fft_buffer(self):
         # if USE_GPU == 0:
@@ -1216,11 +1240,32 @@ class ISDF_Local(isdf.ISDF):
 
     def _build_V_W(self):
         self.coul_G = tools.get_coulG(self.cell, mesh=self.mesh)
-        if not self.direct:
-            self.V, self.W = build_V_W_local(self, self.use_mpi)
+        if self.direct:
+            return
+        
+        if self._isdf is not None:
+            misc._debug4(self, self.rank, "read V and W from %s" % self._isdf)
+            if self.outcore:
+                self.V, self.W = None, self._isdf
+            else:
+                f = h5py.File(self._isdf, "r")
+                self.V = f["V"][:] if "V" in f else None
+                self.W = f["W"][:]
+                f.close()
+
         else:
             if self.outcore:
                 self.V, self.W = build_V_W_local_outcore(self, self.use_mpi)
+            else:
+                self.V, self.W = build_V_W_local(self, self.use_mpi)
+
+        if self._isdf_to_save is not None:
+            if not self.outcore:
+                misc._debug4(self, self.rank, "save V and W to %s" % self._isdf_to_save)
+                with h5py.File(self._isdf_to_save, "w") as f:
+                    f.create_dataset("V", data=self.V)
+                    f.create_dataset("W", data=self.W)
+
 
     def rebuild(self, direct=True, with_robust_fitting=True):
         self.direct = direct
