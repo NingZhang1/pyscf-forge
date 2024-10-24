@@ -939,15 +939,31 @@ class ISDF_Local(isdf.ISDF):
         super()._build_cell_info()
 
     def _build_aoR(self, group):
+        self.group = group
+        self.partition = None
+        self.aoR = None
+        self.partition_group_2_gridID = None
+        self.gridID_2_atmID = None
+        self.gridID_ordering = None
+
         if self._isdf is not None:
-            assert isinstance(self._isdf, str)
-            assert os.path.exists(self._isdf)
-            assert h5py.is_hdf5(self._isdf)
+            misc._debug4(self, self.rank, "read aoR from %s" % self._isdf)
+            with h5py.File(self._isdf, "r") as f:
+                assert len(self.group) == len(group)
+                # check if group is the same
+                assert (f["group"][:] == group).all()
+
+                self.partition = f["partition"][:]
+                self.aoR = f["aoR"][:]
+
+                self.group = f["group"][:]
+                self.partition_group_2_gridID = f["partition_group_2_gridID"][:]
+                self.gridID_2_atmID = f["gridID_2_atmID"][:]
+                self.gridID_ordering = f["gridID_ordering"][:]
 
         from pyscf.isdf.isdf_eval_gto import ISDF_eval_gto
 
-        ##### build partition #####
-
+        ##### build partition ####
         lattice_x = self.cell.lattice_vectors()[0][0]
         lattice_y = self.cell.lattice_vectors()[1][1]
         lattice_z = self.cell.lattice_vectors()[2][2]
@@ -959,15 +975,16 @@ class ISDF_Local(isdf.ISDF):
         ]
 
         t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
-        self.partition = get_partition(
-            self.cell,
-            self.coords,
-            self.AtmConnectionInfo,
-            Ls,
-            self.with_translation_symmetry,
-            self.kmesh,
-            self.use_mpi,
-        )
+        if self.partition is None:
+            self.partition = get_partition(
+                self.cell,
+                self.coords,
+                self.AtmConnectionInfo,
+                Ls,
+                self.with_translation_symmetry,
+                self.kmesh,
+                self.use_mpi,
+            )
         self.partition = [ToTENSOR(x) for x in self.partition]
         assert len(self.partition) == self.cell.natm
         t2 = (lib.logger.process_clock(), lib.logger.perf_counter())
@@ -989,45 +1006,59 @@ class ISDF_Local(isdf.ISDF):
         t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
 
         first_natm = self.first_natm
-
-        self.aoR = get_aoR(
-            self.cell,
-            self.AtmConnectionInfo,
-            self.coords,
-            self.partition,
-            None,
-            first_natm,
-            self.group,
-            self.use_mpi,
-            self.use_mpi,
-        )
+        if self.aoR is None:
+            self.aoR = get_aoR(
+                self.cell,
+                self.AtmConnectionInfo,
+                self.coords,
+                self.partition,
+                None,
+                first_natm,
+                self.group,
+                self.use_mpi,
+                self.use_mpi,
+            )
 
         t2 = (lib.logger.process_clock(), lib.logger.perf_counter())
-
         misc._benchmark_time(t1, t2, "get_aoR", self, self.rank)
 
         # build some indices info #
 
         # Create partition_group_2_gridID
-        self.partition_group_2_gridID = [
-            np.concatenate([self.partition[atm_id] for atm_id in subgroup]).astype(
-                np.int64
-            )  # NOTE: to be compatible with torch backend
-            for subgroup in group
-        ]
+        if self.partition_group_2_gridID is None:
+            self.partition_group_2_gridID = [
+                np.concatenate([self.partition[atm_id] for atm_id in subgroup]).astype(
+                    np.int64
+                )  # NOTE: to be compatible with torch backend
+                for subgroup in group
+            ]
+
         self.partition_group_2_gridID = [
             ToTENSOR(x, cpu=True) for x in self.partition_group_2_gridID
         ]
 
         # Create gridID_2_atmID
         ngrids = self.coords.shape[0]
-        self.gridID_2_atmID = np.zeros(ngrids, dtype=np.int32)
-        for atm_id, partition in enumerate(self.partition):
-            self.gridID_2_atmID[partition] = atm_id
+        if self.gridID_2_atmID is None:
+            self.gridID_2_atmID = np.zeros(ngrids, dtype=np.int32)
+            for atm_id, partition in enumerate(self.partition):
+                self.gridID_2_atmID[partition] = atm_id
         self.gridID_2_atmID = ToTENSOR(self.gridID_2_atmID)
 
         # Get grid ordering
-        self.gridID_ordering = _get_grid_ordering(self.partition, group)
+        if self.gridID_ordering is None:
+            self.gridID_ordering = _get_grid_ordering(self.partition, group)
+
+        if self._isdf_to_save is not None:
+            f = h5py.File(self._isdf_to_save, "w")
+            f.create_dataset("partition", data=self.partition)
+            f.create_dataset("aoR", data=self.aoR)
+            f.create_dataset("group", data=self.group)
+            f.create_dataset("partition_group_2_gridID", data=self.partition_group_2_gridID)
+            f.create_dataset("gridID_2_atmID", data=self.gridID_2_atmID)
+            f.create_dataset("gridID_ordering", data=self.gridID_ordering)
+            f.close()
+
 
     def _build_buffer(self, c, m, group):
         t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
@@ -1112,70 +1143,61 @@ class ISDF_Local(isdf.ISDF):
         #     )
 
     def _build_IP(self, c, m, rela_cutoff, group, global_IP_selection):
-        # step1 selection around each atm #
+        self.IP_group = None
+        if self._isdf is not None:
+            f = h5py.File(self._isdf, "r")
+            self.IP_group = f["IP_group"][:]
+            self.aoRg = f["aoRg"][:]
+            f.close()
 
-        t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
-
-        if len(group) < self.first_natm:
+        if self.IP_group is None:
+            t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
             IP_Atm = select_IP_local_step1(
-                self,
-                c=c + 1,  # select more in this case #
-                m=m,
-                rela_cutoff=rela_cutoff,
+                self, c if len(group) < self.first_natm else c + 1, 
+                m, rela_cutoff=rela_cutoff,
                 no_retriction_on_nIP=abs(rela_cutoff) > 1e-6,
                 use_mpi=self.use_mpi,
             )
-        else:
-            IP_Atm = select_IP_local_step1(
+            t2 = (lib.logger.process_clock(), lib.logger.perf_counter())
+
+            misc._benchmark_time(t1, t2, "select_IP_local_step1", self, self.rank)
+
+            aoRg_possible = self._build_aoRg(IP_Atm, None)
+
+            t3 = (lib.logger.process_clock(), lib.logger.perf_counter())
+
+            misc._benchmark_time(t2, t3, "build_aoRg_possible", self, self.rank)
+
+            # step2 selection for each group #
+
+            select_IP_local_step2(
                 self,
-                c=c,  # select more in this case #
+                c=c,
                 m=m,
                 rela_cutoff=rela_cutoff,
-                no_retriction_on_nIP=abs(rela_cutoff) > 1e-6,
+                group=group,
+                IP_possible_atm=IP_Atm,
+                aoRg_possible=aoRg_possible,
+                global_IP_selection=global_IP_selection,
                 use_mpi=self.use_mpi,
             )
-        t2 = (lib.logger.process_clock(), lib.logger.perf_counter())
 
-        misc._benchmark_time(t1, t2, "select_IP_local_step1", self, self.rank)
+            t4 = (lib.logger.process_clock(), lib.logger.perf_counter())
 
-        aoRg_possible = self._build_aoRg(IP_Atm, None)
+            misc._benchmark_time(t3, t4, "select_IP_local_step2", self, self.rank)
 
-        t3 = (lib.logger.process_clock(), lib.logger.perf_counter())
+            # step3 build indices info related to IP_group #
+            select_IP_local_step3(self, group, self.use_mpi)
 
-        misc._benchmark_time(t2, t3, "build_aoRg_possible", self, self.rank)
+            if len(group) < self.first_natm:
+                del aoRg_possible
+                self.aoRg = self._build_aoRg(self.partition_IP, group)
+            else:
+                self.aoRg = aoRg_possible
 
-        # step2 selection for each group #
+            t5 = (lib.logger.process_clock(), lib.logger.perf_counter())
 
-        select_IP_local_step2(
-            self,
-            c=c,
-            m=m,
-            rela_cutoff=rela_cutoff,
-            group=group,
-            IP_possible_atm=IP_Atm,
-            aoRg_possible=aoRg_possible,
-            global_IP_selection=global_IP_selection,
-            use_mpi=self.use_mpi,
-        )
-
-        t4 = (lib.logger.process_clock(), lib.logger.perf_counter())
-
-        misc._benchmark_time(t3, t4, "select_IP_local_step2", self, self.rank)
-
-        # step3 build indices info related to IP_group #
-
-        select_IP_local_step3(self, group, self.use_mpi)
-
-        if len(group) < self.first_natm:
-            del aoRg_possible
-
-            self.aoRg = self._build_aoRg(self.partition_IP, group)
-        else:
-            self.aoRg = aoRg_possible
-
-        t5 = (lib.logger.process_clock(), lib.logger.perf_counter())
-
-        misc._benchmark_time(t4, t5, "select_IP_local_step3", self, self.rank)
+            misc._benchmark_time(t4, t5, "select_IP_local_step3", self, self.rank)
 
         # print memory #
 
@@ -1193,8 +1215,13 @@ class ISDF_Local(isdf.ISDF):
             "Memory usage for aoRg : %10.3f MB",
             memory_aoRg / 1024 / 1024,
         )
-
         misc._benchmark_time(t1, t5, "build_IP", self, self.rank)
+
+        if self._isdf_to_save is not None:
+            f = h5py.File(self._isdf_to_save, "a")
+            f.create_dataset("IP_group", data=self.IP_group)
+            f.create_dataset("aoRg", data=self.aoRg)
+            f.close()
 
         return self.IP_group
 
@@ -1236,7 +1263,14 @@ class ISDF_Local(isdf.ISDF):
         return aoRg_holders
 
     def _build_aux_basis(self, group):
-        self.aux_basis = build_aux_basis_local(self, group, self.IP_group, self.use_mpi)
+        self.aux_basis = None
+        if self._isdf is not None:
+            f = h5py.File(self._isdf, "r")
+            self.aux_basis = f["aux_basis"][:]
+            f.close()
+
+        if self.aux_basis is None:
+            self.aux_basis = build_aux_basis_local(self, group, self.IP_group, self.use_mpi)
 
     def _build_V_W(self):
         self.coul_G = tools.get_coulG(self.cell, mesh=self.mesh)
