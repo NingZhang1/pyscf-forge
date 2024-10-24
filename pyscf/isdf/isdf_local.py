@@ -935,6 +935,7 @@ class ISDF_Local(isdf.ISDF):
 
     def _build_aoR(self, group):
         self.group = group
+
         self.partition = None
         self.aoR = None
         self.partition_group_2_gridID = None
@@ -943,18 +944,20 @@ class ISDF_Local(isdf.ISDF):
 
         if self._isdf is not None:
             misc._debug4(self, self.rank, "read aoR from %s" % self._isdf)
-            with h5py.File(self._isdf, "r") as f:
-                assert len(self.group) == len(group)
-                # check if group is the same
-                assert (f["group"][:] == group).all()
+            f = h5py.File(self._isdf, "r")
+            self.partition = []
+            for i in f["npartition"]:
+                self.partition.append(f["partition_%d" % i][:])
+            self.aoR = f["aoR"][:]
 
-                self.partition = f["partition"][:]
-                self.aoR = f["aoR"][:]
+            # check if group is the same
+            assert (f["group"][:] == group).all()
+            self.group = f["group"][:]
 
-                self.group = f["group"][:]
-                self.partition_group_2_gridID = f["partition_group_2_gridID"][:]
-                self.gridID_2_atmID = f["gridID_2_atmID"][:]
-                self.gridID_ordering = f["gridID_ordering"][:]
+            self.partition_group_2_gridID = f["partition_group_2_gridID"][:]
+            self.gridID_2_atmID = f["gridID_2_atmID"][:]
+            self.gridID_ordering = f["gridID_ordering"][:]
+            f.close()
 
         from pyscf.isdf.isdf_eval_gto import ISDF_eval_gto
 
@@ -1046,7 +1049,12 @@ class ISDF_Local(isdf.ISDF):
 
         if self._isdf_to_save is not None:
             f = h5py.File(self._isdf_to_save, "w")
-            f.create_dataset("partition", data=self.partition)
+
+            npartition = [len(x) for x in self.partition]
+            f.create_dataset("npartition", data=npartition)
+            for i, x in enumerate(self.partition):
+                f.create_dataset("partition_%d" % i, data=x)
+
             f.create_dataset("aoR", data=self.aoR)
             f.create_dataset("group", data=self.group)
             f.create_dataset("partition_group_2_gridID", data=self.partition_group_2_gridID)
