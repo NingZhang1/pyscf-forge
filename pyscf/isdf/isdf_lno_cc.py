@@ -97,16 +97,32 @@ def _contract_vvvv_t2(
             "Robust fitting used in _contract_vvvv_t2, since only W matrix is used, larger error may be introduced!",
         )
 
+    t2_symmetrized = len(t2.shape) == 3
+
     W = myisdf.W
-    nocc = t2.shape[0]
-    nvir = t2.shape[2]
+    if not t2_symmetrized:
+        nocc = t2.shape[0]
+        nocc2 = nocc * (nocc + 1) // 2
+        nvir = t2.shape[2]
+        assert t2.shape[0] == t2.shape[1]
+        assert t2.shape[2] == t2.shape[3]
+    else:
+        nocc = None
+        nocc2 = t2.shape[0]
+        assert t2.shape[1] == t2.shape[2]
+        nvir = t2.shape[1]
     naux = W.shape[0]
 
     if out is None:
-        Ht2 = ZEROS((nocc, nocc, nvir, nvir), dtype=FLOAT64)
+        if t2_symmetrized:
+            Ht2 = ZEROS((nocc2, nvir, nvir), dtype=FLOAT64)
+        else:
+            Ht2 = ZEROS((nocc, nocc, nvir, nvir), dtype=FLOAT64)
     else:
         Ht2 = ToTENSOR(out)
 
+    # print("Ht2.shape", Ht2.shape)
+    # print("t2.shape", t2.shape)
     assert t2.shape == Ht2.shape
 
     Ht2 = Ht2.reshape(-1, nvir, nvir)
@@ -131,9 +147,14 @@ def _contract_vvvv_t2(
 
     misc._benchmark_time(time1, time2, "_contract_vvvv_t2", myisdf, myisdf.rank)
 
-    return (
-        ToNUMPY(Ht2.reshape(nocc, nocc, nvir, nvir)) * myisdf.ngrids / myisdf.cell.vol
-    )
+    if t2_symmetrized:
+        return ToNUMPY(Ht2) * myisdf.ngrids / myisdf.cell.vol
+    else:
+        return (
+            ToNUMPY(Ht2.reshape(nocc, nocc, nvir, nvir))
+            * myisdf.ngrids
+            / myisdf.cell.vol
+        )
 
 
 class _ISDFChemistsERIs(_ChemistsERIs):
@@ -278,7 +299,11 @@ def _isdf_ao2mo(
 
 
 class MODIFIED_ISDFCCSD(dfccsd.RCCSD):
+
     def ao2mo(self, mo_coeff=None):
+        if not getattr(self, "_isdf", None):
+            self._isdf = self._scf.with_df
+        assert isinstance(self._isdf, ISDF_Local)
         return _make_isdf_eris(self, self._isdf, mo_coeff)
 
 
@@ -532,10 +557,39 @@ def impurity_solve(
     return frag_msg, (elcorr_pt2, elcorr_cc, elcorr_cc_t)
 
 
-from lno.cc.ccsd import LNOCCSD
+from pyscf.isdf.isdf_lno import LNO_ISDF
 
 
-class LNOCCSD_ISDF(LNOCCSD):
+# class LNOCCSD_ISDF(LNOCCSD):
+#     def impurity_solve(self, mf, mo_coeff, lo_coeff, eris=None, frozen=None, log=None):
+#         return impurity_solve(
+#             mf,
+#             mo_coeff,
+#             lo_coeff,
+#             eris=eris,
+#             frozen=frozen,
+#             log=log,
+#             verbose_imp=self.verbose_imp,
+#             ccsd_t=self.ccsd_t,
+#         )
+
+
+class LNOCCSD_ISDF(LNO_ISDF):
+    def __init__(self, mf, thresh=1e-6, frozen=None, fock=None, s1e=None):
+        LNO_ISDF.__init__(self, mf, thresh=thresh, frozen=frozen, fock=fock, s1e=s1e)
+
+        self._isdf = mf.with_df
+        assert isinstance(self._isdf, ISDF_Local)
+
+        self.efrag_cc = None
+        self.efrag_pt2 = None
+        self.efrag_cc_t = None
+        self.ccsd_t = False
+
+    def dump_flags(self, verbose=None):
+        LNO_ISDF.dump_flags(self, verbose=verbose)
+        return self
+
     def impurity_solve(self, mf, mo_coeff, lo_coeff, eris=None, frozen=None, log=None):
         return impurity_solve(
             mf,
@@ -547,3 +601,98 @@ class LNOCCSD_ISDF(LNOCCSD):
             verbose_imp=self.verbose_imp,
             ccsd_t=self.ccsd_t,
         )
+
+    def _post_proc(self, frag_res, frag_wghtlist):
+        """Post processing results returned by `impurity_solve` collected in `frag_res`."""
+        nfrag = len(frag_res)
+        efrag_pt2 = np.zeros(nfrag)
+        efrag_cc = np.zeros(nfrag)
+        efrag_cc_t = np.zeros(nfrag)
+        for i in range(nfrag):
+            if frag_res[i] is None:
+                efrag_pt2[i] = efrag_cc[i] = efrag_cc_t[i] = 0
+            else:
+                efrag_pt2[i], efrag_cc[i], efrag_cc_t[i] = frag_res[i]
+        self.efrag_pt2 = efrag_pt2 * frag_wghtlist
+        self.efrag_cc = efrag_cc * frag_wghtlist
+        self.efrag_cc_t = efrag_cc_t * frag_wghtlist
+
+    def _finalize(self):
+        r"""Hook for dumping results and clearing up the object."""
+        logger.note(
+            self,
+            "E(%s) = %.15g  E_corr = %.15g",
+            "LNOMP2",
+            self.e_tot_pt2,
+            self.e_corr_pt2,
+        )
+        logger.note(
+            self,
+            "E(%s) = %.15g  E_corr = %.15g",
+            "LNOCCSD",
+            self.e_tot_ccsd,
+            self.e_corr_ccsd,
+        )
+        if self.ccsd_t:
+            logger.note(
+                self,
+                "E(%s) = %.15g  E_corr = %.15g",
+                "LNOCCSD_T",
+                self.e_tot_ccsd_t,
+                self.e_corr,
+            )
+        return self
+
+    @property
+    def e_corr(self):
+        """Local total correlation energy without PT2 correction"""
+        return self.e_corr_ccsd + self.e_corr_ccsd_t
+
+    @property
+    def e_corr_ccsd(self):
+        """Local CCSD correlation energy"""
+        e_corr = np.sum(self.efrag_cc)
+        return e_corr
+
+    @property
+    def e_corr_pt2(self):
+        """Local MP2 correlation energy"""
+        e_corr = np.sum(self.efrag_pt2)
+        return e_corr
+
+    @property
+    def e_corr_ccsd_t(self):
+        """Local (T) correction"""
+        e_corr = np.sum(self.efrag_cc_t)
+        return e_corr
+
+    @property
+    def e_tot_ccsd(self):
+        """Local CCSD total energy"""
+        return self.e_corr_ccsd + self._scf.e_tot
+
+    @property
+    def e_tot_ccsd_t(self):
+        """Local CCSD(T) total energy"""
+        return self.e_tot_ccsd + self.e_corr_ccsd_t
+
+    @property
+    def e_tot_pt2(self):
+        """Local MP2 total energy"""
+        return self.e_corr_pt2 + self._scf.e_tot
+
+    def e_corr_pt2corrected(self, ept2):
+        """Local total correlation energy with PT2 correction"""
+        return self.e_corr - self.e_corr_pt2 + ept2
+
+    def e_tot_pt2corrected(self, ept2):
+        """Local total energy with PT2 correction"""
+        return self._scf.e_tot + self.e_corr_pt2corrected(ept2)
+
+    def e_corr_ccsd_pt2corrected(self, ept2):
+        """Local CCSD correlation energy with PT2 correction"""
+        return self.e_corr_ccsd - self.e_corr_pt2 + ept2
+
+    def e_tot_ccsd_pt2corrected(self, ept2):
+        """Local CCSD total energy with PT2 correction"""
+        return self._scf.e_tot + self.e_corr_ccsd_pt2corrected(ept2)
