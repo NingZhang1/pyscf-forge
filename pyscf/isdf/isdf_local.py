@@ -945,11 +945,16 @@ class ISDF_Local(isdf.ISDF):
         if self._isdf is not None:
             misc._debug4(self, self.rank, "read aoR from %s" % self._isdf)
             f = h5py.File(self._isdf, "r")
-            self.partition = []
-            for i in f["npartition"]:
-                self.partition.append(f["partition_%d" % i][:])
-            self.aoR = f["aoR"][:]
 
+            self.partition = []
+            for i in range(f["npartition"]):
+                self.partition.append(f["partition_%d" % i][:])
+
+            self.aoR = []
+            for n in range(f["naoR"]):
+                self.aoR.append(aoR_Holder(**f["aoR_%d" % n].attrs))
+
+            assert 1 == 2
             # check if group is the same
             assert (f["group"][:] == group).all()
             self.group = f["group"][:]
@@ -1050,14 +1055,13 @@ class ISDF_Local(isdf.ISDF):
         if self._isdf_to_save is not None:
             f = h5py.File(self._isdf_to_save, "w")
 
-            npartition = [len(x) for x in self.partition]
-            f.create_dataset("npartition", data=npartition)
+            f.create_dataset("npartition", data=len(self.partition))
             for i, x in enumerate(self.partition):
                 f.create_dataset("partition_%d" % i, data=x)
 
-            print("self.aoR", self.aoR)
-            f.create_dataset("aoR", data=self.aoR)
-            assert 1 == 2
+            f.create_dataset("naoR", data=len(self.aoR))
+            for i, x in enumerate(self.aoR):
+                f.create_dataset("aoR_%d" % i, data=x.__dict__)
             
             f.create_dataset("group", data=self.group)
             f.create_dataset("partition_group_2_gridID", data=self.partition_group_2_gridID)
@@ -1237,6 +1241,8 @@ class ISDF_Local(isdf.ISDF):
             group = [[i] for i in range(self.first_natm)]
         assert len(IP_group) == self.first_natm
 
+        t0 = (lib.logger.process_clock(), lib.logger.perf_counter())
+
         aoRg_holders = [None] * self.first_natm
         atm_ordering = [atm for subgroup in group for atm in subgroup]
         IP_ID_now = 0
@@ -1266,6 +1272,9 @@ class ISDF_Local(isdf.ISDF):
             )
             IP_ID_now += nIP
         # self.aoRg = aoRg_holders
+        t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
+        misc._benchmark_time(t0, t1, "_build_aoRg", self, self.rank)
+
         return aoRg_holders
 
     def _build_aux_basis(self, group):

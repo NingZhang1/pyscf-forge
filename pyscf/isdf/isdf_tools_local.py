@@ -142,7 +142,6 @@ class aoR_Holder:
             aoR, ao_involved, self.global_gridID_begin, self.global_gridID_end
         )
 
-
 # utils for aoR Holder #
 
 
