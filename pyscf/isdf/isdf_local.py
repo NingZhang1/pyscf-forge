@@ -828,12 +828,12 @@ class ISDF_Local(isdf.ISDF):
 
         self.aoR_cutoff = aoR_cutoff
         if isinstance(direct, str):
-            assert self.direct.lower() == "outcore"
+            assert direct.lower() == "outcore"
             self.direct = True
             self.outcore = True
 
         else:
-            assert isinstance(self.direct, bool)
+            assert isinstance(direct, bool)
             self.outcore = False
             self.direct = direct
 
