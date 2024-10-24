@@ -1055,7 +1055,10 @@ class ISDF_Local(isdf.ISDF):
             for i, x in enumerate(self.partition):
                 f.create_dataset("partition_%d" % i, data=x)
 
+            print("self.aoR", self.aoR)
             f.create_dataset("aoR", data=self.aoR)
+            assert 1 == 2
+            
             f.create_dataset("group", data=self.group)
             f.create_dataset("partition_group_2_gridID", data=self.partition_group_2_gridID)
             f.create_dataset("gridID_2_atmID", data=self.gridID_2_atmID)
