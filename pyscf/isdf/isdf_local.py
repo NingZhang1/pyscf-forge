@@ -22,7 +22,7 @@ import tempfile
 import copy
 import numpy as np
 import scipy, numpy
-import h5py
+import h5py, pickle
 import ctypes, sys, os
 import random
 import string
@@ -33,6 +33,11 @@ from pyscf import lib
 from pyscf.lib import logger
 from pyscf.pbc.gto import Cell
 from pyscf.pbc import tools
+
+try:
+    from pyscf.lib import generate_pickle_methods
+except ImportError:
+    print("pyscf.lib.generate_pickle_methods is not available, ISDF will not support pickle")
 
 ############ isdf backends ############
 
@@ -680,7 +685,7 @@ def build_V_W_local_outcore(mydf, use_mpi=False):
         # comm_size = 1
 
     misc._debug4(
-        mydf, rank, " ---------- In pyscf.isdf.isdf_local.build_V_W_local ----------"
+        mydf, rank, " ---------- In pyscf.isdf.isdf_local.build_V_W_local_outcore ----------"
     )
 
     t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
@@ -699,7 +704,7 @@ def build_V_W_local_outcore(mydf, use_mpi=False):
     bunchsize = mydf._build_V_K_bunchsize
 
     # use the file specified by mydf._isdf_to_save
-    swapfile = mydf._isdf_to_save
+    swapfile = mydf._isdf_to_save + ".w.h5"
     mydf._swapfile = swapfile  # one must create sth to hold swapfile, so that it will not be wrongly deleted
     mydf.W = _create_h5file(swapfile, "W")
     h5d_eri = mydf.W.create_dataset("W", (naux_involved, naux_tot), "f8")
@@ -882,6 +887,13 @@ class ISDF_Local(isdf.ISDF):
     #             import os
     #             os.remove(self.W)  # known issue: cannot delete this file
 
+    __getstate__, __setstate__ = generate_pickle_methods(
+            excludes=(
+                '_isdf_to_save', '_isdf', 'buffer_fft',
+                'buffer_cpu', 'buffer_gpu', 'buffer'
+            ), reset_state=True
+            )
+
     # build
     def build(
         self, c=None, m=5, rela_cutoff=None, group=None, global_IP_selection=True
@@ -889,10 +901,12 @@ class ISDF_Local(isdf.ISDF):
         if self._isdf is not None:
             assert isinstance(self._isdf, str)
             assert os.path.exists(self._isdf)
-            assert h5py.is_hdf5(self._isdf)
+
             misc._debug4(self, self.rank, "try to read results from %s" % self._isdf)
             misc._debug4(self, self.rank, "_isdf_to_save will be ignored")
             self._isdf_to_save = None
+
+            self = pickle.loads(self._isdf)
 
         # preprocess #
         rela_cutoff = abs(rela_cutoff)
@@ -927,6 +941,9 @@ class ISDF_Local(isdf.ISDF):
         self._build_aux_basis(group)
         self._build_V_W()
 
+        if self._isdf_to_save is not None:
+            pickle.dump(self, self._isdf_to_save)
+
     def _build_cell_info(self):
         self.distance_matrix, self.AtmConnectionInfo = build_cutoff_info(
             self.cell, self.aoR_cutoff, self.ngrids
@@ -941,28 +958,6 @@ class ISDF_Local(isdf.ISDF):
         self.partition_group_2_gridID = None
         self.gridID_2_atmID = None
         self.gridID_ordering = None
-
-        if self._isdf is not None:
-            misc._debug4(self, self.rank, "read aoR from %s" % self._isdf)
-            f = h5py.File(self._isdf, "r")
-
-            self.partition = []
-            for i in range(f["npartition"]):
-                self.partition.append(f["partition_%d" % i][:])
-
-            self.aoR = []
-            for n in range(f["naoR"]):
-                self.aoR.append(aoR_Holder(**f["aoR_%d" % n].attrs))
-
-            assert 1 == 2
-            # check if group is the same
-            assert (f["group"][:] == group).all()
-            self.group = f["group"][:]
-
-            self.partition_group_2_gridID = f["partition_group_2_gridID"][:]
-            self.gridID_2_atmID = f["gridID_2_atmID"][:]
-            self.gridID_ordering = f["gridID_ordering"][:]
-            f.close()
 
         from pyscf.isdf.isdf_eval_gto import ISDF_eval_gto
 
@@ -1009,18 +1004,17 @@ class ISDF_Local(isdf.ISDF):
         t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
 
         first_natm = self.first_natm
-        if self.aoR is None:
-            self.aoR = get_aoR(
-                self.cell,
-                self.AtmConnectionInfo,
-                self.coords,
-                self.partition,
-                None,
-                first_natm,
-                self.group,
-                self.use_mpi,
-                self.use_mpi,
-            )
+        self.aoR = get_aoR(
+            self.cell,
+            self.AtmConnectionInfo,
+            self.coords,
+            self.partition,
+            None,
+            first_natm,
+            self.group,
+            self.use_mpi,
+            self.use_mpi,
+        )
 
         t2 = (lib.logger.process_clock(), lib.logger.perf_counter())
         misc._benchmark_time(t1, t2, "get_aoR", self, self.rank)
@@ -1028,13 +1022,12 @@ class ISDF_Local(isdf.ISDF):
         # build some indices info #
 
         # Create partition_group_2_gridID
-        if self.partition_group_2_gridID is None:
-            self.partition_group_2_gridID = [
-                np.concatenate([self.partition[atm_id] for atm_id in subgroup]).astype(
-                    np.int64
-                )  # NOTE: to be compatible with torch backend
-                for subgroup in group
-            ]
+        self.partition_group_2_gridID = [
+            np.concatenate([self.partition[atm_id] for atm_id in subgroup]).astype(
+                np.int64
+            )  # NOTE: to be compatible with torch backend
+            for subgroup in group
+        ]
 
         self.partition_group_2_gridID = [
             ToTENSOR(x, cpu=True) for x in self.partition_group_2_gridID
@@ -1042,33 +1035,14 @@ class ISDF_Local(isdf.ISDF):
 
         # Create gridID_2_atmID
         ngrids = self.coords.shape[0]
-        if self.gridID_2_atmID is None:
-            self.gridID_2_atmID = np.zeros(ngrids, dtype=np.int32)
-            for atm_id, partition in enumerate(self.partition):
-                self.gridID_2_atmID[partition] = atm_id
+        self.gridID_2_atmID = np.zeros(ngrids, dtype=np.int32)
+        for atm_id, partition in enumerate(self.partition):
+            self.gridID_2_atmID[partition] = atm_id
         self.gridID_2_atmID = ToTENSOR(self.gridID_2_atmID)
 
         # Get grid ordering
         if self.gridID_ordering is None:
             self.gridID_ordering = _get_grid_ordering(self.partition, group)
-
-        if self._isdf_to_save is not None:
-            f = h5py.File(self._isdf_to_save, "w")
-
-            f.create_dataset("npartition", data=len(self.partition))
-            for i, x in enumerate(self.partition):
-                f.create_dataset("partition_%d" % i, data=x)
-
-            f.create_dataset("naoR", data=len(self.aoR))
-            for i, x in enumerate(self.aoR):
-                f.create_dataset("aoR_%d" % i, data=x.__dict__)
-            
-            f.create_dataset("group", data=self.group)
-            f.create_dataset("partition_group_2_gridID", data=self.partition_group_2_gridID)
-            f.create_dataset("gridID_2_atmID", data=self.gridID_2_atmID)
-            f.create_dataset("gridID_ordering", data=self.gridID_ordering)
-            f.close()
-
 
     def _build_buffer(self, c, m, group):
         t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
@@ -1154,11 +1128,6 @@ class ISDF_Local(isdf.ISDF):
 
     def _build_IP(self, c, m, rela_cutoff, group, global_IP_selection):
         self.IP_group = None
-        if self._isdf is not None:
-            f = h5py.File(self._isdf, "r")
-            self.IP_group = f["IP_group"][:]
-            self.aoRg = f["aoRg"][:]
-            f.close()
 
         if self.IP_group is None:
             t1 = (lib.logger.process_clock(), lib.logger.perf_counter())
@@ -1226,13 +1195,6 @@ class ISDF_Local(isdf.ISDF):
             memory_aoRg / 1024 / 1024,
         )
         misc._benchmark_time(t1, t5, "build_IP", self, self.rank)
-
-        if self._isdf_to_save is not None:
-            f = h5py.File(self._isdf_to_save, "a")
-            f.create_dataset("IP_group", data=self.IP_group)
-            f.create_dataset("aoRg", data=self.aoRg)
-            f.close()
-
         return self.IP_group
 
     def _build_aoRg(self, IP_group, group=None):
@@ -1278,43 +1240,17 @@ class ISDF_Local(isdf.ISDF):
         return aoRg_holders
 
     def _build_aux_basis(self, group):
-        self.aux_basis = None
-        if self._isdf is not None:
-            f = h5py.File(self._isdf, "r")
-            self.aux_basis = f["aux_basis"][:]
-            f.close()
-
-        if self.aux_basis is None:
-            self.aux_basis = build_aux_basis_local(self, group, self.IP_group, self.use_mpi)
+        self.aux_basis = build_aux_basis_local(self, group, self.IP_group, self.use_mpi)
 
     def _build_V_W(self):
         self.coul_G = tools.get_coulG(self.cell, mesh=self.mesh)
         if self.direct:
             return
         
-        if self._isdf is not None:
-            misc._debug4(self, self.rank, "read V and W from %s" % self._isdf)
-            if self.outcore:
-                self.V, self.W = None, self._isdf
-            else:
-                f = h5py.File(self._isdf, "r")
-                self.V = f["V"][:] if "V" in f else None
-                self.W = f["W"][:]
-                f.close()
-
+        if self.outcore:
+            self.V, self.W = build_V_W_local_outcore(self, self.use_mpi)
         else:
-            if self.outcore:
-                self.V, self.W = build_V_W_local_outcore(self, self.use_mpi)
-            else:
-                self.V, self.W = build_V_W_local(self, self.use_mpi)
-
-        if self._isdf_to_save is not None:
-            if not self.outcore:
-                misc._debug4(self, self.rank, "save V and W to %s" % self._isdf_to_save)
-                with h5py.File(self._isdf_to_save, "w") as f:
-                    f.create_dataset("V", data=self.V)
-                    f.create_dataset("W", data=self.W)
-
+            self.V, self.W = build_V_W_local(self, self.use_mpi)
 
     def rebuild(self, direct=True, with_robust_fitting=True):
         self.direct = direct
