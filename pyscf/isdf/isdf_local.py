@@ -882,12 +882,7 @@ class ISDF_Local(isdf.ISDF):
     #             import os
     #             os.remove(self.W)  # known issue: cannot delete this file
 
-    ### build ###
-
-    __getstate__, __setstate__ = lib.get_pickle(
-        exclude=["_isdf_to_save", "_isdf"], reset_state=True
-    )
-
+    # build
     def build(
         self, c=None, m=5, rela_cutoff=None, group=None, global_IP_selection=True
     ): 
