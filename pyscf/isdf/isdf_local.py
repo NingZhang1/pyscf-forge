@@ -906,7 +906,8 @@ class ISDF_Local(isdf.ISDF):
             misc._debug4(self, self.rank, "_isdf_to_save will be ignored")
             self._isdf_to_save = None
 
-            self = pickle.loads(self._isdf)
+            with open(self._isdf, "rb") as f:
+                self = pickle.load(f)
 
         # preprocess #
         rela_cutoff = abs(rela_cutoff)
@@ -942,7 +943,8 @@ class ISDF_Local(isdf.ISDF):
         self._build_V_W()
 
         if self._isdf_to_save is not None:
-            pickle.dump(self, self._isdf_to_save)
+            with open(self._isdf_to_save, "wb") as f:
+                pickle.dump(self, f)
 
     def _build_cell_info(self):
         self.distance_matrix, self.AtmConnectionInfo = build_cutoff_info(
