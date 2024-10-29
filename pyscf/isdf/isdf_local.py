@@ -890,7 +890,8 @@ class ISDF_Local(isdf.ISDF):
     __getstate__, __setstate__ = generate_pickle_methods(
             excludes=(
                 '_isdf_to_save', '_isdf', 'buffer_fft',
-                'buffer_cpu', 'buffer_gpu', 'buffer'
+                'buffer_cpu', 'buffer_gpu', 'buffer',
+                'cell'
             ), reset_state=True
             )
 
@@ -898,7 +899,9 @@ class ISDF_Local(isdf.ISDF):
     def build(
         self, c=None, m=5, rela_cutoff=None, group=None, global_IP_selection=True
     ): 
+        cell = self.cell
         if self._isdf is not None:
+            isdf = self._isdf
             assert isinstance(self._isdf, str)
             assert os.path.exists(self._isdf)
 
@@ -908,6 +911,8 @@ class ISDF_Local(isdf.ISDF):
 
             with open(self._isdf, "rb") as f:
                 self = pickle.load(f)
+                self.cell = cell
+                misc._debug4(self, self.rank, "finished reading from %s" % self._isdf)
 
         # preprocess #
         rela_cutoff = abs(rela_cutoff)
