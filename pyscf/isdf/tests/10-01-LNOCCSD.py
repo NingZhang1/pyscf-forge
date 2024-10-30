@@ -21,6 +21,7 @@ from pyscf.pbc import dft as pbcdft
 from pyscf.pbc.dft import multigrid
 
 from lno.cc import LNOCCSD
+from pyscf.isdf.isdf_lno_cc import LNOCCSD_ISDF
 from lno.tools import guess_frozen
 
 # isdf util #
@@ -232,12 +233,12 @@ cell.atom = [
     ["H", (12.103020, 8.841164, 10.006916)],
     ["H", (11.491592, 8.576221, 8.647557)],
 ]
-cell.basis = "gth-tzv2p"
+cell.basis = "gth-dzvp"
 cell.ke_cutoff = 200  # kinetic energy cutoff in a.u.
 cell.max_memory = 8000  # in MB
 cell.precision = 1e-6  # integral precision
 cell.pseudo = "gth-pade"
-cell.verbose = 4
+cell.verbose = 11
 cell.use_loose_rcut = True  # integral screening based on shell radii
 cell.use_particle_mesh_ewald = True  # use particle mesh ewald for nuclear repulsion
 cell.build()
@@ -247,11 +248,29 @@ group = [[i] for i in range(natm)]  # not the best way, but currently the only w
 
 ### first search the parameter for ISDF ###
 
+
+def run2(mf, thresh, frozen, params=None):
+    mfcc = LNOCCSD_ISDF(mf, thresh=thresh, frozen=frozen)
+    if isinstance(params, dict):
+        mfcc.set(**params)
+    mfcc.kernel()
+    return mfcc
+
+
 for qr_cutoff in [1e-3, 3e-4, 1e-4]:
     isdf = ISDF_Local(
-        cell, with_robust_fitting=False, limited_memory=True, build_V_K_bunchsize=56
+        cell, with_robust_fitting=False, limited_memory=True, build_V_K_bunchsize=256
     )
     isdf.build(c=40, m=5, rela_cutoff=qr_cutoff, group=group)
     mf = scf.RHF(cell)
     mf.with_df = isdf
     mf.kernel()
+
+    # LNO CCSD #
+
+    for thresh in [1e-3, 1e-4, 1e-5]:
+        # thresh = 0.0
+        # mf.with_df = isdf
+        print(" ************ LNO CCSD with threshold %e ************" % (thresh))
+        params = {"lo_type": "pm", "no_type": "cim", "frag_lolist": "1o"}
+        mfcc2 = run2(mf, thresh, None, params=params)
