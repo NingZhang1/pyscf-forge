@@ -72,6 +72,8 @@ prim_mesh = prim_cell.mesh
 for kmesh in kmeshes:
 
     mesh = [int(k * x) for k, x in zip(kmesh, prim_mesh)]
+
+    print("\n" + "-" * 100)
     print("kmesh:", kmesh, "mesh:", mesh)
 
     kpts = prim_cell.make_kpts(kmesh)

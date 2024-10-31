@@ -901,18 +901,18 @@ class ISDF_Local(isdf.ISDF):
     ): 
         cell = self.cell
         if self._isdf is not None:
-            isdf = self._isdf
-            assert isinstance(self._isdf, str)
-            assert os.path.exists(self._isdf)
+            isdf_file = self._isdf
+            assert os.path.exists(isdf_file)
 
-            misc._debug4(self, self.rank, "try to read results from %s" % self._isdf)
+            misc._debug4(self, self.rank, "try to read results from %s" % isdf_file)
             misc._debug4(self, self.rank, "_isdf_to_save will be ignored")
             self._isdf_to_save = None
 
-            with open(self._isdf, "rb") as f:
+            with open(isdf_file, "rb") as f:
                 self = pickle.load(f)
                 self.cell = cell
-                misc._debug4(self, self.rank, "finished reading from %s" % self._isdf)
+                misc._debug4(self, self.rank, "finished reading from %s" % isdf_file)
+                return
 
         # preprocess #
         rela_cutoff = abs(rela_cutoff)
