@@ -397,6 +397,8 @@ class ISDF(df.fft.FFTDF):
     """Interpolative separable density fitting (ISDF) for periodic systems.
     Not recommended as the locality is not explored!
     """
+    _use_super_pp = False
+    _use_FFTDF_pp = False
 
     def __init__(
         self,
@@ -455,14 +457,10 @@ class ISDF(df.fft.FFTDF):
         self.W = None  # TensorTy, cpu/gpu
 
         # buffer
-
         self.buffer = None
         self.fft_buffer = None  # must be singled out due to the alignment problem
 
         # other properties
-
-        self._use_super_pp = False
-        self._use_FFTDF_pp = self._use_super_pp
         self.ke_cutoff_pp = self.ke_cutoff
         self.use_mpi = use_mpi
 
@@ -470,7 +468,6 @@ class ISDF(df.fft.FFTDF):
 
         if self.use_mpi:
             from pyscf.isdf.isdf_tools_mpi import rank
-
             self.rank = rank
         else:
             self.rank = 0

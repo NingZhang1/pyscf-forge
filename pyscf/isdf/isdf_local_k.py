@@ -398,6 +398,9 @@ def build_V_W_local_k_outcore(mydf, use_mpi=False):
 
 
 class ISDF_Local_K(ISDF_Local):
+    _use_super_pp = False
+    _use_FFTDF_pp = False
+    
     def __init__(
         self,
         cell: Cell,
@@ -415,17 +418,7 @@ class ISDF_Local_K(ISDF_Local):
 
         atm = []
 
-        #### TODO: remove the following restriction on the structure of lattice ####
-
-        assert cell.a[0][1] == 0.0
-        assert cell.a[0][2] == 0.0
-        assert cell.a[1][0] == 0.0
-        assert cell.a[1][2] == 0.0
-        assert cell.a[2][0] == 0.0
-        assert cell.a[2][1] == 0.0
-
         from pyscf.lib.parameters import BOHR
-
         for i in range(cell.natm):
             coords = cell.atom_coord(i)
             coords = np.array(coords) * BOHR

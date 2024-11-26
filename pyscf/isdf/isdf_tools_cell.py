@@ -44,14 +44,7 @@ def build_supercell(
     verbose=4,
 ):
     Cell = pbcgto.Cell()
-
-    assert prim_a[0, 1] == 0.0
-    assert prim_a[0, 2] == 0.0
-    assert prim_a[1, 0] == 0.0
-    assert prim_a[1, 2] == 0.0
-    assert prim_a[2, 0] == 0.0
-    assert prim_a[2, 1] == 0.0
-
+    
     Supercell_a = prim_a * np.array(Ls)
     Cell.a = Supercell_a
 
