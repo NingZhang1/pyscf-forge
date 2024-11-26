@@ -45,30 +45,15 @@ def build_supercell(
 ):
     Cell = pbcgto.Cell()
 
-    assert prim_a[0, 1] == 0.0
-    assert prim_a[0, 2] == 0.0
-    assert prim_a[1, 0] == 0.0
-    assert prim_a[1, 2] == 0.0
-    assert prim_a[2, 0] == 0.0
-    assert prim_a[2, 1] == 0.0
-
     Supercell_a = prim_a * np.array(Ls)
     Cell.a = Supercell_a
 
     atm = []
-
-    for ix, iy, iz in product(range(Ls[0]), range(Ls[1]), range(Ls[2])):
-        shift = [ix * prim_a[0, 0], iy * prim_a[1, 1], iz * prim_a[2, 2]]
+    for dx in product(range(Ls[0]), range(Ls[1]), range(Ls[2])):
+        shift = np.dot(dx, prim_a)
         for atom in prim_atm:
             atm.append(
-                [
-                    atom[0],
-                    (
-                        atom[1][0] + shift[0],
-                        atom[1][1] + shift[1],
-                        atom[1][2] + shift[2],
-                    ),
-                ]
+                [atom[0], tuple(atom[1] + shift)]
             )
 
     Cell.atom = atm

@@ -564,9 +564,11 @@ def get_partition(
     assert Ls_box[2][2] < 3.0
 
     ##### helper functions #####
+    Ls_box_inv = np.linalg.inv(Ls_box)
+    assert Ls_box_inv.shape == (3, 3)
 
     def get_box_id(coord):
-        return tuple(int(c / Ls_box[i][i]) for i, c in enumerate(coord))
+        return tuple([int(c) for c in np.dot(coord, Ls_box_inv)])
 
     def get_box_id_from_coord(coord):
         return get_box_id(coord)
